@@ -2,6 +2,18 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.4 — 2026-10-27
+
+Tranche T4 : panneaux de travail, Git, navigateur intégré et rendu enrichi.
+
+- **Panneau de travail** (Ctrl+J ou bouton de l'en-tête) : onglets Fichiers, Terminal, Git, Navigateur et Aperçu ; redimensionnable, agrandissable, fermable ; onglet, largeur et état conservés.
+- **Fichiers** : arborescence limitée aux ressources de la conversation, recherche par nom ou dans le contenu, copie du chemin, affichage dans l'explorateur ; **Aperçu** rendu ou source (Markdown, HTML isolé, SVG, images, code coloré).
+- **Terminal** : commandes de la conversation (agent et vous), sortie en direct, arrêt, nouvelle commande dans le dossier de la conversation.
+- **Git** : statut, diff par fichier, indexer, désindexer, annuler (avec confirmation), commit, changement de branche, historique, fetch, pull, push (avec confirmation). Outils Git pour l'agent : lecture automatique, écritures et accès réseau soumis aux autorisations.
+- **Navigateur intégré** : onglets, adresse ou recherche, navigation, vue mobile, outils de développement, ouverture dans le navigateur système, effacement des données. Partition isolée, aucune permission web, téléchargements bloqués. L'agent peut ouvrir une page publique, lire son texte, inspecter le DOM, cliquer et saisir (jamais dans un champ mot de passe) ; les adresses privées et locales lui sont refusées.
+- **Captures** (skill désactivé par défaut) : page du navigateur, écran ou fenêtre, jointes à la conversation et transmises aux modèles avec vision.
+- **Rendu enrichi** (Réglages › Chat) : formules LaTeX (KaTeX), diagrammes Mermaid, aperçus isolés des blocs HTML et SVG (scripts désactivés), badges pour les fichiers cités vérifiés sur le disque (clic = aperçu).
+
 ## 3.0.0-alpha.3 — 2026-10-27
 
 Tranche T3 : outils, modes Agent et autorisations.

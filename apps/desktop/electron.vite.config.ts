@@ -28,6 +28,8 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     plugins: [vue()],
+    // elkjs (EPL-2.0, ~2,6 Mo) remplacé par un module qui signale la disposition indisponible.
+    resolve: { alias: { 'elkjs/lib/elk.bundled.js': resolve(__dirname, 'src/renderer/src/lib/stubs/elk.ts') } },
     build: {
       rollupOptions: { input: resolve(__dirname, 'src/renderer/index.html') },
       chunkSizeWarningLimit: 2000,

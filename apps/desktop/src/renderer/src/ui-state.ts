@@ -28,4 +28,6 @@ export const uiState = reactive({
   appearancePreview: null as Settings['appearance'] | null,
   changelogOpen: false,
   projectDialog: { open: false, projectId: null as Id | null, focus: 'general' as 'general' | 'instructions' },
+  /** Fichier affiché dans l'onglet Aperçu du panneau de travail. */
+  preview: null as { conversationId: Id; path: string; line: number | null } | null,
 });

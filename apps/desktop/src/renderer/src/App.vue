@@ -6,10 +6,11 @@ import ConfirmDialog from 'primevue/confirmdialog';
 import ProgressSpinner from 'primevue/progressspinner';
 import { useToast } from 'primevue/usetoast';
 import { resolveLocale, type Settings } from '@monolith/contracts';
-import { host, errorMessage } from './api.ts';
+import { api, host, errorMessage } from './api.ts';
 import { initStore, store } from './stores/app.ts';
 import { applyAppearance } from './theme/themes.ts';
-import { setCodeTheme } from './lib/markdown.ts';
+import { setCodeTheme, setRenderOptions } from './lib/markdown.ts';
+import WorkPanel from './components/panel/WorkPanel.vue';
 import { uiState, type SettingsSectionId } from './ui-state.ts';
 import TitleBar from './components/TitleBar.vue';
 import Sidebar from './components/Sidebar.vue';
@@ -50,6 +51,16 @@ watch(
 );
 
 const customTitleBar = computed(() => store.renderer?.customTitleBar ?? false);
+const layout = computed(() => store.settings?.layout);
+watch(() => store.settings?.render, (r) => r && setRenderOptions({ ...r }), { deep: true, immediate: true });
+
+// Ctrl+J : afficher ou masquer le panneau de travail.
+function onKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j' && store.settings) {
+    e.preventDefault();
+    void api.call('settings.update', { layout: { panelOpen: !store.settings.layout.panelOpen } });
+  }
+}
 
 // Erreurs signalées par le moteur hors d'un appel (ex. élément de file non envoyé).
 const toast = useToast();
@@ -68,13 +79,17 @@ provide('openSettings', openSettings);
 
 onMounted(async () => {
   media.addEventListener('change', onMedia);
+  window.addEventListener('keydown', onKey);
   try {
     await initStore();
   } catch (error) {
     store.fatal = errorMessage(error);
   }
 });
-onBeforeUnmount(() => media.removeEventListener('change', onMedia));
+onBeforeUnmount(() => {
+  media.removeEventListener('change', onMedia);
+  window.removeEventListener('keydown', onKey);
+});
 </script>
 
 <template>
@@ -93,7 +108,8 @@ onBeforeUnmount(() => media.removeEventListener('change', onMedia));
     </div>
     <div v-else class="mh-main">
       <Sidebar @open-settings="openSettings" />
-      <ChatView @open-settings="openSettings" />
+      <ChatView v-show="!(layout?.panelOpen && layout.panelMaximized)" @open-settings="openSettings" />
+      <WorkPanel v-if="layout?.panelOpen" />
     </div>
     <SettingsDialog v-if="store.ready" />
     <ChangelogDialog v-if="store.ready" />

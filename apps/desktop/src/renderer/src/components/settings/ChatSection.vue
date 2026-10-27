@@ -73,6 +73,13 @@ function setProvider(id: number | null) {
     <ToggleSwitch input-id="lines" v-model="draft.chat.codeLineNumbers" />
   </div>
 
+  <h3 class="mh-section-title">{{ t('settings.chat.render') }}</h3>
+  <div v-for="k in (['mermaid', 'latex', 'htmlPreview', 'fileBadges'] as const)" :key="k" class="mh-switch-row">
+    <label :for="`render-${k}`">{{ t(`settings.chat.${k}`) }}</label>
+    <ToggleSwitch :input-id="`render-${k}`" v-model="draft.render[k]" />
+  </div>
+  <p class="mh-hint">{{ t('settings.chat.renderHint') }}</p>
+
   <h3 class="mh-section-title">{{ t('settings.chat.naming') }}</h3>
   <div class="mh-switch-row">
     <div>

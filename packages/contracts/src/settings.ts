@@ -88,7 +88,19 @@ export interface Settings {
     enabled: Record<string, boolean>;
     info: { date: boolean; system: boolean; conversation: boolean };
   };
+  render: {
+    mermaid: boolean;
+    latex: boolean;
+    /** Aperçus interactifs isolés des blocs HTML. */
+    htmlPreview: boolean;
+    /** Badges de fichiers vérifiés pour les chemins cités. */
+    fileBadges: boolean;
+  };
   layout: {
+    panelOpen: boolean;
+    panelTab: string;
+    panelWidth: number;
+    panelMaximized: boolean;
     sidebarWidth: number;
     sidebarCollapsed: boolean;
     collapsedProjects: Id[];
@@ -171,10 +183,23 @@ export const DEFAULT_SETTINGS: Settings = {
       summary: true,
       review: true,
       design: false,
+      git: true,
+      browser: true,
+      screenshots: false,
     },
     info: { date: true, system: true, conversation: true },
   },
+  render: {
+    mermaid: true,
+    latex: true,
+    htmlPreview: true,
+    fileBadges: true,
+  },
   layout: {
+    panelOpen: false,
+    panelTab: 'files',
+    panelWidth: 520,
+    panelMaximized: false,
     sidebarWidth: 280,
     sidebarCollapsed: false,
     collapsedProjects: [],
@@ -194,6 +219,7 @@ export const SETTINGS_BOUNDS = {
   'network.retryMaxAttempts': [1, 8],
   'network.retryBaseDelayMs': [100, 10_000],
   'layout.sidebarWidth': [200, 520],
+  'layout.panelWidth': [320, 1400],
   'chat.compactThreshold': [40, 95],
   'chat.compactKeepTurns': [1, 20],
   'agent.maxToolRounds': [1, 200],

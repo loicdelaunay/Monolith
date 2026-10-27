@@ -12,6 +12,26 @@ export interface RendererInfo {
   locale: string;
 }
 
+export interface BrowserTabInfo {
+  id: string;
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  mobile: boolean;
+  conversationId: number | null;
+  error: string | null;
+}
+
+export interface BrowserStateInfo {
+  tabs: BrowserTabInfo[];
+  activeId: string | null;
+  notice: string | null;
+}
+
+export type BrowserCommand = 'new' | 'navigate' | 'back' | 'forward' | 'reload' | 'stop' | 'select' | 'close' | 'mobile' | 'devtools' | 'external' | 'clearData';
+
 export interface HostApi {
   info(): Promise<RendererInfo>;
   pickDirectory(title?: string): Promise<string | null>;
@@ -23,6 +43,13 @@ export interface HostApi {
   setTitleBarColors(colors: { background: string; symbols: string }): Promise<void>;
   setZoom(factor: number): void;
   relaunch(): Promise<void>;
+  browser: {
+    /** Position du panneau en pixels de fenêtre ; null masque la vue. */
+    setBounds(bounds: { x: number; y: number; width: number; height: number } | null): void;
+    command(cmd: BrowserCommand, args?: Record<string, unknown>): Promise<void>;
+    state(): Promise<BrowserStateInfo | null>;
+    onState(listener: (state: BrowserStateInfo) => void): () => void;
+  };
   onEngineRestarted(listener: () => void): () => void;
 }
 

@@ -61,6 +61,11 @@ export class AttachmentService {
     return this.store(cleanName(name), typeof mime === 'string' ? mime.toLowerCase() : '', bytes);
   }
 
+  /** Image produite par un outil (capture). */
+  storeImage(name: string, dataBase64: string): AttachmentRef {
+    return this.store(cleanName(name), 'image/png', Buffer.from(dataBase64, 'base64'));
+  }
+
   /** Lecture d'un fichier choisi explicitement par l'utilisateur (CLI). */
   uploadFile(path: string): AttachmentRef {
     const bytes = readFileSync(path);

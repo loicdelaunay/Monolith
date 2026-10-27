@@ -17,11 +17,110 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkOpen(tokens, idx, options, env, self);
 };
 
+/** Options de rendu enrichi (réglages « Rendu enrichi »). */
+export const renderOptions = { latex: true, mermaid: true, htmlPreview: true, fileBadges: true };
+
+export function setRenderOptions(next: typeof renderOptions): void {
+  if (Object.entries(next).every(([k, v]) => renderOptions[k as keyof typeof renderOptions] === v)) return;
+  Object.assign(renderOptions, next);
+  clearCache();
+  highlightVersion.value++;
+}
+
 md.renderer.rules.fence = (tokens, idx) => {
   const token = tokens[idx]!;
   const lang = token.info.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  // Diagramme : le code reste dans la page (repli) ; MarkdownView le remplace par le SVG rendu.
+  if (lang === 'mermaid' && renderOptions.mermaid) return `<div class="mh-mermaid" data-mermaid="${encodeURIComponent(token.content)}">${renderCode(token.content, lang)}</div>`;
   return renderCode(token.content, lang);
 };
+
+// ---------- Chemins cités : candidats aux badges de fichiers (vérifiés ensuite sur le disque) ----------
+const defaultCodeInline = md.renderer.rules.code_inline!;
+const PATHLIKE = /^(?![a-z][\w+.-]*:\/\/)(?!-)[^\s<>|"*?`]{2,300}$/i;
+export function looksLikePath(s: string): boolean {
+  if (!PATHLIKE.test(s)) return false;
+  if (/[\\/]/.test(s)) return /[\w.-]/.test(s.replace(/[\\/]/g, ''));
+  return /^[\w.-]+\.[a-z0-9]{1,8}(:\d+(:\d+)?|#L\d+)?$/i.test(s) && !/^\d+(\.\d+)+$/.test(s);
+}
+md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+  const content = tokens[idx]!.content;
+  if (renderOptions.fileBadges && looksLikePath(content)) return `<code class="mh-path" data-path="${escapeHtml(content)}">${escapeHtml(content)}</code>`;
+  return defaultCodeInline(tokens, idx, options, env, self);
+};
+
+// ---------- Formules LaTeX (KaTeX chargé à la demande) ----------
+type Katex = typeof import('katex').default;
+let katex: Katex | null = null;
+let katexLoading: Promise<void> | null = null;
+function loadKatex(): void {
+  katexLoading ??= Promise.all([import('katex'), import('katex/dist/katex.min.css')])
+    .then(([k]) => {
+      katex = k.default;
+      clearCache();
+      highlightVersion.value++;
+    })
+    .catch(() => undefined);
+}
+function renderMath(tex: string, display: boolean): string {
+  if (!katex) {
+    loadKatex();
+    return display ? `<div class="mh-math-pending"><code>${escapeHtml(tex)}</code></div>` : `<code>${escapeHtml(tex)}</code>`;
+  }
+  try {
+    return katex.renderToString(tex, { displayMode: display, throwOnError: false, output: 'htmlAndMathml', trust: false, strict: 'ignore', maxSize: 50, maxExpand: 500 });
+  } catch {
+    return `<code>${escapeHtml(tex)}</code>`;
+  }
+}
+
+md.inline.ruler.before('escape', 'math_inline', (state, silent) => {
+  if (!renderOptions.latex) return false;
+  const src = state.src;
+  const pos = state.pos;
+  let open: string;
+  let close: string;
+  if (src.startsWith('\\(', pos)) [open, close] = ['\\(', '\\)'];
+  else if (src[pos] === '$' && src[pos + 1] !== '$') [open, close] = ['$', '$'];
+  else return false;
+  const start = pos + open.length;
+  if (open === '$' && (!src[start] || /\s/.test(src[start]!))) return false;
+  let end = src.indexOf(close, start);
+  while (end !== -1 && open === '$' && src[end - 1] === '\\') end = src.indexOf(close, end + 1);
+  if (end === -1 || end === start) return false;
+  // « 5 $ et 10 $ » ne sont pas des formules : pas d'espace avant le « $ » fermant ni de chiffre après.
+  if (open === '$' && (/\s/.test(src[end - 1]!) || /\d/.test(src[end + 1] ?? ''))) return false;
+  if (!silent) state.push('math_inline', 'math', 0).content = src.slice(start, end);
+  state.pos = end + close.length;
+  return true;
+});
+
+md.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
+  if (!renderOptions.latex) return false;
+  const first = state.src.slice(state.bMarks[startLine]! + state.tShift[startLine]!, state.eMarks[startLine]).trim();
+  const close = first.startsWith('$$') ? '$$' : first.startsWith('\\[') ? '\\]' : null;
+  if (!close) return false;
+  if (silent) return true;
+  let content = first.slice(2);
+  let line = startLine;
+  let found = content.trimEnd().endsWith(close);
+  if (found) content = content.trimEnd().slice(0, -close.length);
+  while (!found && ++line < endLine) {
+    const l = state.src.slice(state.bMarks[line]! + state.tShift[line]!, state.eMarks[line]).trimEnd();
+    if (l.endsWith(close)) {
+      content += `\n${l.slice(0, -close.length)}`;
+      found = true;
+    } else content += `\n${l}`;
+  }
+  state.line = Math.min(line, endLine) + 1;
+  const token = state.push('math_block', 'math', 0);
+  token.block = true;
+  token.content = content;
+  token.map = [startLine, state.line];
+  return true;
+});
+md.renderer.rules.math_inline = (tokens, idx) => renderMath(tokens[idx]!.content, false);
+md.renderer.rules.math_block = (tokens, idx) => `<div class="mh-math">${renderMath(tokens[idx]!.content, true)}</div>`;
 md.renderer.rules.code_block = (tokens, idx) => renderCode(tokens[idx]!.content, '');
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -97,7 +196,9 @@ function renderCode(code: string, rawLang: string): string {
     void ensureLang(lang);
   }
   if (!body) body = `<pre class="shiki"><code>${escapeHtml(code.replace(/\n$/, '')).replace(/^/gm, '<span class="line">').replace(/$/gm, '</span>')}</code></pre>`;
-  return `<div class="mh-code" data-lang="${label}"><div class="mh-code-head"><span>${label}</span><button type="button" class="mh-copy" data-copy="1" aria-label="Copier le code"><i class="pi pi-copy"></i></button></div>${body}</div>`;
+  const previewable = renderOptions.htmlPreview && (lang === 'html' || lang === 'svg' || (lang === 'xml' && /^\s*<svg[\s>]/.test(code)));
+  const preview = previewable ? `<button type="button" class="mh-copy" data-preview="${lang === 'html' ? 'html' : 'svg'}" aria-label="Aperçu"><i class="pi pi-eye"></i></button>` : '';
+  return `<div class="mh-code" data-lang="${label}"><div class="mh-code-head"><span>${label}</span>${preview}<button type="button" class="mh-copy" data-copy="1" aria-label="Copier le code"><i class="pi pi-copy"></i></button></div>${body}</div>`;
 }
 
 const cache = new Map<string, string>();
@@ -156,6 +257,13 @@ export function splitBlocks(text: string): string[] {
   }
   push();
   return blocks;
+}
+
+/** Bloc de code Markdown sûr : la clôture est plus longue que toute suite d'accents graves du texte. */
+export function fenced(text: string, lang: string): string {
+  const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+  const fence = '`'.repeat(longest + 1);
+  return `${fence}${lang.replace(/[^\w+#-]/g, '')}\n${text}\n${fence}`;
 }
 
 export function renderMarkdown(text: string): string {

@@ -9,7 +9,11 @@ interface ReadyMessage {
   readOnly: boolean;
 }
 
-type EngineMessage = ReadyMessage | { type: 'fatal'; message: string } | { type: 'settings'; titleBar: 'custom' | 'system'; zoom: number };
+type EngineMessage =
+  | ReadyMessage
+  | { type: 'fatal'; message: string }
+  | { type: 'settings'; titleBar: 'custom' | 'system'; zoom: number }
+  | { type: 'host-request'; id: number; method: string; params: Record<string, unknown> };
 
 /**
  * Cycle de vie du processus moteur. En cas d'arrêt inattendu, il est relancé (au plus
@@ -22,6 +26,8 @@ export class EngineHost extends EventEmitter {
   private readonly clients = new Set<WebContents>();
   dataDir: string | null = null;
   titleBar: 'custom' | 'system' = 'custom';
+  /** Services hôte demandés par le moteur (navigateur intégré, captures). */
+  hostHandler: ((method: string, params: Record<string, unknown>) => Promise<unknown>) | null = null;
 
   constructor(private readonly options: { entry: string; env: Record<string, string> }) {
     super();
@@ -46,6 +52,14 @@ export class EngineHost extends EventEmitter {
           reject(new Error(msg.message));
         } else if (msg.type === 'settings') {
           this.titleBar = msg.titleBar;
+        } else if (msg.type === 'host-request') {
+          const reply = (body: { result?: unknown; error?: string }) => this.child?.postMessage({ type: 'host-response', id: msg.id, ...body });
+          if (!this.hostHandler) reply({ error: 'Services hôte indisponibles.' });
+          else
+            this.hostHandler(msg.method, msg.params).then(
+              (result) => reply({ result }),
+              (e: unknown) => reply({ error: e instanceof Error ? e.message : String(e) }),
+            );
         }
       });
       child.on('exit', (code) => {

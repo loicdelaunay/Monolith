@@ -36,6 +36,16 @@ const host: HostApi = {
     if (typeof factor === 'number' && factor >= 0.5 && factor <= 2 && webFrame.getZoomFactor() !== factor) webFrame.setZoomFactor(factor);
   },
   relaunch: () => ipcRenderer.invoke('host:relaunch'),
+  browser: {
+    setBounds: (bounds) => ipcRenderer.send('browser:bounds', bounds),
+    command: (cmd, args) => ipcRenderer.invoke('browser:command', cmd, args ?? {}),
+    state: () => ipcRenderer.invoke('browser:state'),
+    onState: (listener) => {
+      const l = (_e: unknown, s: Parameters<typeof listener>[0]) => listener(s);
+      ipcRenderer.on('browser:state', l);
+      return () => ipcRenderer.off('browser:state', l);
+    },
+  },
   onEngineRestarted: (listener) => {
     restartListeners.add(listener);
     return () => restartListeners.delete(listener);

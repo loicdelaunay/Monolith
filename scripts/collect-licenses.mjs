@@ -8,10 +8,13 @@ import { dirname, join } from 'node:path';
 const root = join(import.meta.dirname, '..');
 // Racines réellement regroupées dans les bundles (Electron est fourni avec ses propres licences par electron-builder).
 const ROOTS = {
-  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki'],
+  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki', 'katex', 'mermaid'],
   cli: ['ink', 'react'],
 };
-const ALLOWED = new Set(['MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', '0BSD', 'MIT-0', 'CC0-1.0', 'Unlicense', 'BlueOak-1.0.0', 'Python-2.0', 'PSF-2.0', '(MIT OR CC0-1.0)', '(MIT OR Apache-2.0)', 'MIT OR Apache-2.0']);
+// Paquets exclus des bundles (remplacés par un module local) et licences déclarées hors package.json.
+const EXCLUDED = new Set(['elkjs']);
+const KNOWN_LICENSES = { khroma: 'MIT' };
+const ALLOWED = new Set(['(MPL-2.0 OR Apache-2.0)', 'MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', '0BSD', 'MIT-0', 'CC0-1.0', 'Unlicense', 'BlueOak-1.0.0', 'Python-2.0', 'PSF-2.0', '(MIT OR CC0-1.0)', '(MIT OR Apache-2.0)', 'MIT OR Apache-2.0']);
 
 function resolvePackage(name, fromDir) {
   for (let dir = fromDir; ; dir = dirname(dir)) {
@@ -23,6 +26,7 @@ function resolvePackage(name, fromDir) {
 
 const found = new Map();
 function visit(name, fromDir, app) {
+  if (EXCLUDED.has(name)) return;
   const pkgPath = resolvePackage(name, fromDir);
   if (!pkgPath) return;
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
@@ -34,7 +38,7 @@ function visit(name, fromDir, app) {
   }
   const dir = dirname(pkgPath);
   const licenseFile = readdirSync(dir).find((f) => /^(licen[cs]e|copying)(\.|$)/i.test(f));
-  const license = typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? (Array.isArray(pkg.licenses) ? pkg.licenses.map((l) => l.type).join(' OR ') : 'UNKNOWN'));
+  const license = KNOWN_LICENSES[pkg.name] ?? (typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? (Array.isArray(pkg.licenses) ? pkg.licenses.map((l) => l.type).join(' OR ') : 'UNKNOWN')));
   found.set(key, { name: pkg.name, version: pkg.version, license, apps: new Set([app]), text: licenseFile ? readFileSync(join(dir, licenseFile), 'utf8').trim() : null, homepage: pkg.homepage ?? pkg.repository?.url ?? '' });
   for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies })) visit(dep, dir, app);
 }

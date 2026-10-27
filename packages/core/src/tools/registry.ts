@@ -1,4 +1,4 @@
-import type { AgentMode, ConversationMode, Settings, SkillInfo } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, type AgentMode, type ConversationMode, type Settings, type SkillInfo } from '@monolith/contracts';
 import type { ToolDefinition } from './types.ts';
 import { INSTRUCTION_SKILLS } from './builtin.ts';
 
@@ -52,11 +52,15 @@ export class ToolRegistry {
   }
 
   skillEnabled(settings: Settings, skill: string): boolean {
-    return settings.skills.enabled[skill] ?? false;
+    // Un skill apparu dans une version plus récente prend sa valeur par défaut.
+    return settings.skills.enabled[skill] ?? DEFAULT_SETTINGS.skills.enabled[skill] ?? false;
   }
 
+  /** Filtre supplémentaire de l'hôte (ex. navigateur absent). */
+  hostFilter: (t: ToolDefinition) => boolean = () => true;
+
   /** Outils exposés au modèle pour cette génération : skill actif, mode compatible, hôte compatible. */
-  available(settings: Settings, mode: ConversationMode, agentMode: AgentMode, host: Host, extra: (t: ToolDefinition) => boolean = () => true): ToolDefinition[] {
+  available(settings: Settings, mode: ConversationMode, agentMode: AgentMode, host: Host, extra: (t: ToolDefinition) => boolean = this.hostFilter): ToolDefinition[] {
     return this.all().filter((t) => this.skillEnabled(settings, t.skill) && (!t.hosts || t.hosts.includes(host)) && modeAllows(t, mode, agentMode).ok && extra(t));
   }
 
@@ -66,7 +70,7 @@ export class ToolRegistry {
     const ids = new Set([...bySkill.keys(), ...Object.keys(INSTRUCTION_SKILLS)]);
     return [...ids].map((id) => {
       const tools = bySkill.get(id) ?? [];
-      const hostOk = tools.length === 0 || tools.some((t) => !t.hosts || t.hosts.includes(host));
+      const hostOk = tools.length === 0 || tools.some((t) => (!t.hosts || t.hosts.includes(host)) && this.hostFilter(t));
       return {
         id,
         family: tools[0]?.family ?? 'instructions',

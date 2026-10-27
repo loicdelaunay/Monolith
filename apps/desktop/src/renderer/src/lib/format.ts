@@ -34,3 +34,9 @@ export function relativeDate(iso: string | null, locale: string): string {
   if (diff < 7 * 86_400) return rtf.format(-Math.round(diff / 86_400), 'day');
   return d.toLocaleDateString(locale);
 }
+
+/** Retire les séquences de contrôle ANSI (couleurs, curseur) d'une sortie de terminal. */
+export function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)|\u001b[@-Z\\-_]/g, '');
+}

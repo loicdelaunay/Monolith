@@ -145,6 +145,19 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
       if (group.length === 0) return;
       out.push({ role: 'assistant', parts: text.trim() ? [{ type: 'text', text }] : [], toolCalls: group.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments || '{}' })) });
       for (const c of group) out.push({ role: 'tool', toolCallId: c.id, parts: [{ type: 'text', text: toolResultText(c) }] });
+      // Images produites par un outil (captures) : jointes dans un message utilisateur, si le modèle a la vision.
+      const images = group.filter((c) => c.display?.kind === 'image' && c.status === 'done');
+      if (images.length && options && options.vision !== false) {
+        const parts: ContentPart[] = [{ type: 'text', text: '[Image(s) produite(s) par les outils ci-dessus]' }];
+        for (const c of images) {
+          try {
+            parts.push({ type: 'image_url', image_url: { url: options.attachments.dataUrl({ id: (c.display as { attachmentId: number }).attachmentId, name: 'capture.png', mime: 'image/png', size: 0, kind: 'image' }) } });
+          } catch {
+            /* image introuvable : le résultat texte de l'outil suffit */
+          }
+        }
+        out.push({ role: 'user', parts });
+      }
       text = '';
       group = [];
     };

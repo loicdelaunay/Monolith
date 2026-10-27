@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { EngineHost } from './engine-host.ts';
+import { BrowserManager } from './browser.ts';
 import type { RendererInfo } from '../shared/bridge.ts';
 
 const TITLE_BAR_HEIGHT = 40;
@@ -32,6 +33,13 @@ const engine = new EngineHost({
 });
 
 let mainWindow: BrowserWindow | null = null;
+const browser = new BrowserManager(
+  () => mainWindow,
+  (tabs, activeId, notice) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('browser:state', { tabs, activeId, notice: notice ?? null });
+  },
+);
+engine.hostHandler = (method, params) => browser.hostRequest(method, params);
 
 interface WindowState {
   width: number;
@@ -146,6 +154,8 @@ function smokeCapture(win: BrowserWindow, target: string): void {
       await wait(900);
       const image = await win.webContents.capturePage();
       writeFileSync(target.replace(/\.png$/, `-${index + 1}.png`), image.toPNG());
+      const view = await browser.captureVisible();
+      if (view && !view.isEmpty()) writeFileSync(target.replace(/\.png$/, `-${index + 1}-browser.png`), view.toPNG());
     }
     const image = await win.webContents.capturePage();
     writeFileSync(target, image.toPNG());
@@ -212,6 +222,18 @@ function registerIpc(): void {
     const symbolColor = hex(colors?.symbols);
     if (color && symbolColor) win.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_HEIGHT });
   });
+  ipcMain.on('browser:bounds', (event, bounds: unknown) => {
+    if (!fromOurWindow(event)) return;
+    const b = bounds as { x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
+    if (!b) browser.setBounds(null);
+    else if ([b.x, b.y, b.width, b.height].every((v) => !Number.isNaN(num(v)))) browser.setBounds({ x: num(b.x), y: num(b.y), width: num(b.width), height: num(b.height) });
+  });
+  ipcMain.handle('browser:command', async (event, cmd: unknown, args: unknown) => {
+    if (!fromOurWindow(event) || typeof cmd !== 'string') return;
+    await browser.command(cmd, args && typeof args === 'object' ? (args as Record<string, unknown>) : {});
+  });
+  ipcMain.handle('browser:state', (event) => (fromOurWindow(event) ? { tabs: browser.states(), activeId: browser.active, notice: null } : null));
   ipcMain.handle('host:relaunch', (event) => {
     if (!fromOurWindow(event)) return;
     app.relaunch();

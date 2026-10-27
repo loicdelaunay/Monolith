@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T3 (3.0.0-alpha.3).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T4 (3.0.0-alpha.4).**
 
 ## 1. Fondations
 
@@ -61,7 +61,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | U-01 | Barre latérale projets/conversations/recherche/notifications | 🟡 | ➖ | ➖ | T1 | Projets, conversations, recherche ; notifications en T9. |
-| U-02 | Panneau d'outils redimensionnable (navigateur, terminaux, Git, fichiers, assets, aperçu) | ⬜ | ➖ | ➖ | T4 | |
+| U-02 | Panneau d'outils redimensionnable (navigateur, terminaux, Git, fichiers, assets, aperçu) | 🟡 | ➖ | ➖ | T4 | Fichiers, Terminal, Git, Navigateur, Aperçu : redimensionnable, agrandir, fermer, Ctrl+J, état conservé (parcours visuel). Onglet Assets avec le générateur (T8). |
 | U-03 | Barre supérieure : identité unique, contrôles natifs uniques, repli système, drag jusqu'au bord | 🟡 | ➖ | ➖ | T1 | Identité unique, contrôles natifs superposés (un seul jeu), repli « cadre système », zone de déplacement jusqu’au bord. À vérifier manuellement : déplacement depuis une fenêtre maximisée. |
 | U-04 | Bouton version → changelog intégré | ✅ | ✅ | ⬜ | T1 | CLI : `/changelog`. |
 | U-05 | Menu outils dédiés en bas de la barre latérale, à côté de Réglages | ⬜ | ➖ | ➖ | T8 | |
@@ -78,12 +78,12 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | R-01 | Markdown, tableaux, listes, citations, liens | ✅ | 🟡 | ⬜ | T1 | CLI : rendu texte simplifié. |
 | R-02 | Code coloré, copie, numéros de ligne | ✅ | 🟡 | ⬜ | T1 | Shiki chargé à la demande, copie, numéros de ligne (réglage). CLI : blocs colorés sans coloration syntaxique. |
 | R-03 | Images et documents (limites explicites) | 🟡 | 🟡 | ⬜ | T2 | Images PNG/JPEG/WebP/GIF ≤ 10 Mo et texte UTF-8 ≤ 1 Mo, contenu vérifié ; PDF et documents bureautiques non pris en charge (refus expliqué). |
-| R-04 | Mermaid | ⬜ | ➖ | ⬜ | T4 | CLI : source affichée. |
-| R-05 | LaTeX en ligne et en bloc | ⬜ | ➖ | ⬜ | T4 | |
-| R-06 | Cartes web et aperçus interactifs isolés | ⬜ | ➖ | ⬜ | T4 | |
+| R-04 | Mermaid | ✅ | ⬜ | ⬜ | T4 | Rendu local à la demande (sécurité stricte), différé pendant le streaming, bascule code/diagramme ; bloc invalide affiché comme code. CLI : source affichée. |
+| R-05 | LaTeX en ligne et en bloc | ✅ | ⬜ | ⬜ | T4 | KaTeX à la demande : `$…$`, `\(…\)`, `$$…$$`, `\[…\]` ; montants « 5 $ » ignorés ; erreurs affichées sans casser le message. |
+| R-06 | Cartes web et aperçus interactifs isolés | 🟡 | ➖ | ⬜ | T4 | Aperçus HTML (iframe `sandbox` vide : ni script, ni formulaire, ni accès à l'application) et SVG. Cartes de liens web : T6 avec la recherche web. |
 | R-07 | Réglages indépendants par type de rendu | ⬜ | ⬜ | ➖ | T4 | |
 | R-08 | Styles de réponse (défaut, court, pragmatique, détaillé, ludique) | ✅ | 🟡 | ⬜ | T1 | Appliqué par le moteur ; CLI : réglage partagé, pas de commande dédiée. |
-| R-09 | Badges de fichiers vérifiés (existence, ligne, type) | ⬜ | ➖ | ⬜ | T4 | |
+| R-09 | Badges de fichiers vérifiés (existence, ligne, type) | ✅ | ⬜ | ⬜ | T4 | Chemins cités vérifiés sur le disque dans la portée de la conversation (`chemin:ligne`, `#L12`) ; clic = aperçu dans le panneau (test + parcours visuel). |
 | R-10 | Réflexion : affichage Aucun / Réduit / Détaillé | ✅ | ✅ | ⬜ | T2 | Réglage distinct du niveau demandé. |
 | R-11 | Chronologie réflexion/outils/réponses | ✅ | ✅ | ⬜ | T2 | Réflexion, texte, appels d’outils et réponses aux questions dans l’ordre d’arrivée ; les tours successifs restent dans une même réponse. |
 | R-12 | Défilement : suivi auto, suspension, position conservée | 🟡 | ➖ | ➖ | T1 | Suivi, suspension (molette/clavier), reprise en bas, sans polling ; test automatisé à ajouter. |
@@ -148,14 +148,14 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | K-02 | Information (date, système, conversation) | ✅ | ✅ | ⬜ | T3 | Catégories date, système, conversation réglables. |
 | K-03 | Sources : lister, lire, glob, grep | ✅ | ✅ | ⬜ | T3 | list_files, read_file, glob_files, grep_files dans la portée. |
 | K-04 | Création/édition de fichiers, patch multi-fichiers prévisualisé | ✅ | ✅ | ⬜ | T3 | write_file, edit_file, apply_patch atomique avec aperçu (tests). |
-| K-05 | Git (état, diff, log, branches, staging, commit, sync) | ⬜ | ⬜ | ⬜ | T4 | |
+| K-05 | Git (état, diff, log, branches, staging, commit, sync) | ✅ | 🟡 | ⬜ | T4 | Outils agent (lecture auto, écriture et réseau soumis aux autorisations, push/pull/fetch = effet réseau) + panneau Git (tests). CLI : outils de l'agent, sans commande `/git` dédiée. |
 | K-06 | Index `index.ohm` | ⬜ | ⬜ | ⬜ | T6 | |
 | K-07 | RAG local/distant | ⬜ | ⬜ | ⬜ | T6 | |
-| K-08 | Terminaux asynchrones | 🟡 | 🟡 | ⬜ | T3 | run_command / read_terminal / kill_terminal (tubes, délai, code de retour, arrière-plan). Panneau terminal interactif en T4. |
+| K-08 | Terminaux asynchrones | ✅ | 🟡 | ⬜ | T3–T4 | Outils run_command / read_terminal / kill_terminal ; panneau Terminal (sortie en direct, arrêt, commandes lancées par l'utilisateur). CLI : outils de l'agent. |
 | K-09 | Scripts Python | ⬜ | ⬜ | ⬜ | T6 | Nécessite un Python fourni ou détecté. |
 | K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ⬜ | ⬜ | ⬜ | T6 | |
-| K-11 | Navigateur intégré et DOM | ⬜ | ➖ | ➖ | T4 | CLI/serveur : via MCP si configuré. |
-| K-12 | Captures d'écran | ⬜ | ➖ | ➖ | T4 | |
+| K-11 | Navigateur intégré et DOM | ✅ | ➖ | ➖ | T4 | browser_open/read/dom/click/type : monde JS isolé, refus des champs mot de passe, adresses privées refusées à l'agent (SSRF). Parcours visuel. CLI/serveur : via MCP si configuré (T6). |
+| K-12 | Captures d'écran | ✅ | ➖ | ➖ | T4 | Capture du navigateur intégré, de l'écran ou d'une fenêtre, jointe à la conversation et transmise aux modèles avec vision. Skill désactivé par défaut. |
 | K-13 | Contrôle applications/souris/clavier | ⬜ | ➖ | ➖ | T11 | |
 | K-14 | Vision dédiée | ⬜ | ⬜ | ⬜ | T8 | |
 | K-15 | Générateur d'assets (skill) | ⬜ | ⬜ | ⬜ | T8 | |
@@ -199,10 +199,10 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| W-01 | Navigateur : onglets, adresse, navigation, plein écran, DOM, captures, vue mobile, suspension | ⬜ | ➖ | ➖ | T4 | |
+| W-01 | Navigateur : onglets, adresse, navigation, plein écran, DOM, captures, vue mobile, suspension | 🟡 | ➖ | ➖ | T4 | Onglets, adresse/recherche, précédent/suivant, recharger, vue mobile, outils de développement, navigateur système, effacement des données, partition isolée, téléchargements bloqués. Suspension des onglets inactifs : T15 (perf). |
 | W-02 | Terminaux multiples par conversation | ⬜ | ⬜ | ⬜ | T4 | |
-| W-03 | Explorateur de fichiers + aperçu Raw/Preview | ⬜ | ⬜ | ⬜ | T4 | |
-| W-04 | Panneau Git + propositions de modifications | ⬜ | ⬜ | ⬜ | T4 | |
+| W-03 | Explorateur de fichiers + aperçu Raw/Preview | ✅ | ⬜ | ⬜ | T4 | Arborescence dans la portée, recherche par nom et contenu, aperçu rendu/source (Markdown, HTML isolé, SVG, images, code coloré). |
+| W-04 | Panneau Git + propositions de modifications | ✅ | ⬜ | ⬜ | T4 | Statut, diff par fichier, indexer/désindexer/annuler (confirmation), commit, branches, historique, fetch/pull/push (confirmation pour push). |
 | W-05 | Traducteur et correcteur | ⬜ | ⬜ | ⬜ | T8 | |
 | W-06 | Générateur d'assets (vectoriel, pixel art, animation, exports) | ⬜ | ➖ | ➖ | T8 | |
 | W-07 | Benchmark | ⬜ | ⬜ | ⬜ | T8 | |
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 66 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 74 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

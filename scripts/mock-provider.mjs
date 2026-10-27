@@ -25,6 +25,27 @@ export function greet(name: string): string {
 
 Fin de la réponse.`;
 
+const RICH = [
+  'Rendu enrichi : la formule $E = mc^2$ en ligne, puis un bloc :',
+  '',
+  '$$',
+  String.raw`\int_0^1 x^2\,dx = \frac{1}{3}`,
+  '$$',
+  '',
+  'Fichier cité : `README.md` (le badge n’apparaît que s’il existe) et `absent.ts`.',
+  '',
+  '```mermaid',
+  'graph LR',
+  '  A[Demande] --> B{Outil ?}',
+  '  B -->|oui| C[Exécution]',
+  '  B -->|non| D[Réponse]',
+  '```',
+  '',
+  '```html',
+  '<h1 style="color:#5b5bd6">Aperçu HTML</h1><p>Scripts désactivés.</p>',
+  '```',
+].join(String.fromCharCode(10));
+
 const chunk = (delta, extra = {}) => `data: ${JSON.stringify({ id: 'mock', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: null }], ...extra })}\n\n`;
 
 createServer((req, res) => {
@@ -62,6 +83,7 @@ createServer((req, res) => {
         const q = last.toLowerCase();
         if (q.includes('écris') && names.includes('write_file')) call = { name: 'write_file', arguments: { path: 'NOTES.md', content: '# Notes\n\n- Créé par la démonstration.\n' } };
         else if (q.includes('liste') && names.includes('list_files')) call = { name: 'list_files', arguments: {} };
+        else if (q.includes('capture') && names.includes('browser_screenshot')) call = { name: 'browser_screenshot', arguments: {} };
         else if (q.includes('question') && names.includes('ask_user')) call = { name: 'ask_user', arguments: { questions: [{ prompt: 'Quel style préférez-vous ?', options: ['Sobre', 'Coloré', 'Rétro'] }, { prompt: 'Un nom pour la page ?' }] } };
       }
       if (call) {
@@ -89,7 +111,7 @@ createServer((req, res) => {
         await new Promise((r) => setTimeout(r, 25));
       }
     }
-    const text = last.toLowerCase().includes('court') ? 'Réponse courte.' : REPLY;
+    const text = last.toLowerCase().includes('court') ? 'Réponse courte.' : last.toLowerCase().includes('rendu') ? RICH : REPLY;
     for (let i = 0; i < text.length; i += 6) {
       if (res.destroyed) return;
       res.write(chunk({ content: text.slice(i, i + 6) }));

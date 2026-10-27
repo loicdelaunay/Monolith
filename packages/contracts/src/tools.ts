@@ -83,7 +83,8 @@ export type ToolDisplay =
   | { kind: 'plan'; items: PlanItem[] }
   | { kind: 'question'; questions: Question[]; answers: QuestionAnswer[] | null; cancelled: boolean }
   | { kind: 'actions'; actions: ActionProposal[] }
-  | { kind: 'info'; entries: { label: string; value: string }[] };
+  | { kind: 'info'; entries: { label: string; value: string }[] }
+  | { kind: 'image'; attachmentId: Id; caption: string };
 
 export interface ToolCallRecord {
   /** Identifiant fourni par le modèle (ou généré). */
@@ -201,3 +202,52 @@ export interface TerminalInfo {
   exitCode: number | null;
   startedAt: string;
 }
+
+export interface FileEntry {
+  name: string;
+  /** Chemin absolu canonique. */
+  path: string;
+  /** Chemin affiché (relatif à la racine). */
+  display: string;
+  type: 'file' | 'directory';
+  size: number;
+}
+
+export interface FileContent {
+  path: string;
+  display: string;
+  kind: 'text' | 'image' | 'binary' | 'too_large';
+  mime: string;
+  size: number;
+  text?: string;
+  dataBase64?: string;
+}
+
+export interface FileReference {
+  input: string;
+  exists: boolean;
+  path: string | null;
+  display: string | null;
+  type: 'file' | 'directory' | null;
+  line: number | null;
+}
+
+export interface GitStatusInfo {
+  available: boolean;
+  reason?: string;
+  root: string | null;
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  files: { path: string; index: string; worktree: string }[];
+}
+
+export interface GitCommit {
+  hash: string;
+  date: string;
+  author: string;
+  subject: string;
+}
+
+export type GitAction = 'stage' | 'unstage' | 'commit' | 'switch' | 'fetch' | 'pull' | 'push' | 'discard';

@@ -8,3 +8,5 @@ export { redact, redactValue } from './security/redact.ts';
 export { SseParser } from './providers/sse.ts';
 export { createInProcessClient } from './rpc/in-process.ts';
 export { serveRpc, type RpcPort, type RpcMessage } from './rpc/port.ts';
+export type { HostBridge } from './tools/browser.ts';
+export { assertPublicUrl, isPrivateAddress } from './net/guard.ts';

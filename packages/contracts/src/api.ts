@@ -38,6 +38,12 @@ import type {
   SkillInfo,
   TerminalInfo,
   Question,
+  FileContent,
+  FileEntry,
+  FileReference,
+  GitAction,
+  GitCommit,
+  GitStatusInfo,
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
 
@@ -246,6 +252,20 @@ export interface HarnessApi {
   'terminals.list': { params: { conversationId: Id }; result: TerminalInfo[] };
   'terminals.output': { params: { terminalId: string }; result: { output: string; info: TerminalInfo } };
   'terminals.kill': { params: { terminalId: string }; result: void };
+  /** Commande lancée par l'utilisateur depuis le panneau (son propre geste : pas de demande d'autorisation). */
+  'terminals.run': { params: { conversationId: Id; command: string; cwd?: string }; result: TerminalInfo };
+
+  'files.list': { params: { conversationId: Id; path?: string }; result: { root: string; entries: FileEntry[] } };
+  'files.read': { params: { conversationId: Id; path: string }; result: FileContent };
+  /** Vérifie des références de fichiers citées dans une réponse (badges cliquables). */
+  'files.stat': { params: { conversationId: Id; references: string[] }; result: FileReference[] };
+  'files.search': { params: { conversationId: Id; query: string; content?: boolean }; result: { display: string; path: string; line: number | null; text: string | null }[] };
+
+  'git.status': { params: { conversationId: Id }; result: GitStatusInfo };
+  'git.fileVersions': { params: { conversationId: Id; path: string; staged: boolean }; result: { before: string; after: string } };
+  'git.log': { params: { conversationId: Id; limit?: number }; result: GitCommit[] };
+  'git.branches': { params: { conversationId: Id }; result: { current: string | null; branches: string[] } };
+  'git.run': { params: { conversationId: Id; action: GitAction; paths?: string[]; message?: string; branch?: string }; result: { output: string } };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };

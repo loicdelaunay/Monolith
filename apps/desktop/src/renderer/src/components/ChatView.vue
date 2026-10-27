@@ -134,6 +134,7 @@ const openSource = (id: Id) => openConversation(id);
         <button type="button" class="mh-icon-btn" :class="{ active: activeConversation.favorite }" :aria-pressed="activeConversation.favorite" :aria-label="activeConversation.favorite ? t('conversation.unfavorite') : t('conversation.favorite')" v-tooltip.bottom="activeConversation.favorite ? t('conversation.unfavorite') : t('conversation.favorite')" @click="toggleFavorite">
           <i class="pi" :class="activeConversation.favorite ? 'pi-star-fill' : 'pi-star'" />
         </button>
+        <button type="button" class="mh-icon-btn" :class="{ active: store.settings?.layout.panelOpen }" :aria-pressed="!!store.settings?.layout.panelOpen" :aria-label="`${t('panel.open')} (Ctrl+J)`" v-tooltip.bottom="`${t('panel.open')} (Ctrl+J)`" @click="api.call('settings.update', { layout: { panelOpen: !store.settings?.layout.panelOpen } })"><i class="pi pi-objects-column" /></button>
         <button type="button" class="mh-icon-btn" :aria-label="t('actions.menu')" v-tooltip.bottom="t('actions.menu')" @click="menu?.toggle($event)"><i class="pi pi-ellipsis-v" /></button>
         <Menu ref="menu" :model="menuItems" popup />
       </header>

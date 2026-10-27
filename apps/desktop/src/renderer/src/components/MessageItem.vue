@@ -90,7 +90,7 @@ const errorTitle = computed(() => {
             </summary>
             <div class="reasoning-text">{{ part.text }}</div>
           </details>
-          <MarkdownView v-else-if="part.type === 'text'" :text="part.text" />
+          <MarkdownView v-else-if="part.type === 'text'" :text="part.text" :conversation-id="message.conversationId" />
           <ToolCallBubble v-else-if="part.type === 'tool'" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
           <div v-else-if="part.type === 'notice'" class="notice" :class="part.level" role="note">
             <i class="pi" :class="part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />

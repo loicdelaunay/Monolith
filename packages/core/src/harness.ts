@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import {
   APP_NAME,
   APP_VERSION,
@@ -35,7 +35,10 @@ import { ToolRegistry } from './tools/registry.ts';
 import { BUILTIN_TOOLS } from './tools/builtin.ts';
 import { TerminalManager } from './tools/terminals.ts';
 import { LoopGate, ProposalService, QuestionBroker } from './tools/interactions.ts';
-import type { ActionProposal, Message, MessagePart } from '@monolith/contracts';
+import type { ActionProposal, GitStatusInfo, Message, MessagePart } from '@monolith/contracts';
+import { GIT_TOOLS, gitFileVersions, gitStatus, hasGit, repoRoot, runGit } from './tools/git.ts';
+import { browserTools, type HostBridge } from './tools/browser.ts';
+import { WorkspaceFiles } from './services/workspace.ts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
 import type { ProviderAdapter } from './providers/adapter.ts';
@@ -52,6 +55,8 @@ export interface HarnessOptions {
   /** Remplace la protection système de la clé maître (tests). */
   keyProtector?: KeyProtector | null;
   allowFileKeyFallback?: boolean;
+  /** Services de l'hôte graphique (navigateur intégré, captures) ; absent en CLI et sur le serveur. */
+  hostBridge?: HostBridge | null;
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -86,6 +91,8 @@ export class Harness {
   readonly questions: QuestionBroker;
   readonly loopGate: LoopGate;
   readonly proposals: ProposalService;
+  readonly files = new WorkspaceFiles();
+  hostBridge: HostBridge | null;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
   private readonly testControllers = new Set<AbortController>();
@@ -126,7 +133,17 @@ export class Harness {
     // Base, clés et journaux de l'application : jamais accessibles aux outils, même dans une racine.
     this.resources = new ResourceService(this.db, this.projects, this.layout.conversations, [this.layout.keys, this.layout.database, `${this.layout.database}-wal`, `${this.layout.database}-shm`, this.layout.logs, this.layout.backups]);
     this.permissions = new PermissionEngine(this.db, this.events);
-    this.tools = new ToolRegistry(BUILTIN_TOOLS);
+    this.hostBridge = options.hostBridge ?? null;
+    this.tools = new ToolRegistry([
+      ...BUILTIN_TOOLS,
+      ...GIT_TOOLS,
+      ...browserTools(
+        () => this.hostBridge,
+        (_ctx, name, data) => this.attachments.storeImage(name, data).id,
+      ),
+    ]);
+    // Outils du navigateur et des captures : seulement si l'hôte les fournit réellement.
+    this.tools.hostFilter = (t) => !(t.family === 'browser' || t.family === 'desktop') || this.hostBridge !== null;
     this.terminals = new TerminalManager(this.events);
     this.questions = new QuestionBroker(this.events);
     this.loopGate = new LoopGate(this.events);
@@ -253,6 +270,30 @@ export class Harness {
     }
     await this.generation.send(target, { text: action.instructions, mode: 'queue' });
     return { conversationId: target };
+  }
+
+  /** Premier dépôt Git parmi les racines de la conversation. */
+  private async gitRoot(conversationId: Id): Promise<string | null> {
+    const { scope } = this.resources.scope(conversationId);
+    for (const r of scope.roots) {
+      const root = await repoRoot(r);
+      if (root) {
+        try {
+          scope.resolve(root);
+          return root;
+        } catch {
+          // Dépôt parent hors de la portée : on s'en tient au dossier autorisé.
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  private async requireGitRoot(conversationId: Id): Promise<string> {
+    const root = await this.gitRoot(conversationId);
+    if (!root) throw new HarnessError('unavailable', 'Aucun dépôt Git dans les ressources de cette conversation.');
+    return root;
   }
 
   /** Retire les références à une connexion supprimée (réglages par défaut, conversations). */
@@ -398,6 +439,75 @@ export class Harness {
       'terminals.list': (p) => this.terminals.list(p.conversationId),
       'terminals.output': (p) => ({ output: this.terminals.output(p.terminalId), info: { ...this.terminals.get(p.terminalId).info } }),
       'terminals.kill': (p) => this.terminals.kill(p.terminalId),
+      'terminals.run': (p) => {
+        const { scope } = this.resources.scope(p.conversationId);
+        const cwd = scope.resolve(p.cwd ?? '.');
+        if (typeof p.command !== 'string' || !p.command.trim()) throw new HarnessError('invalid_argument', 'Commande vide');
+        return { ...this.terminals.start(p.conversationId, p.command, cwd).info };
+      },
+
+      'files.list': (p) => this.files.list(this.resources.scope(p.conversationId).scope, p.path),
+      'files.read': (p) => this.files.read(this.resources.scope(p.conversationId).scope, p.path),
+      'files.stat': (p) => this.files.stat(this.resources.scope(p.conversationId).scope, Array.isArray(p.references) ? p.references.map(String) : []),
+      'files.search': (p) => this.files.search(this.resources.scope(p.conversationId).scope, String(p.query ?? ''), p.content === true),
+
+      'git.status': async (p) => {
+        const unavailable = (reason: string): GitStatusInfo => ({ available: false, reason, root: null, branch: null, upstream: null, ahead: 0, behind: 0, files: [] });
+        if (!(await hasGit())) return unavailable('git n’est pas installé ou introuvable dans le PATH.');
+        const root = await this.gitRoot(p.conversationId);
+        if (!root) return unavailable('Aucun dépôt Git dans les ressources de cette conversation.');
+        return { available: true, ...(await gitStatus(root)) };
+      },
+      'git.fileVersions': async (p) => {
+        const root = await this.requireGitRoot(p.conversationId);
+        // Chemin relatif au dépôt, vérifié contre la portée (pas de sortie par « .. »).
+        const full = this.resources.scope(p.conversationId).scope.resolve(join(root, String(p.path)));
+        return gitFileVersions(root, relative(root, full).split(sep).join('/'), p.staged === true);
+      },
+      'git.log': async (p) => {
+        const root = await this.requireGitRoot(p.conversationId);
+        const r = await runGit(root, ['log', `-n${Math.min(500, Math.max(1, p.limit ?? 100))}`, '--date=iso-strict', '--pretty=format:%h%x1f%ad%x1f%an%x1f%s']);
+        if (r.code !== 0) return [];
+        return r.stdout.split('\n').filter(Boolean).map((l) => {
+          const [hash, date, author, subject] = l.split('\x1f');
+          return { hash: hash ?? '', date: date ?? '', author: author ?? '', subject: subject ?? '' };
+        });
+      },
+      'git.branches': async (p) => {
+        const root = await this.requireGitRoot(p.conversationId);
+        const r = await runGit(root, ['branch', '--format=%(HEAD)%(refname:short)']);
+        const lines = r.stdout.split('\n').filter(Boolean);
+        return { current: lines.find((l) => l.startsWith('*'))?.slice(1) ?? null, branches: lines.map((l) => l.slice(1)) };
+      },
+      'git.run': async (p) => {
+        const root = await this.requireGitRoot(p.conversationId);
+        const { scope } = this.resources.scope(p.conversationId);
+        const rel = (paths: unknown) => {
+          if (!Array.isArray(paths) || paths.length === 0) throw new HarnessError('invalid_argument', 'Fichiers manquants');
+          return paths.map((x) => relative(root, scope.resolve(isAbsolute(String(x)) ? String(x) : join(root, String(x)), { write: true })).split(sep).join('/'));
+        };
+        const args: Record<string, () => string[]> = {
+          stage: () => ['add', '--', ...rel(p.paths)],
+          unstage: () => ['restore', '--staged', '--', ...rel(p.paths)],
+          discard: () => ['restore', '--worktree', '--', ...rel(p.paths)],
+          commit: () => ['commit', '-F', '-'],
+          switch: () => {
+            const b = String(p.branch ?? '');
+            if (!/^[\w./-]+$/.test(b) || b.startsWith('-')) throw new HarnessError('invalid_argument', 'Nom de branche invalide');
+            return ['switch', b];
+          },
+          fetch: () => ['fetch', '--prune'],
+          pull: () => ['pull', '--ff-only'],
+          push: () => ['push'],
+        };
+        const build = args[p.action];
+        if (!build) throw new HarnessError('invalid_argument', 'Action Git inconnue');
+        if (p.action === 'commit' && !String(p.message ?? '').trim()) throw new HarnessError('invalid_argument', 'Message de commit vide');
+        const r = await runGit(root, build(), { timeoutMs: 180_000, ...(p.action === 'commit' ? { input: String(p.message) } : {}) });
+        const output = `${r.stdout}${r.stderr ? `\n${r.stderr}` : ''}`.trim();
+        if (r.code !== 0) throw new HarnessError('invalid_argument', `git ${p.action} a échoué : ${output}`);
+        return { output };
+      },
       'conversations.search': (p) => this.conversations.search(String(p.query ?? ''), Math.min(100, Math.max(1, p.limit ?? 30))),
 
       'messages.list': (p) => this.messages.list(p.conversationId),
