@@ -50,6 +50,7 @@ import type {
 import type { PlatformCapabilities } from './platform.ts';
 import type { AiDetectionResult, AssetInfo, AssetKind, BenchmarkInput, BenchmarkState, ImageGenInput, ImageGenResult, TextTaskInput, TextTaskResult } from './studio.ts';
 import type { DownloadState, HardwareInfo, HfFile, HfModel, LocalEngineInfo, LocalModel, ModelEstimate } from './local.ts';
+import type { UpdateState } from './updates.ts';
 import type { BackupInfo, DashboardData, DashboardQuery, DiagnosticsInfo, MaintenanceReport, NotificationItem, ScheduledRun, ScheduledTask, ScheduledTaskInput } from './ops.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
@@ -345,6 +346,11 @@ export interface HarnessApi {
 
   'maintenance.run': { params: void; result: MaintenanceReport };
 
+  'updates.status': { params: void; result: UpdateState };
+  'updates.check': { params: void; result: UpdateState };
+  'updates.download': { params: void; result: UpdateState };
+  /** Sauvegarde des données, puis installation par l'hôte (redémarrage). */
+  'updates.install': { params: void; result: UpdateState };
   'local.hardware': { params: void; result: HardwareInfo };
   'local.models': { params: void; result: LocalModel[] };
   'local.deleteModel': { params: { id: string }; result: void };
@@ -424,6 +430,7 @@ export interface HarnessEvents {
   'scheduler.changed': { tasks: ScheduledTask[] };
   'local.download': DownloadState;
   'local.changed': { models: LocalModel[]; engine: LocalEngineInfo };
+  'updates.changed': UpdateState;
   'log.error': { message: string; code: string };
 }
 

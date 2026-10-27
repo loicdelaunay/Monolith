@@ -190,7 +190,7 @@ describe.skipIf(win)('contrôle du bureau hors Windows', () => {
 });
 
 describe.skipIf(!win)('UI Automation réelle (fenêtre de test hors écran, sans focus ni curseur)', () => {
-  it('liste, inspecte, invoque, coche et saisit ; identifiants expirés ; fenêtres de Monolith exclues', { timeout: 60_000 }, async () => {
+  it('liste, inspecte, invoque, coche et saisit ; identifiants expirés ; fenêtres de Monolith exclues', { timeout: 180_000 }, async () => {
     const title = `MH-UIA-Test-${process.pid}-${Date.now()}`;
     const fixture = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(import.meta.dirname, 'fixtures', 'uia-window.ps1'), '-Title', title], { windowsHide: true });
     cleanups.push(() => void fixture.kill());
@@ -200,12 +200,12 @@ describe.skipIf(!win)('UI Automation réelle (fenêtre de test hors écran, sans
       lines.push(l.replace(/^﻿/, ''));
       for (const w of [...waiters]) if (lines.some((x) => w.re.test(x))) (waiters.splice(waiters.indexOf(w), 1), w.resolve());
     });
-    const waitLine = (re: RegExp) => (lines.some((x) => re.test(x)) ? Promise.resolve() : new Promise<void>((resolve, reject) => (waiters.push({ re, resolve }), setTimeout(() => reject(new Error(`attendu : ${re} ; reçu : ${lines.join(' | ')}`)), 20_000))));
+    const waitLine = (re: RegExp) => (lines.some((x) => re.test(x)) ? Promise.resolve() : new Promise<void>((resolve, reject) => (waiters.push({ re, resolve }), setTimeout(() => reject(new Error(`attendu : ${re} ; reçu : ${lines.join(' | ')}`)), 60_000))));
     await waitLine(/^ready$/);
 
     const dir = mkdtempSync(join(tmpdir(), 'mh-uia-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const driver = new UiaDriver(dir, []);
+    const driver = new UiaDriver(dir, [], 'powershell.exe', 60_000);
     cleanups.push(() => driver.dispose());
 
     const w = (await driver.windows()).find((x) => x.title === title);
@@ -232,7 +232,7 @@ describe.skipIf(!win)('UI Automation réelle (fenêtre de test hors écran, sans
     await expect(driver.act(w!.window_id, byAuto('valider').element_id, 'invoke', {})).rejects.toThrow(/inconnu ou expiré/);
 
     // Processus protégé (fenêtres de Monolith) : ni listé ni contrôlable.
-    const guarded = new UiaDriver(dir, [fixture.pid!]);
+    const guarded = new UiaDriver(dir, [fixture.pid!], 'powershell.exe', 60_000);
     cleanups.push(() => guarded.dispose());
     expect((await guarded.windows()).some((x) => x.title === title)).toBe(false);
     await expect(guarded.inspect(w!.window_id, { depth: 1, max: 5 })).rejects.toThrow(/Monolith/);

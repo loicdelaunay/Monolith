@@ -13,6 +13,7 @@ export interface ShortcutItem {
   reasoningLevel: ReasoningLevel | null;
 }
 import type { PermissionPolicy, SubagentPreset } from './tools.ts';
+import type { UpdateMode } from './updates.ts';
 
 export type Language = 'system' | 'fr' | 'en';
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -187,6 +188,10 @@ export interface Settings {
     httpTimeoutSec: number;
     httpResponseMode: 'smart' | 'legacy';
     httpMaxResponseKb: number;
+  };
+  updates: {
+    /** off : jamais de vérification automatique ; notify : signaler ; auto : télécharger et installer à la fermeture. */
+    mode: UpdateMode;
   };
   desktop: {
     /** Contrôle du clavier : auto = UI Automation d'abord ; uia = actions sémantiques seules ; legacy = saisie physique. */
@@ -383,6 +388,9 @@ export const DEFAULT_SETTINGS: Settings = {
     httpTimeoutSec: 30,
     httpResponseMode: 'smart',
     httpMaxResponseKb: 1024,
+  },
+  updates: {
+    mode: 'notify',
   },
   desktop: {
     keyboardMode: 'auto',

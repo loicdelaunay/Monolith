@@ -3,7 +3,7 @@
 import { Harness, FileProtector, silentLogger } from '@monolith/core';
 
 const dir = process.argv[2];
-const port = process.argv[3] ?? '11500';
+const port = process.argv.slice(3).find((a) => /^\d+$/.test(a)) ?? '11500';
 if (!dir) {
   console.error('Usage : node scripts/seed-demo.ts <dossier-de-données> [port]');
   process.exit(1);
@@ -34,5 +34,33 @@ await h.call('projects.addFolder', { id: project.id, path: files });
 await h.call('projects.create', { name: 'Outils internes', icon: 'code', color: '#0f8a7a' });
 await h.call('conversations.create', { projectId: project.id, title: 'Refonte de la page d’accueil' });
 await h.call('conversations.create', { projectId: null, title: 'Idées de vacances' });
+// --long : conversation de 300 messages (Markdown, code) pour les mesures de performance.
+if (process.argv.includes('--long')) {
+  const long = await h.call('conversations.create', { projectId: null, title: 'Conversation longue (performance)' });
+  for (let i = 1; i <= 150; i++) {
+    h.messages.create({ conversationId: long.id, role: 'user', status: 'complete', parts: [{ type: 'text', text: `Question ${i} : comment structurer le module ${i} ?` }] });
+    const text = `## Réponse ${i}
+
+Voici une proposition **détaillée** pour le module ${i}, avec une liste :
+
+- point un
+- point deux
+- point trois
+
+\`\`\`ts
+export function module${i}(x: number): number {
+  return x * ${i};
+}
+\`\`\`
+
+Et un tableau :
+
+| Colonne | Valeur |
+| --- | --- |
+| a | ${i} |
+`;
+    h.messages.create({ conversationId: long.id, role: 'assistant', status: 'complete', parts: [{ type: 'text', text }] });
+  }
+}
 await h.close();
 console.log(`Profil de démonstration prêt : ${dir}`);

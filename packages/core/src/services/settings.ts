@@ -94,6 +94,7 @@ export class SettingsService {
       if (section === 'appearance' && key === 'backgroundAnimation' && !['none', 'gradient', 'aurora', 'particles'].includes(String(value))) continue;
       if (section === 'desktop' && (key === 'keyboardMode' || key === 'mouseMode') && !['auto', 'uia', 'legacy'].includes(String(value))) continue;
       if (section === 'subagents' && key === 'mode' && !['auto', 'forced', 'off'].includes(String(value))) continue;
+      if (section === 'updates' && key === 'mode' && !['off', 'notify', 'auto'].includes(String(value))) continue;
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));
       dest[key] = clone(v);

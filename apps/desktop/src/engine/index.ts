@@ -42,7 +42,7 @@ const hostBridge: HostBridge = {
 
 let harness: Harness;
 try {
-  harness = new Harness({ host: 'desktop', data: { explicit, exeDir }, changelog, logToConsole: process.env.MONOLITH_DEV === '1', hostBridge });
+  harness = new Harness({ host: 'desktop', data: { explicit, exeDir }, changelog, logToConsole: process.env.MONOLITH_DEV === '1', hostBridge, updates: { autoCheck: process.env.MONOLITH_UPDATES_AUTO === '1' } });
 } catch (error) {
   parent.postMessage({ type: 'fatal', message: error instanceof Error ? error.message : String(error) });
   process.exit(1);

@@ -214,7 +214,7 @@ function onVisible(v: boolean) {
         <AdvancedSection v-else-if="current.id === 'advanced'" :draft="draft.value" />
         <LocalModelsSection v-else-if="current.id === 'local'" :draft="draft.value" />
         <ResetSection v-else-if="current.id === 'reset'" />
-        <AboutSection v-else-if="current.id === 'about'" />
+        <AboutSection v-else-if="current.id === 'about'" :draft="draft.value" />
         <PlannedSection v-else :tranche="current.tranche ?? ''" />
       </section>
     </div>

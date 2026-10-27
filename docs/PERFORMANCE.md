@@ -1,6 +1,20 @@
 # Mesures de performances
 
-Chaque mesure indique ses conditions. Elles décrivent la configuration de référence, pas une garantie sur tous les systèmes. Un protocole reproductible (scripts, répétitions, défilement, réveils) est prévu en tranche T14.
+Chaque mesure indique ses conditions. Elles décrivent la configuration de référence, pas une garantie sur tous les systèmes. Protocole reproductible : `npm run build` puis `npm run quality` (voir plus bas).
+
+## 2026-10-27 — 3.0.0-alpha.12, protocole `npm run quality`
+
+Conditions : Windows 11 Pro 26200, RTX 3090, 64 Go ; bundles de production (`npm run build`) lancés par Electron, profil de démonstration neuf avec une conversation de 300 messages (Markdown, code, tableaux), thème sombre, fenêtre 1600 × 1028. Trois exécutions consécutives.
+
+| Mesure | Valeur | Remarques |
+| --- | --- | --- |
+| Lancement → début du chargement de la fenêtre | 1,05 à 1,07 s | Depuis le lancement de la commande (`npx electron`, démarrage du moteur compris). |
+| DOM prêt (depuis le début du chargement) | 87 à 95 ms | |
+| Ouverture de la conversation de 300 messages | 94 à 128 ms | Clic → messages affichés (2 images) ; 80 messages rendus (fenêtrage). |
+| Tas JavaScript de l'interface | 51 à 54 Mo | Après l'ouverture de la conversation et des réglages. |
+| Nœuds DOM | ≈ 3 100 | |
+
+Limites : une seule configuration ; pas de mesure du défilement continu ni de comparaison Linux ; le tas JS n'inclut ni le moteur ni le processus principal.
 
 ## 2026-10-27 — 3.0.0-alpha.1, build Windows empaqueté
 

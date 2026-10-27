@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.12 — 2026-10-27
+
+Tranche T14 : distribution et validation.
+
+- **Mises à jour vérifiées** (Réglages › À propos) : vérification des versions publiées sur GitHub (désactivée, signaler — par défaut — ou télécharger et installer à la fermeture), téléchargement vérifié par l'empreinte SHA-256 publiée, sauvegarde de la base avant l'installation, ancienne version conservée et restaurée en cas d'échec. Installation automatique pour la version portable Windows ; signalement seulement pour l'installateur et Linux.
+- **Paquets Windows** : archive portable (zip) et installateur, avec SHA256SUMS ; contrôle qu'aucune donnée utilisateur n'est incluse.
+- **Accessibilité** : contraste des boutons corrigé (texte lisible sur les boutons principaux et secondaires), noms accessibles du numéro de version, des projets, du bouton Ressources et des listes déroulantes. Audit automatique WCAG 2.1 AA sans violation sur les vues contrôlées.
+- **Contrôle qualité reproductible** : `npm run quality` (audit d'accessibilité et mesures de performance sur la fenêtre réelle).
+- Workflow de release : chemins des paquets corrigés (toujours manuel, brouillon seulement sur demande).
+
 ## 3.0.0-alpha.11 — 2026-10-27
 
 Tranche T11 : contrôle du bureau Windows.

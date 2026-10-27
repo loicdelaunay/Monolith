@@ -53,6 +53,12 @@ input,
 textarea,
 select {
   font: inherit;
+}
+/* Couleur héritée pour nos contrôles seulement : les composants PrimeVue gardent leurs couleurs (contraste). */
+button:not(.p-component),
+input:not(.p-component),
+textarea:not(.p-component),
+select {
   color: inherit;
 }
 

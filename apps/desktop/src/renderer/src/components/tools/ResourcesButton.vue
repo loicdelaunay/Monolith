@@ -78,7 +78,7 @@ void load();
 </script>
 
 <template>
-  <button type="button" class="res-btn" :aria-label="t('resources.title')" @click="toggle">
+  <button type="button" class="res-btn" :title="t('resources.title')" @click="toggle">
     <i class="pi pi-folder" /> {{ label }}
   </button>
   <Popover ref="pop">

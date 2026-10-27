@@ -7,7 +7,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T11 (3.0.0-alpha.11).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T14 (3.0.0-alpha.12).**
 
 ## 1. Fondations
 
@@ -71,7 +71,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | U-07 | Autocomplétion commandes et skills | 🟡 | 🟡 | ➖ | T2 | Commandes « / » dans l’éditeur desktop et autocomplétion CLI ; skills en T6. |
 | U-08 | Agrandissement de la saisie au-delà de 10 lignes, retour sans perte | ✅ | ➖ | ➖ | T1 | |
 | U-09 | Débit et utilisation du contexte (optionnels) | ✅ | 🟡 | ➖ | T2 | Débit et utilisation du contexte (réglages). CLI : `/context`. |
-| U-10 | Accessibilité : clavier, focus visible, libellés, texte agrandi, petites fenêtres | 🟡 | ➖ | ⬜ | T1→T14 | Navigation clavier, focus visible, libellés ARIA, mise en page étroite ; audit complet en T14. |
+| U-10 | Accessibilité : clavier, focus visible, libellés, texte agrandi, petites fenêtres | ✅ | ➖ | ⬜ | T1→T14 | Navigation clavier, focus visible, libellés ARIA, mise en page étroite. Audit axe-core WCAG 2.1 A/AA reproductible (`npm run quality`) : aucune violation sur l'accueil, une conversation de 300 messages, Réglages › Général, Skills et À propos (thème sombre par défaut). Corrigé en T14 : contraste des boutons PrimeVue (2,6:1 → ≥ 4,5:1), noms accessibles (version, projets, ressources, listes déroulantes). Lecteur d'écran réel non testé ; autres vues et thème clair non audités automatiquement. |
 
 ## 5. Chat, rendu et historique
 
@@ -237,11 +237,11 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Capacité | Windows | Linux | macOS | Notes |
 | --- | --- | --- | --- | --- | --- |
-| O-01 | Desktop Electron | 🟡 dev + empaqueté vérifiés | ⬜ non testé | ⬜ planifié | macOS : architecture prévue, non construit ni testé. |
-| O-02 | CLI | ✅ bundle Node 24 | ⬜ non testé | ⬜ planifié | Exécutable autonome (SEA) en T14. |
+| O-01 | Desktop Electron | ✅ dev, portable et zip vérifiés ; installateur NSIS construit | ⬜ non testé | ⬜ planifié | Zip extrait et démarré en mode portable (données à côté de l'exécutable). Installateur NSIS construit mais non installé sur ce poste. macOS : architecture prévue, non construit ni testé. |
+| O-02 | CLI | ✅ bundle Node 24 | ⬜ non testé | ⬜ planifié | Exécutable autonome (SEA) reporté avec le CLI : voir cli-todo.md. |
 | O-03 | Serveur + service système | ⬜ | ⬜ | ➖ | Hors cahier des charges. |
 | O-04 | Protection des secrets système | ✅ DPAPI | 🟡 libsecret, non testé | 🟡 Trousseau, non vérifié | |
-| O-05 | Contrôle desktop sémantique | ⬜ UIA | ⬜ AT-SPI (à évaluer) | ⬜ AX (planifié) | |
+| O-05 | Contrôle desktop sémantique | ✅ UI Automation (T11) | ⛔ non disponible (déclaré) | ⛔ non pris en charge (déclaré) | Linux AT-SPI et macOS AX non implémentés ; skills affichés indisponibles avec la raison. |
 | O-06 | Android (présent en v1) | ➖ | ➖ | ➖ | **Hors périmètre v3** — signalé : la v1 avait une app Flutter Android. |
 
 ## 17. Serveur
@@ -262,9 +262,9 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | Statut | T | Notes |
 | --- | --- | --- | --- | --- |
-| B-01 | Scripts de build reproductibles | 🟡 | T0 | Bundles et paquet Windows non compressé vérifiés ; zip/NSIS et paquets Linux non encore produits localement. |
-| B-02 | Workflows GitHub (CI, release brouillon manuelle) | 🟡 | T0 | CI et release brouillon (manuelle) écrites ; jamais exécutées (aucun push). |
-| B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
-| B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
-| B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 115 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-01 | Scripts de build reproductibles | ✅ | T0→T14 | `npm run gui:build` (dossier de test artifacts/GUI), `npm run dist:win` (zip + installateur NSIS dans release/), `npm run dist:linux` (AppImage, tar.gz, deb : sur Linux ou en CI), `npm run release:prepare` (SHA256SUMS, refus des données utilisateur). Paquets Windows produits et vérifiés localement en T14 ; paquets Linux non produits sur ce poste. |
+| B-02 | Workflows GitHub (CI, release brouillon manuelle) | 🟡 | T0→T14 | CI (push, PR) : typecheck, tests, build, licences sur Windows et Linux. Release : déclenchement manuel uniquement, paquets + SHA256SUMS en artefacts, release GitHub en brouillon seulement si cochée. Chemins des paquets corrigés en T14. Exécution sur GitHub non encore observée. |
+| B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | 🟡 | T14 | Windows : MonolithHarness-vX-win-x64.zip (portable) et .exe (NSIS, par utilisateur), SHA256SUMS.txt ; contenu du zip contrôlé (aucune base, clé, journal ni profil) et zip démarré en portable. Linux : configuration AppImage/tar.gz/deb prête, produite par le workflow de release (non vérifiée localement). |
+| B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 245 paquets embarqués, échec sur licence incompatible (outils de test comme axe-core exclus : non distribués) ; PrimeVue figé en 4.5 MIT. |
+| B-05 | Mise à jour vérifiée avec sauvegarde | ✅ | T14 | Réglages › À propos : Désactivée / Signaler (défaut) / Télécharger et installer à la fermeture ; vérification au démarrage puis toutes les 2 h, ou manuelle. Versions GitHub (loicdelaunay/Monolith), brouillons ignorés, préversions si la version courante en est une ; paquet portable Windows avec empreinte `digest` publiée par GitHub, adresse officielle (redirections vérifiées), taille bornée, SHA-256 vérifié au téléchargement puis revérifié par le moteur, l'hôte et l'installateur. Sauvegarde de la base avant installation ; installateur PowerShell : attend la fermeture, conserve data/ et monolith.location.json, garde l'ancienne version (previous), restaure en cas d'échec, relance ; résultat signalé au démarrage suivant (tests : moteur avec faux GitHub, installateur réel sur dossier de test). Installateur NSIS et Linux : signalement seulement. Aucune version n'est encore publiée sur le dépôt : non testé contre GitHub réel. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | ✅ | continu | 121 tests (unitaires, intégration, parcours CLI, UI Automation réelle, installateur réel), captures de la fenêtre réelle à chaque tranche, `npm run quality` : audit d'accessibilité et mesures (fenêtre ≈ 1,1 s après le lancement, conversation de 300 messages ouverte en ≈ 0,1 s, tas JS ≈ 51 Mo, sur ce poste). |

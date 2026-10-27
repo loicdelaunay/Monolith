@@ -7,6 +7,7 @@ import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { EngineHost } from './engine-host.ts';
 import { BrowserManager } from './browser.ts';
+import { installUpdate, runPendingUpdate } from './updater.ts';
 import type { RendererInfo } from '../shared/bridge.ts';
 
 const TITLE_BAR_HEIGHT = 40;
@@ -30,6 +31,8 @@ const engine = new EngineHost({
     ...(portableExeDir() ? { MONOLITH_EXE_DIR: portableExeDir()! } : {}),
     ...(process.env.MONOLITH_DATA_DIR ? { MONOLITH_DATA_DIR: process.env.MONOLITH_DATA_DIR } : devDataDir ? { MONOLITH_DATA_DIR: devDataDir } : {}),
     ...(isDev ? { MONOLITH_DEV: '1' } : {}),
+    // Vérification automatique des mises à jour : version installée seulement (ni développement ni tests visuels).
+    ...(!isDev && !process.env.MONOLITH_SMOKE_SHOT ? { MONOLITH_UPDATES_AUTO: '1' } : {}),
   },
 });
 
@@ -45,7 +48,7 @@ const browser = new BrowserManager(
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('browser:state', { tabs, activeId, notice: notice ?? null });
   },
 );
-engine.hostHandler = (method, params) => browser.hostRequest(method, params);
+engine.hostHandler = (method, params) => (method === 'app.installUpdate' ? installUpdate(params, portableExeDir(), () => app.quit()) : browser.hostRequest(method, params));
 
 interface WindowState {
   width: number;
@@ -154,6 +157,8 @@ function smokeCapture(win: BrowserWindow, target: string): void {
   win.webContents.once('did-finish-load', async () => {
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     await wait(Number(process.env.MONOLITH_SMOKE_DELAY ?? 2500));
+    // Script injecté avant les étapes (audit d'accessibilité axe-core), tests seulement.
+    if (process.env.MONOLITH_SMOKE_INJECT) await win.webContents.executeJavaScript(readFileSync(process.env.MONOLITH_SMOKE_INJECT, 'utf8')).catch((e: unknown) => console.log('SMOKE inject failed', String(e)));
     for (const [index, step] of steps.entries()) {
       const result: unknown = await win.webContents.executeJavaScript(step).catch((e: unknown) => `smoke step failed: ${String(e)}`);
       if (result !== undefined) console.log('SMOKE', index + 1, JSON.stringify(result));
@@ -328,4 +333,5 @@ if (!smoke && !app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => engine.stop());
+  app.on('will-quit', () => runPendingUpdate(portableExeDir()));
 }

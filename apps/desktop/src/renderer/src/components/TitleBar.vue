@@ -37,7 +37,7 @@ const brandLogo = computed(() => brand.value.logo ?? logo);
       </template>
     </div>
     <div class="actions">
-      <button type="button" class="version" :aria-label="t('titlebar.version', { version: APP_VERSION })" v-tooltip.bottom="t('titlebar.version', { version: APP_VERSION })" @click="uiState.changelogOpen = true">
+      <button type="button" class="version" :aria-label="`v${APP_VERSION} — ${t('titlebar.version', { version: APP_VERSION })}`" v-tooltip.bottom="t('titlebar.version', { version: APP_VERSION })" @click="uiState.changelogOpen = true">
         v{{ APP_VERSION }}
       </button>
       <button type="button" class="mh-icon-btn" :aria-label="t('titlebar.settings')" v-tooltip.bottom="t('titlebar.settings')" @click="$emit('open-settings')">

@@ -48,7 +48,7 @@ function setEnabled(id: string, value: boolean) {
   <div class="mh-row wrap">
     <div class="mh-field">
       <label for="web-prov">{{ t('skills.config.provider') }}</label>
-      <Select input-id="web-prov" v-model="draft.web.searchProvider" :options="searchOptions" option-label="label" option-value="value" />
+      <Select input-id="web-prov" :aria-label="t('skills.config.provider')" v-model="draft.web.searchProvider" :options="searchOptions" option-label="label" option-value="value" />
     </div>
     <div v-if="draft.web.searchProvider === 'searxng'" class="mh-field grow">
       <label for="web-sx">{{ t('skills.config.searxngUrl') }}</label>
@@ -75,7 +75,7 @@ function setEnabled(id: string, value: boolean) {
   <div class="mh-row wrap">
     <div class="mh-field">
       <label for="http-mode">{{ t('skills.config.httpResponseMode') }}</label>
-      <Select input-id="http-mode" v-model="draft.web.httpResponseMode" :options="modeOptions" option-label="label" option-value="value" />
+      <Select input-id="http-mode" :aria-label="t('skills.config.httpResponseMode')" v-model="draft.web.httpResponseMode" :options="modeOptions" option-label="label" option-value="value" />
     </div>
     <div class="mh-field">
       <label for="http-to">{{ t('skills.config.httpTimeoutSec') }}</label>
@@ -101,11 +101,11 @@ function setEnabled(id: string, value: boolean) {
   <div class="mh-row wrap">
     <div class="mh-field">
       <label for="dk-kb">{{ t('skills.config.keyboardMode') }}</label>
-      <Select input-id="dk-kb" v-model="draft.desktop.keyboardMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
+      <Select input-id="dk-kb" :aria-label="t('skills.config.keyboardMode')" v-model="draft.desktop.keyboardMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
     </div>
     <div class="mh-field">
       <label for="dk-mouse">{{ t('skills.config.mouseMode') }}</label>
-      <Select input-id="dk-mouse" v-model="draft.desktop.mouseMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
+      <Select input-id="dk-mouse" :aria-label="t('skills.config.mouseMode')" v-model="draft.desktop.mouseMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
     </div>
   </div>
   <div class="mh-switch-row">
@@ -121,7 +121,7 @@ function setEnabled(id: string, value: boolean) {
   <div class="mh-row wrap">
     <div class="mh-field">
       <label for="rag-prov">{{ t('skills.config.embeddingProvider') }}</label>
-      <Select input-id="rag-prov" v-model="draft.rag.embeddingProviderId" :options="providerOptions" option-label="label" option-value="value" />
+      <Select input-id="rag-prov" :aria-label="t('skills.config.embeddingProvider')" v-model="draft.rag.embeddingProviderId" :options="providerOptions" option-label="label" option-value="value" />
     </div>
     <div v-if="draft.rag.embeddingProviderId !== null" class="mh-field">
       <label for="rag-model">{{ t('skills.config.embeddingModel') }}</label>

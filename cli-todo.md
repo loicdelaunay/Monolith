@@ -30,7 +30,7 @@ Le développement du CLI (ancienne tranche **T12 — CLI complet**) est **report
 | Modèles locaux | Catalogue Hugging Face, téléchargements, moteur llama.cpp. |
 | Réglages | Édition de toutes les sections (aujourd'hui via le desktop), réinitialisations ciblées. |
 | Apparence | Thèmes rétro / CRT, sortie compacte, accessibilité (lecteurs d'écran, couleurs réduites). |
-| Distribution | Exécutable autonome (Node SEA) Windows/Linux, mises à jour, complétion de shell, page de manuel. |
+| Distribution | Exécutable autonome (Node SEA) Windows/Linux (prévu en T14, reporté avec le CLI), mises à jour, complétion de shell, page de manuel. |
 | Tests | Parcours CLI de bout en bout sur chaque commande, mode non interactif, terminaux Windows et Linux. |
 
 ## Principes à conserver

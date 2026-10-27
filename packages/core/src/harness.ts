@@ -40,6 +40,7 @@ import { GIT_TOOLS, gitFileVersions, gitStatus, hasGit, repoRoot, runGit } from 
 import { browserTools, type HostBridge } from './tools/browser.ts';
 import { desktopTools } from './desktop/input.ts';
 import { UiaDriver, type DesktopDriver } from './desktop/uia-host.ts';
+import { UpdateService } from './services/updates.ts';
 import { WorkspaceFiles } from './services/workspace.ts';
 import { MemoryService } from './services/memory.ts';
 import { RagService } from './services/rag.ts';
@@ -86,6 +87,8 @@ export interface HarnessOptions {
   localEndpoints?: { hfBase?: string; githubApi?: string };
   /** Contrôle du bureau (tests) ; par défaut UI Automation sous Windows avec l'interface de bureau. */
   desktopDriver?: DesktopDriver | null;
+  /** Mises à jour : vérification automatique (version installée) et adresses (tests). */
+  updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean };
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -131,6 +134,7 @@ export class Harness {
   readonly webHttp: WebHttpClient;
   readonly local: LocalModelService;
   readonly backups: BackupService;
+  readonly updates: UpdateService;
   readonly dashboard: DashboardService;
   readonly notifications: NotificationService;
   readonly scheduler: SchedulerService;
@@ -267,6 +271,24 @@ export class Harness {
     this.backups = new BackupService(this.db, this.layout.backups);
     this.dashboard = new DashboardService(this.db);
     this.notifications = new NotificationService(this.db, this.events);
+    this.updates = new UpdateService({
+      dir: join(this.layout.root, 'updates'),
+      current: APP_VERSION,
+      events: this.events,
+      logger: this.logger,
+      settings: () => this.settings.get(),
+      installable: this.updateInstallable(),
+      install: async (job) => {
+        if (!this.hostBridge) throw new HarnessError('unavailable', 'Installation possible seulement depuis l’interface de bureau.');
+        await this.hostBridge.request('app.installUpdate', { ...job });
+      },
+      backup: () => void this.backups.create(),
+      notify: (title, body) => void this.notifications.add('info', title, body),
+      ...(options.updates?.apiBase ? { apiBase: options.updates.apiBase } : {}),
+      ...(options.updates?.downloadBase ? { downloadBase: options.updates.downloadBase } : {}),
+      ...(options.updates?.repository ? { repository: options.updates.repository } : {}),
+    });
+    if (options.updates?.autoCheck) this.updates.start();
     this.scheduler = new SchedulerService({ db: this.db, events: this.events, conversations: this.conversations, generation: () => this.generation, notifications: this.notifications, notify: () => this.settings.get().notifications.onScheduled, logger: this.logger });
     this.maintenance = new MaintenanceService({
       db: this.db,
@@ -361,8 +383,19 @@ export class Harness {
     await this.webHttp.dispose();
     await this.local.dispose();
     await this.desktop?.dispose();
+    this.updates.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
+  }
+
+  /** Installation des mises à jour : version portable Windows lancée par l'interface de bureau. */
+  private updateInstallable(): { ok: boolean; reason: string | null } {
+    if (this.options.updates?.installable !== undefined) return { ok: this.options.updates.installable, reason: this.options.updates.installable ? null : 'Installation désactivée.' };
+    if (this.options.host !== 'desktop') return { ok: false, reason: 'Installation depuis l’interface de bureau uniquement.' };
+    if (process.platform !== 'win32') return { ok: false, reason: 'Installation automatique : version portable Windows uniquement ; téléchargez le paquet depuis la page de la version.' };
+    const exeDir = 'exeDir' in this.options.data ? this.options.data.exeDir : null;
+    if (!exeDir) return { ok: false, reason: 'Version installée (programme d’installation) ou de développement : téléchargez le nouvel installateur depuis la page de la version.' };
+    return { ok: true, reason: null };
   }
 
   /** Assistant UI Automation démarré à la première utilisation ; les fenêtres de Monolith sont exclues. */
@@ -751,6 +784,10 @@ export class Harness {
       'local.downloads': () => this.local.listDownloads(),
       'local.cancelDownload': (p) => this.local.cancelDownload(String(p.id)),
       'local.setHfToken': (p) => this.local.setHfToken(p.token ?? null),
+      'updates.status': () => this.updates.state(),
+      'updates.check': () => this.updates.check(),
+      'updates.download': () => this.updates.download(),
+      'updates.install': () => this.updates.install('now'),
       'local.engine': () => this.local.engine(),
       'local.installEngine': (p) => this.local.installEngine(p.backend === 'cuda' || p.backend === 'vulkan' ? p.backend : 'cpu'),
       'local.setEnginePath': (p) => this.local.setEnginePath(p.path ?? null),

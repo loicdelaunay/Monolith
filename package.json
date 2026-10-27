@@ -1,6 +1,6 @@
 {
   "name": "monolith-harness",
-  "version": "3.0.0-alpha.11",
+  "version": "3.0.0-alpha.12",
   "private": true,
   "description": "Monolith Harness — espace de travail IA portable (desktop, CLI, serveur optionnel)",
   "license": "MIT",
@@ -27,10 +27,12 @@
     "licenses": "node scripts/collect-licenses.mjs",
     "version:sync": "node scripts/sync-version.mjs",
     "mock": "node scripts/mock-provider.mjs",
-    "demo:seed": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/seed-demo.ts .data/demo"
+    "demo:seed": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/seed-demo.ts .data/demo",
+    "quality": "node scripts/quality-check.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "axe-core": "4.14.0",
     "esbuild": "0.28.2",
     "typescript": "6.0.3",
     "vitest": "5.0.5"

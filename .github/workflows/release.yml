@@ -40,16 +40,16 @@ jobs:
       - name: Rassembler les artefacts
         shell: bash
         run: |
-          mkdir -p release
-          find artifacts/GUI -maxdepth 1 -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.tar.gz' -o -name '*.deb' \) -exec cp {} release/ \;
+          mkdir -p upload
+          find release -maxdepth 1 -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.tar.gz' -o -name '*.deb' \) -exec cp {} upload/ \;
           VERSION=$(node -p "require('./package.json').version")
-          cp apps/cli/dist/monolith.mjs "release/MonolithHarness-CLI-v${VERSION}-node24.mjs"
-          cp THIRD-PARTY-LICENSES.txt LICENSE release/
-          node scripts/prepare-release.mjs release
+          cp apps/cli/dist/monolith.mjs "upload/MonolithHarness-CLI-v${VERSION}-node24.mjs"
+          cp THIRD-PARTY-LICENSES.txt LICENSE upload/
+          node scripts/prepare-release.mjs upload
       - uses: actions/upload-artifact@v4
         with:
           name: monolith-${{ matrix.os }}
-          path: release/
+          path: upload/
           if-no-files-found: error
 
   draft:

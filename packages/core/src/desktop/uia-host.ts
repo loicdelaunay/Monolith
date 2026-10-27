@@ -75,6 +75,8 @@ export class UiaDriver implements DesktopDriver {
     dir: string,
     private readonly blockedPids: number[],
     private readonly exe = 'powershell.exe',
+    /** Délai par action (10 s ; allongé seulement par les tests sous forte charge). */
+    private readonly deadlineMs = DEADLINE_MS,
   ) {
     mkdirSync(dir, { recursive: true });
     this.script = join(dir, 'uia-helper.ps1');
@@ -135,8 +137,8 @@ export class UiaDriver implements DesktopDriver {
         this.blockedUntil = Date.now() + LEGACY_BLOCK_MS;
         // Le fournisseur natif ne peut pas être interrompu : l'assistant est abandonné.
         this.kill(new DesktopTimeoutError('Délai dépassé'));
-        reject(new DesktopTimeoutError(`Délai de ${DEADLINE_MS / 1000} s dépassé : l’action a pu s’exécuter. Inspectez l’état avant toute nouvelle tentative (aucune relance automatique).`));
-      }, DEADLINE_MS);
+        reject(new DesktopTimeoutError(`Délai de ${this.deadlineMs / 1000} s dépassé : l’action a pu s’exécuter. Inspectez l’état avant toute nouvelle tentative (aucune relance automatique).`));
+      }, this.deadlineMs);
       this.waiting.set(id, {
         resolve: (v) => {
           clearTimeout(timer);

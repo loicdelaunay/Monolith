@@ -329,7 +329,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
           @drop.prevent="dropOnGroup(p.id)"
         >
           <div class="group-head project" draggable="true" @dragstart="onDragStart($event, { kind: 'project', id: p.id })" @dragend="onDragEnd" @contextmenu.prevent="openMenu($event, projectMenu(p))">
-            <button type="button" class="toggle" :aria-expanded="!collapsed.has(p.id)" :aria-label="collapsed.has(p.id) ? t('sidebar.expand') : t('sidebar.collapse')" @click="setCollapsed(p.id, !collapsed.has(p.id))" @keydown.shift.f10.prevent="openMenu($event, projectMenu(p))">
+            <button type="button" class="toggle" :aria-expanded="!collapsed.has(p.id)" @click="setCollapsed(p.id, !collapsed.has(p.id))" @keydown.shift.f10.prevent="openMenu($event, projectMenu(p))">
               <i class="pi chevron" :class="collapsed.has(p.id) ? 'pi-angle-right' : 'pi-angle-down'" />
               <i class="pi" :class="`pi-${p.icon}`" :style="p.color ? { color: p.color } : undefined" />
               <span class="group-name">{{ p.name }}</span>
