@@ -1,0 +1,37 @@
+{
+  "name": "monolith-harness",
+  "version": "3.0.0-alpha.1",
+  "private": true,
+  "description": "Monolith Harness — espace de travail IA portable (desktop, CLI, serveur optionnel)",
+  "license": "MIT",
+  "author": "Loïc DELAUNAY",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @monolith/desktop",
+    "build": "npm run build -w @monolith/desktop && npm run build -w @monolith/cli",
+    "typecheck": "tsc -p packages/contracts && tsc -p packages/core && npm run typecheck -w @monolith/desktop && npm run typecheck -w @monolith/cli",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "npm run build -w @monolith/cli && node --disable-warning=ExperimentalWarning apps/cli/dist/monolith.mjs --data-dir .data/cli",
+    "dist:win": "npm run dist:win -w @monolith/desktop",
+    "dist:linux": "npm run dist:linux -w @monolith/desktop",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "licenses": "node scripts/collect-licenses.mjs",
+    "version:sync": "node scripts/sync-version.mjs",
+    "mock": "node scripts/mock-provider.mjs",
+    "demo:seed": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/seed-demo.ts .data/demo"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

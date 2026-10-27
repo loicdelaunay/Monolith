@@ -1,0 +1,214 @@
+/* Styles de l'application (hors couche PrimeVue : ils priment sur elle). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --mh-bg: #f7f7f8;
+  --mh-sidebar: #f0f0f2;
+  --mh-surface: #fff;
+  --mh-elevated: #fff;
+  --mh-hover: #e9e9ec;
+  --mh-border: #e2e2e6;
+  --mh-text: #1b1b1f;
+  --mh-muted: #6e6e78;
+  --mh-accent: #5b5bd6;
+  --mh-accent-text: #fff;
+  --mh-radius: 10px;
+  --mh-radius-sm: 7px;
+  --mh-titlebar: 40px;
+  --mh-reading-size: 15px;
+  --mh-density: 1;
+  --mh-font-ui: system-ui, sans-serif;
+  --mh-font-mono: ui-monospace, monospace;
+  --mh-transition: 120ms ease;
+  color-scheme: light;
+}
+
+:root.mh-dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mh-bg);
+  color: var(--mh-text);
+  font-family: var(--mh-font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--mh-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--mh-accent) 30%, transparent);
+}
+
+/* Barres de défilement discrètes, élargies au survol. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--mh-muted) 35%, transparent);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--mh-muted) 60%, transparent);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mh-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--mh-radius-sm);
+  background: transparent;
+  color: var(--mh-muted);
+  cursor: pointer;
+  transition: background var(--mh-transition), color var(--mh-transition);
+  flex: none;
+}
+.mh-icon-btn:hover {
+  background: var(--mh-hover);
+  color: var(--mh-text);
+}
+.mh-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mh-icon-btn.active {
+  color: var(--mh-accent);
+}
+
+.mh-muted {
+  color: var(--mh-muted);
+}
+
+.mh-hint {
+  color: var(--mh-muted);
+  font-size: 12.5px;
+  margin: 4px 0 0;
+}
+
+.mh-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Champs de formulaire en grille : libellé, contrôle, aide. */
+.mh-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: calc(18px * var(--mh-density));
+}
+.mh-field > label,
+.mh-field > .mh-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.mh-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mh-row.between {
+  justify-content: space-between;
+}
+.mh-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--mh-border);
+}
+.mh-switch-row:last-child {
+  border-bottom: 0;
+}
+.mh-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mh-muted);
+  font-weight: 600;
+  margin: 22px 0 10px;
+}
+.mh-card {
+  background: var(--mh-surface);
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius);
+  padding: 14px 16px;
+}
+
+/* Barre d'actions de fenêtre : actions principales en bas à droite (convention du projet). */
+.mh-actionbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--mh-border);
+  background: var(--mh-surface);
+  flex-wrap: wrap;
+}
+.mh-actionbar .mh-actionbar-info {
+  margin-right: auto;
+  color: var(--mh-muted);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mh-badge-immediate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--mh-muted);
+  border: 1px solid var(--mh-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation-duration: 0s !important;
+  }
+}

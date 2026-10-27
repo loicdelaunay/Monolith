@@ -1,0 +1,73 @@
+# Préparation de release : déclenchement MANUEL uniquement (workflow_dispatch).
+# Produit les paquets Windows/Linux, le bundle CLI, les licences et SHA256SUMS.txt,
+# et, seulement si `draft_release` est coché, une release GitHub en BROUILLON.
+name: Release (brouillon)
+on:
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: 'Créer une release GitHub en brouillon (jamais publiée automatiquement)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: dist:win
+          - os: ubuntu-latest
+            target: dist:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run licenses
+      - run: npm run ${{ matrix.target }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: npm run build -w @monolith/cli
+      - name: Rassembler les artefacts
+        shell: bash
+        run: |
+          mkdir -p release
+          find artifacts/GUI -maxdepth 1 -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.tar.gz' -o -name '*.deb' \) -exec cp {} release/ \;
+          VERSION=$(node -p "require('./package.json').version")
+          cp apps/cli/dist/monolith.mjs "release/MonolithHarness-CLI-v${VERSION}-node24.mjs"
+          cp THIRD-PARTY-LICENSES.txt LICENSE release/
+          node scripts/prepare-release.mjs release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: monolith-${{ matrix.os }}
+          path: release/
+          if-no-files-found: error
+
+  draft:
+    if: ${{ inputs.draft_release }}
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+      - name: Créer la release en brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p upload && find dist-all -type f ! -name SHA256SUMS.txt -exec cp {} upload/ \;
+          node scripts/prepare-release.mjs upload
+          gh release create "v${VERSION}" upload/* --draft --title "Monolith Harness ${VERSION}" --notes "Brouillon préparé par le workflow ; à vérifier avant publication manuelle."

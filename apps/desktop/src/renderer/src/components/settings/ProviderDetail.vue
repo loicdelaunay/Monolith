@@ -1,0 +1,469 @@
+<script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import Tabs from 'primevue/tabs';
+import TabList from 'primevue/tablist';
+import Tab from 'primevue/tab';
+import TabPanels from 'primevue/tabpanels';
+import TabPanel from 'primevue/tabpanel';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Password from 'primevue/password';
+import InputNumber from 'primevue/inputnumber';
+import ToggleSwitch from 'primevue/toggleswitch';
+import Checkbox from 'primevue/checkbox';
+import Textarea from 'primevue/textarea';
+import Paginator from 'primevue/paginator';
+import Message from 'primevue/message';
+import { useToast } from 'primevue/usetoast';
+import type { CatalogModel, ConnectionTestResult, Provider, ProviderModel, Settings } from '@monolith/contracts';
+import { api, errorMessage, host } from '../../api.ts';
+import { store } from '../../stores/app.ts';
+import ProviderLogo from '../ProviderLogo.vue';
+import { formatTokens } from '../../lib/format.ts';
+
+const props = defineProps<{ provider: Provider; draft: Settings }>();
+const emit = defineEmits<{ 'update:dirty': [value: boolean]; delete: []; duplicate: [] }>();
+const { t } = useI18n();
+const toast = useToast();
+
+// ---------- Formulaire (enregistré par « Enregistrer la connexion ») ----------
+function snapshot(p: Provider) {
+  return {
+    name: p.name,
+    baseUrl: p.baseUrl,
+    enabled: p.enabled,
+    headers: Object.entries(p.options.headers).map(([k, v]) => `${k}: ${v}`).join('\n'),
+    connectTimeoutSec: p.options.connectTimeoutSec,
+    idleTimeoutSec: p.options.idleTimeoutSec,
+    streamUsage: p.options.streamUsage,
+    temperature: p.options.temperature,
+    maxOutputTokens: p.options.maxOutputTokens,
+    models: p.models.map((m) => ({ ...m, capabilities: { ...m.capabilities } })),
+  };
+}
+const form = reactive(snapshot(props.provider));
+let saved = JSON.stringify(form);
+const dirty = computed(() => JSON.stringify(form) !== saved);
+watch(dirty, (v) => emit('update:dirty', v), { immediate: true });
+
+// Mise à jour externe (clé, duplication…) : on recale le formulaire s'il n'est pas modifié.
+watch(
+  () => props.provider,
+  (p) => {
+    if (dirty.value) return;
+    Object.assign(form, snapshot(p));
+    saved = JSON.stringify(form);
+  },
+);
+
+const preset = computed(() => store.presets.find((p) => p.id === props.provider.preset));
+const insecureHttp = computed(() => {
+  try {
+    const u = new URL(form.baseUrl);
+    return u.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  } catch {
+    return false;
+  }
+});
+
+function parseHeaders(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const i = line.indexOf(':');
+    if (i <= 0) continue;
+    out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
+}
+
+const saving = ref(false);
+async function save() {
+  saving.value = true;
+  try {
+    await api.call('providers.update', {
+      id: props.provider.id,
+      patch: {
+        name: form.name,
+        baseUrl: form.baseUrl,
+        enabled: form.enabled,
+        options: {
+          headers: parseHeaders(form.headers),
+          connectTimeoutSec: form.connectTimeoutSec,
+          idleTimeoutSec: form.idleTimeoutSec,
+          streamUsage: form.streamUsage,
+          temperature: form.temperature,
+          maxOutputTokens: form.maxOutputTokens,
+        },
+      },
+    });
+    const updated = await api.call('providers.setModels', { id: props.provider.id, models: form.models });
+    Object.assign(form, snapshot(updated));
+    saved = JSON.stringify(form);
+    toast.add({ severity: 'success', summary: t('common.saved'), life: 2000 });
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('errors.invalid_argument'), detail: errorMessage(e), life: 7000 });
+  } finally {
+    saving.value = false;
+  }
+}
+
+function revert() {
+  Object.assign(form, snapshot(props.provider));
+  saved = JSON.stringify(form);
+}
+
+// ---------- Clé (enregistrement immédiat, chiffrée par le moteur) ----------
+const replacingKey = ref(!props.provider.hasKey && (preset.value?.keyRequired ?? false));
+const newKey = ref('');
+const keyBusy = ref(false);
+async function saveKey() {
+  if (!newKey.value.trim()) return;
+  keyBusy.value = true;
+  try {
+    await api.call('providers.setKey', { id: props.provider.id, apiKey: newKey.value });
+    newKey.value = '';
+    replacingKey.value = false;
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('errors.invalid_argument'), detail: errorMessage(e), life: 7000 });
+  } finally {
+    keyBusy.value = false;
+  }
+}
+async function clearKey() {
+  await api.call('providers.clearKey', { id: props.provider.id }).catch((e) => toast.add({ severity: 'error', summary: errorMessage(e), life: 5000 }));
+}
+
+// ---------- Test ----------
+const testing = ref(false);
+const testResult = ref<ConnectionTestResult | null>(null);
+const allowCompletion = ref(false);
+async function test() {
+  testing.value = true;
+  testResult.value = null;
+  try {
+    const firstModel = form.models.find((m) => m.enabled)?.id;
+    testResult.value = await api.call('providers.test', {
+      providerId: props.provider.id,
+      kind: props.provider.kind,
+      baseUrl: form.baseUrl,
+      ...(newKey.value.trim() ? { apiKey: newKey.value } : {}),
+      options: { headers: parseHeaders(form.headers), connectTimeoutSec: form.connectTimeoutSec },
+      ...(firstModel ? { model: firstModel } : {}),
+      allowCompletion: allowCompletion.value,
+    });
+  } catch (e) {
+    testResult.value = { ok: false, status: null, latencyMs: 0, modelCount: null, code: 'internal', message: errorMessage(e), usedCompletion: false };
+  } finally {
+    testing.value = false;
+  }
+}
+const testMessage = computed(() => {
+  const r = testResult.value;
+  if (!r) return '';
+  if (r.ok) return r.usedCompletion ? t('settings.providers.testOkCompletion', { ms: r.latencyMs }) : t('settings.providers.testOk', { ms: r.latencyMs, count: r.modelCount ?? 0 });
+  if (r.code === 'catalog_unavailable') return t('settings.providers.testCatalogMissing');
+  return t('settings.providers.testFail', { message: r.message });
+});
+
+// ---------- Modèles ----------
+const catalog = ref<CatalogModel[] | null>(null);
+const fetching = ref(false);
+const modelQuery = ref('');
+const first = ref(0);
+const PAGE = 50;
+const manualId = ref('');
+
+async function fetchCatalog() {
+  fetching.value = true;
+  try {
+    catalog.value = await api.call('providers.fetchCatalog', { id: props.provider.id });
+    // Fusion : les modèles du catalogue s'ajoutent, désactivés par défaut ; les choix existants sont conservés.
+    const known = new Map(form.models.map((m) => [m.id, m]));
+    for (const c of catalog.value) {
+      const existing = known.get(c.id);
+      if (existing) {
+        existing.contextWindow ??= c.contextWindow;
+        existing.maxOutputTokens ??= c.maxOutputTokens;
+        existing.capabilities = { ...c.capabilities, reasoningLevels: existing.capabilities.reasoningLevels.length ? existing.capabilities.reasoningLevels : c.capabilities.reasoningLevels };
+        existing.source = 'catalog';
+      } else {
+        form.models.push({ id: c.id, label: c.label, enabled: false, contextWindow: c.contextWindow, maxOutputTokens: c.maxOutputTokens, source: 'catalog', capabilities: { ...c.capabilities } });
+      }
+    }
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('settings.providers.fetchCatalog'), detail: errorMessage(e), life: 7000 });
+  } finally {
+    fetching.value = false;
+  }
+}
+
+const filteredModels = computed(() => {
+  const q = modelQuery.value.trim().toLowerCase();
+  return form.models.filter((m) => !q || m.id.toLowerCase().includes(q) || m.label.toLowerCase().includes(q));
+});
+const pageModels = computed(() => filteredModels.value.slice(first.value, first.value + PAGE));
+watch(modelQuery, () => (first.value = 0));
+const enabledCount = computed(() => form.models.filter((m) => m.enabled).length);
+
+function setAll(value: boolean) {
+  for (const m of filteredModels.value) m.enabled = value;
+}
+function addManual() {
+  const id = manualId.value.trim();
+  if (!id || form.models.some((m) => m.id === id)) return;
+  form.models.unshift({ id, label: id, enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], vision: null, tools: null } });
+  manualId.value = '';
+}
+function removeModel(m: ProviderModel) {
+  form.models.splice(form.models.indexOf(m), 1);
+}
+</script>
+
+<template>
+  <div class="detail">
+    <header class="head">
+      <ProviderLogo :preset="provider.preset" :size="34" />
+      <div class="head-text">
+        <div class="title">{{ form.name || provider.name }}</div>
+        <div class="mh-hint">{{ preset?.name }}</div>
+      </div>
+      <a v-if="preset?.docsUrl" href="#" class="link" @click.prevent="host.openExternal(preset.docsUrl)">{{ t('settings.providers.docs') }}</a>
+      <Button icon="pi pi-copy" text rounded size="small" :aria-label="t('common.duplicate')" v-tooltip.bottom="t('common.duplicate')" @click="emit('duplicate')" />
+      <Button icon="pi pi-trash" text rounded size="small" severity="danger" :aria-label="t('common.delete')" v-tooltip.bottom="t('common.delete')" @click="emit('delete')" />
+    </header>
+
+    <Tabs value="connection" class="tabs">
+      <TabList>
+        <Tab value="connection">{{ t('settings.providers.tabs.connection') }}</Tab>
+        <Tab value="models">{{ t('settings.providers.tabs.models') }} <span class="count">{{ enabledCount }}</span></Tab>
+        <Tab value="advanced">{{ t('settings.providers.tabs.advanced') }}</Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="connection">
+          <div class="mh-field">
+            <label :for="`pname-${provider.id}`">{{ t('settings.providers.name') }}</label>
+            <InputText :id="`pname-${provider.id}`" v-model="form.name" maxlength="120" fluid />
+          </div>
+          <div class="mh-field">
+            <label :for="`purl-${provider.id}`">{{ t('settings.providers.baseUrl') }}</label>
+            <InputText :id="`purl-${provider.id}`" v-model="form.baseUrl" fluid spellcheck="false" />
+            <Message v-if="insecureHttp" severity="warn" size="small" variant="simple">{{ t('settings.providers.httpWarning') }}</Message>
+          </div>
+          <div class="mh-switch-row">
+            <label :for="`pen-${provider.id}`">{{ t('settings.providers.enabled') }}</label>
+            <ToggleSwitch :input-id="`pen-${provider.id}`" v-model="form.enabled" />
+          </div>
+
+          <div class="mh-field key">
+            <div class="mh-row between">
+              <span class="mh-label">{{ t('settings.providers.apiKey') }}</span>
+              <span class="mh-badge-immediate"><i class="pi pi-bolt" />{{ t('common.immediate') }}</span>
+            </div>
+            <Message v-if="provider.keyUnreadable" severity="warn" size="small">{{ t('settings.providers.keyUnreadable') }}</Message>
+            <div v-if="provider.hasKey && !replacingKey" class="mh-row wrap">
+              <i class="pi pi-lock" />
+              <span>{{ provider.keyHint ? t('settings.providers.keySaved', { hint: provider.keyHint }) : t('settings.providers.keySavedNoHint') }}</span>
+              <Button :label="t('settings.providers.keyReplace')" size="small" severity="secondary" outlined @click="replacingKey = true" />
+              <Button :label="t('settings.providers.keyClear')" size="small" severity="danger" text @click="clearKey" />
+            </div>
+            <template v-else>
+              <div class="mh-row">
+                <Password v-model="newKey" :feedback="false" toggle-mask :placeholder="t('settings.providers.keyPlaceholder')" :input-props="{ autocomplete: 'off', spellcheck: false, 'aria-label': t('settings.providers.apiKey') }" class="grow" fluid @keydown.enter.prevent="saveKey" />
+                <Button :label="t('common.save')" :loading="keyBusy" :disabled="!newKey.trim()" @click="saveKey" />
+                <Button v-if="provider.hasKey" :label="t('common.cancel')" severity="secondary" text @click="(replacingKey = false), (newKey = '')" />
+              </div>
+              <p v-if="!provider.hasKey" class="mh-hint">{{ preset?.keyRequired ? '' : t('settings.providers.keyOptional') }}</p>
+            </template>
+            <a v-if="preset?.keyUrl" href="#" class="link small" @click.prevent="host.openExternal(preset.keyUrl)">{{ t('settings.providers.getKey') }} <i class="pi pi-external-link" /></a>
+          </div>
+
+          <div class="test">
+            <Button :label="t('settings.providers.test')" icon="pi pi-bolt" :loading="testing" severity="secondary" @click="test" />
+            <div class="mh-row check">
+              <Checkbox v-model="allowCompletion" binary :input-id="`pac-${provider.id}`" />
+              <label :for="`pac-${provider.id}`">{{ t('settings.providers.allowCompletion') }}</label>
+            </div>
+            <p class="mh-hint">{{ t('settings.providers.allowCompletionHint') }}</p>
+            <!-- Résultat directement sous le bouton. -->
+            <Message v-if="testResult" :severity="testResult.ok ? 'success' : testResult.code === 'catalog_unavailable' ? 'warn' : 'error'" size="small" role="status">{{ testMessage }}</Message>
+          </div>
+        </TabPanel>
+
+        <TabPanel value="models">
+          <div class="mh-row wrap tools">
+            <Button :label="t('settings.providers.fetchCatalog')" icon="pi pi-download" size="small" :loading="fetching" @click="fetchCatalog" />
+            <span v-if="catalog" class="mh-hint">{{ t('settings.providers.catalogCount', { count: catalog.length }) }}</span>
+            <span class="grow" />
+            <span class="mh-hint">{{ t('settings.providers.enabledCount', { enabled: enabledCount, total: form.models.length }) }}</span>
+          </div>
+          <div class="mh-row tools">
+            <InputText v-model="manualId" size="small" :placeholder="t('settings.providers.manualPlaceholder')" :aria-label="t('settings.providers.manualPlaceholder')" class="grow" @keydown.enter.prevent="addManual" />
+            <Button :label="t('settings.providers.manualAdd')" icon="pi pi-plus" size="small" severity="secondary" outlined :disabled="!manualId.trim()" @click="addManual" />
+          </div>
+          <div class="mh-row tools">
+            <InputText v-model="modelQuery" size="small" :placeholder="t('settings.providers.modelsSearch')" :aria-label="t('settings.providers.modelsSearch')" class="grow" />
+            <Button :label="t('settings.providers.enableAll')" size="small" text @click="setAll(true)" />
+            <Button :label="t('settings.providers.disableAll')" size="small" text @click="setAll(false)" />
+          </div>
+          <p v-if="form.models.length === 0" class="mh-hint">{{ t('settings.providers.modelsEmpty') }}</p>
+          <ul v-else class="models">
+            <li v-for="m in pageModels" :key="m.id" class="model-row">
+              <Checkbox v-model="m.enabled" binary :input-id="`m-${provider.id}-${m.id}`" />
+              <label :for="`m-${provider.id}-${m.id}`" class="model-id">{{ m.id }}</label>
+              <span v-if="m.contextWindow" class="mh-hint">{{ t('settings.providers.contextWindow') }} {{ formatTokens(m.contextWindow) }}</span>
+              <span class="src" :class="m.source">{{ m.source === 'catalog' ? t('settings.providers.catalog') : t('settings.providers.manual') }}</span>
+              <button v-if="m.source === 'manual'" type="button" class="mh-icon-btn" :aria-label="t('common.remove')" @click="removeModel(m)"><i class="pi pi-times" /></button>
+            </li>
+          </ul>
+          <Paginator v-if="filteredModels.length > PAGE" v-model:first="first" :rows="PAGE" :total-records="filteredModels.length" template="PrevPageLink PageLinks NextPageLink" />
+        </TabPanel>
+
+        <TabPanel value="advanced">
+          <div class="mh-field">
+            <label :for="`ph-${provider.id}`">{{ t('settings.providers.headers') }}</label>
+            <Textarea :id="`ph-${provider.id}`" v-model="form.headers" rows="3" auto-resize fluid class="mono" spellcheck="false" />
+            <p class="mh-hint">{{ t('settings.providers.headersHint') }}</p>
+          </div>
+          <div class="grid">
+            <div class="mh-field">
+              <label :for="`pct-${provider.id}`">{{ t('settings.providers.connectTimeout') }}</label>
+              <InputNumber :input-id="`pct-${provider.id}`" v-model="form.connectTimeoutSec" :min="5" :max="600" show-buttons :allow-empty="false" />
+            </div>
+            <div class="mh-field">
+              <label :for="`pit-${provider.id}`">{{ t('settings.providers.idleTimeout') }}</label>
+              <InputNumber :input-id="`pit-${provider.id}`" v-model="form.idleTimeoutSec" :min="10" :max="1800" show-buttons :allow-empty="false" />
+            </div>
+            <div class="mh-field">
+              <label :for="`ptemp-${provider.id}`">{{ t('settings.providers.temperature') }}</label>
+              <InputNumber :input-id="`ptemp-${provider.id}`" v-model="form.temperature" :min="0" :max="2" :step="0.1" :min-fraction-digits="1" :max-fraction-digits="2" :placeholder="t('settings.providers.temperatureDefault')" />
+            </div>
+            <div class="mh-field">
+              <label :for="`pmax-${provider.id}`">{{ t('settings.providers.maxOutputTokens') }}</label>
+              <InputNumber :input-id="`pmax-${provider.id}`" v-model="form.maxOutputTokens" :min="1" :max="1000000" :placeholder="t('settings.providers.temperatureDefault')" />
+            </div>
+          </div>
+          <div class="mh-switch-row">
+            <label :for="`psu-${provider.id}`">{{ t('settings.providers.streamUsage') }}</label>
+            <ToggleSwitch :input-id="`psu-${provider.id}`" v-model="form.streamUsage" />
+          </div>
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
+
+    <footer class="mh-actionbar">
+      <span v-if="dirty" class="mh-actionbar-info"><i class="pi pi-circle-fill dot" /> {{ t('settings.providers.unsaved') }}</span>
+      <Button :label="t('settings.providers.revert')" severity="secondary" text :disabled="!dirty" @click="revert" />
+      <Button :label="t('settings.providers.saveConnection')" icon="pi pi-check" :loading="saving" :disabled="!dirty" @click="save" />
+    </footer>
+  </div>
+</template>
+
+<style scoped>
+.detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 6px;
+}
+.head-text {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-weight: 650;
+  font-size: 16px;
+}
+.tabs {
+  flex: 1;
+}
+.count {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--mh-muted);
+}
+.link {
+  color: var(--mh-accent);
+  font-size: 13px;
+}
+.link.small {
+  font-size: 12.5px;
+}
+.key {
+  margin-top: 14px;
+}
+.test {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+.check {
+  gap: 8px;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.tools {
+  margin-bottom: 10px;
+}
+.models {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius-sm);
+}
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--mh-border);
+}
+.model-row:last-child {
+  border-bottom: 0;
+}
+.model-id {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mh-font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.src {
+  font-size: 11px;
+  color: var(--mh-muted);
+  border: 1px solid var(--mh-border);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0 16px;
+}
+.mono :deep(textarea),
+textarea.mono {
+  font-family: var(--mh-font-mono);
+  font-size: 12.5px;
+}
+.dot {
+  font-size: 7px;
+  color: var(--mh-warning);
+}
+.mh-actionbar {
+  position: sticky;
+  bottom: 0;
+}
+</style>

@@ -1,0 +1,24 @@
+{
+  "name": "@monolith/cli",
+  "version": "3.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Monolith Harness — interface terminal interactive",
+  "bin": {
+    "monolith": "./dist/monolith.mjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && node --disable-warning=ExperimentalWarning dist/monolith.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@monolith/contracts": "3.0.0-alpha.1",
+    "@monolith/core": "3.0.0-alpha.1",
+    "ink": "8.0.0",
+    "react": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0"
+  }
+}

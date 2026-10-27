@@ -1,0 +1,16 @@
+node_modules/
+out/
+dist/
+release/
+artifacts/
+coverage/
+*.log
+.DS_Store
+# Données locales et profils de test : ne jamais versionner
+data/
+.data/
+*.sqlite
+*.sqlite-*
+monolith.location.json
+.env
+.env.*

@@ -1,0 +1,10 @@
+export { Harness, type HarnessOptions } from './harness.ts';
+export { EventBus } from './events.ts';
+export { FileLogger, silentLogger, type Logger, type LogEntry, type LogLevel } from './log/logger.ts';
+export { resolveDataDir, writeLocationFile, dataLayout, userDataRoot, isWritableDir, LOCATION_FILE, type ResolvedDataDir, type DataLayout } from './platform/paths.ts';
+export { platformCapabilities, type HostKind } from './platform/capabilities.ts';
+export { FileProtector, MemoryProtector, systemProtector, type KeyProtector } from './security/secrets.ts';
+export { redact, redactValue } from './security/redact.ts';
+export { SseParser } from './providers/sse.ts';
+export { createInProcessClient } from './rpc/in-process.ts';
+export { serveRpc, type RpcPort, type RpcMessage } from './rpc/port.ts';
