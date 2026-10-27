@@ -1,37 +1,61 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import openai from '@lobehub/icons-static-svg/icons/openai.svg?raw';
+import deepseek from '@lobehub/icons-static-svg/icons/deepseek-color.svg?raw';
+import openrouter from '@lobehub/icons-static-svg/icons/openrouter.svg?raw';
+import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg?raw';
+import vertex from '@lobehub/icons-static-svg/icons/vertexai-color.svg?raw';
+import groq from '@lobehub/icons-static-svg/icons/groq.svg?raw';
+import mistral from '@lobehub/icons-static-svg/icons/mistral-color.svg?raw';
+import nvidia from '@lobehub/icons-static-svg/icons/nvidia-color.svg?raw';
+import zai from '@lobehub/icons-static-svg/icons/zai.svg?raw';
+import ollama from '@lobehub/icons-static-svg/icons/ollama.svg?raw';
+import lmstudio from '@lobehub/icons-static-svg/icons/lmstudio.svg?raw';
+import opencode from '@lobehub/icons-static-svg/icons/opencode.svg?raw';
+import geminicli from '@lobehub/icons-static-svg/icons/geminicli-color.svg?raw';
+import claudecode from '@lobehub/icons-static-svg/icons/claudecode-color.svg?raw';
 
 /**
- * Pastilles locales (aucune ressource distante, aucun logo de marque reproduit) :
- * initiales et couleur propres à chaque préréglage.
+ * Logos des fournisseurs (Lobe Icons, MIT ; marques de leurs propriétaires), intégrés au bundle :
+ * aucune ressource distante. Les logos monochromes suivent la couleur du texte (thème clair ou
+ * sombre). Sans logo connu : initiales sur une pastille colorée.
  */
 const props = withDefaults(defineProps<{ preset: string; size?: number }>(), { size: 20 });
 
-const STYLES: Record<string, { label: string; color: string }> = {
-  openai: { label: 'OA', color: '#10a37f' },
-  deepseek: { label: 'DS', color: '#4d6bfe' },
-  openrouter: { label: 'OR', color: '#6467f2' },
-  'gemini-openai': { label: 'G', color: '#1a73e8' },
-  gemini: { label: 'G', color: '#1a73e8' },
-  vertex: { label: 'VX', color: '#34a853' },
-  groq: { label: 'GQ', color: '#f55036' },
-  mistral: { label: 'M', color: '#fa520f' },
-  nvidia: { label: 'NV', color: '#76b900' },
-  zai: { label: 'Z', color: '#2d2d2d' },
-  ollama: { label: 'OL', color: '#4a4a4a' },
-  lmstudio: { label: 'LM', color: '#5a46d6' },
+const SVG: Record<string, string> = {
+  openai,
+  chatgpt: openai,
+  deepseek,
+  openrouter,
+  'gemini-openai': gemini,
+  gemini,
+  vertex,
+  groq,
+  mistral,
+  nvidia,
+  zai,
+  ollama,
+  lmstudio,
+  opencode,
+  'gemini-cli': geminicli,
+  'claude-code': claudecode,
+};
+const BADGES: Record<string, { label: string; color: string }> = {
   llamacpp: { label: 'LC', color: '#8a5a2b' },
-  opencode: { label: 'OC', color: '#222222' },
   acp: { label: 'AC', color: '#7c3aed' },
   composite: { label: 'CM', color: '#0f8a7a' },
   local: { label: 'GG', color: '#b45309' },
   custom: { label: '{ }', color: '#6b7280' },
 };
-const style = computed(() => STYLES[props.preset] ?? { label: props.preset.slice(0, 2).toUpperCase(), color: '#6b7280' });
+// Le SVG provient du paquet (texte connu à la compilation) : les dimensions suivent la taille demandée.
+const svg = computed(() => SVG[props.preset]?.replace(/ (width|height)="1em"/g, ''));
+const badge = computed(() => BADGES[props.preset] ?? { label: props.preset.slice(0, 2).toUpperCase(), color: '#6b7280' });
 </script>
 
 <template>
-  <span class="logo" :style="{ width: `${size}px`, height: `${size}px`, background: style.color, fontSize: `${Math.round(size * 0.42)}px` }" aria-hidden="true">{{ style.label }}</span>
+  <!-- eslint-disable-next-line vue/no-v-html -->
+  <span v-if="svg" class="logo svg" :style="{ width: `${size}px`, height: `${size}px` }" aria-hidden="true" v-html="svg" />
+  <span v-else class="logo badge" :style="{ width: `${size}px`, height: `${size}px`, background: badge.color, fontSize: `${Math.round(size * 0.42)}px` }" aria-hidden="true">{{ badge.label }}</span>
 </template>
 
 <style scoped>
@@ -39,12 +63,21 @@ const style = computed(() => STYLES[props.preset] ?? { label: props.preset.slice
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
+  line-height: 1;
+}
+.svg {
+  color: var(--mh-text);
+}
+.svg :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.badge {
   border-radius: 28%;
   color: #fff;
   font-weight: 700;
   letter-spacing: -0.02em;
-  flex: none;
-  line-height: 1;
   font-family: var(--mh-font-ui);
 }
 </style>

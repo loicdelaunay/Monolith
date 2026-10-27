@@ -8,6 +8,8 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 - **LANCET Nano (local)** valide les commandes du mode Automatique sur ce poste : une commande non signalée passe, une commande à vérifier ou risquée vous est soumise ; les autres actions suivent vos règles.
 - **MiniLM multilingue (local)** calcule les embeddings du RAG sur ce poste, en français comme en anglais.
 - Les modèles et leur environnement Python sont téléchargés uniquement après votre accord, chaque fichier vérifié par son empreinte ; progression et annulation dans la fenêtre et dans les réglages (Autorisations, Skills).
+- **OpenAI Subscription** (comme la v1) : nouvelle connexion « OpenAI Subscription · ChatGPT Plus / Pro (Codex) » pour utiliser votre abonnement ChatGPT sans clé d'API. Cliquez sur « Connecter mon compte ChatGPT » et terminez la connexion OpenAI dans le navigateur ; les identifiants restent gérés par Codex et aucune clé d'API du poste n'est transmise. Node.js est requis.
+- **Logos des fournisseurs** dans la liste des connexions et le sélecteur de modèle (OpenAI, DeepSeek, Gemini, Vertex AI, Mistral, Groq, NVIDIA, Z.ai, OpenRouter, Ollama, LM Studio, OpenCode, Gemini CLI, Claude Code).
 - **Vertex AI · clé API Google Cloud de projet** (comme la v1) : nouvelle authentification « Clé API Google Cloud · projet » ; indiquez l'ID du projet (ex. `project-…`) et la région, puis collez la clé complète (points compris) dans le champ Clé. Elle est chiffrée et envoyée dans l'en-tête `x-goog-api-key`, jamais dans l'URL. Les identifiants de modèle `google/gemini-…` sont acceptés.
 
 ## 3.0.0-alpha.14 — 2026-10-28

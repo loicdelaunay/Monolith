@@ -138,6 +138,7 @@ function cleanOptions(input: Partial<ProviderOptions> | undefined, base: Provide
       command: line(a.command, 500) ?? base.acp.command,
       args: Array.isArray(a.args) ? a.args.map((x) => line(x, 1000)).filter((x): x is string => x !== null && x !== '').slice(0, 50) : base.acp.args,
       env,
+      account: a.account === 'chatgpt' ? 'chatgpt' : null,
     };
   }
   if (input.composite && typeof input.composite === 'object') {

@@ -389,6 +389,8 @@ export interface HarnessApi {
   'providers.setKey': { params: { id: Id; apiKey: string }; result: Provider };
   'providers.clearKey': { params: { id: Id }; result: Provider };
   'providers.test': { params: ProviderTestInput; result: ConnectionTestResult };
+  /** Connexion du compte de l'agent (navigateur) : ChatGPT pour OpenAI Subscription. */
+  'providers.authenticate': { params: { id: Id }; result: { ok: boolean; message: string } };
   'providers.fetchCatalog': { params: { id: Id }; result: CatalogModel[] };
   /** Réévalue les capacités des modèles enregistrés (catalogue + table documentée) et oublie les niveaux refusés. */
   'providers.refreshModels': { params: { id: Id }; result: Provider };

@@ -81,7 +81,7 @@ function parseEnv(text: string): Record<string, string> {
 }
 function kindOptions() {
   if (kind.value === 'vertex' || kind.value === 'gemini') return { google: { ...form.google } };
-  if (kind.value === 'acp') return { acp: { command: form.acpCommand, args: form.acpArgs.split('\n').map((a) => a.trim()).filter(Boolean), env: parseEnv(form.acpEnv) } };
+  if (kind.value === 'acp') return { acp: { command: form.acpCommand, args: form.acpArgs.split('\n').map((a) => a.trim()).filter(Boolean), env: parseEnv(form.acpEnv), account: props.provider.options.acp.account ?? null } };
   if (kind.value === 'composite') return { composite: form.composite };
   return {};
 }
@@ -174,6 +174,20 @@ async function clearKey() {
 }
 
 // ---------- Test ----------
+// Compte de l'agent (OpenAI Subscription : connexion ChatGPT dans le navigateur, comme la v1).
+const connecting = ref(false);
+const accountResult = ref<{ ok: boolean; message: string } | null>(null);
+async function connectAccount() {
+  connecting.value = true;
+  accountResult.value = null;
+  try {
+    accountResult.value = await api.call('providers.authenticate', { id: props.provider.id });
+  } catch (e) {
+    accountResult.value = { ok: false, message: errorMessage(e) };
+  } finally {
+    connecting.value = false;
+  }
+}
 const testing = ref(false);
 const testResult = ref<ConnectionTestResult | null>(null);
 const allowCompletion = ref(false);
@@ -351,6 +365,14 @@ function removeModel(m: ProviderModel) {
           <!-- Agent externe ACP -->
           <fieldset v-if="kind === 'acp'" class="mh-field plain kind-box">
             <legend class="mh-label">{{ t('settings.providers.acp.title') }}</legend>
+            <div v-if="provider.options.acp.account === 'chatgpt'" class="account">
+              <p class="mh-hint">{{ t('settings.providers.acp.chatgptHint') }}</p>
+              <div class="mh-row wrap">
+                <Button :label="t('settings.providers.acp.connectChatgpt')" icon="pi pi-sign-in" size="small" :loading="connecting" @click="connectAccount" />
+                <span v-if="connecting" class="mh-hint">{{ t('settings.providers.acp.connecting') }}</span>
+              </div>
+              <Message v-if="accountResult" :severity="accountResult.ok ? 'success' : 'warn'" size="small" variant="simple">{{ accountResult.message }}</Message>
+            </div>
             <p class="mh-hint">{{ t('settings.providers.acp.hint') }}</p>
             <div class="mh-field">
               <label :for="`acmd-${provider.id}`">{{ t('settings.providers.acp.command') }}</label>
@@ -536,6 +558,14 @@ function removeModel(m: ProviderModel) {
 </template>
 
 <style scoped>
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--mh-border);
+}
 .kind-box {
   border: 1px solid var(--mh-border);
   border-radius: var(--mh-radius);

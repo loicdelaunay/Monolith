@@ -248,6 +248,11 @@ export interface AcpOptions {
   args: string[];
   /** Variables d'environnement non secrètes ajoutées au processus. */
   env: Record<string, string>;
+  /**
+   * Compte de l'agent connecté par navigateur : `chatgpt` (abonnement ChatGPT via Codex). Les clés
+   * d'API OpenAI de l'environnement ne sont alors jamais transmises à l'agent.
+   */
+  account?: 'chatgpt' | null;
 }
 
 export interface ModelRef {

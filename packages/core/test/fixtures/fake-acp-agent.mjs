@@ -30,7 +30,12 @@ createInterface({ input: process.stdin }).on('line', async (line) => {
     cancelled = true;
     return;
   }
-  if (msg.method === 'initialize') return send({ id: msg.id, result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: false } }, agentInfo: { name: 'fake-agent', version: '1.0' }, authMethods: [] } });
+  // Compte ChatGPT simulé : méthode annoncée seulement si FAKE_CHATGPT=1 ; la clé d'API ne doit jamais arriver.
+  if (msg.method === 'initialize') return send({ id: msg.id, result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: false } }, agentInfo: { name: 'fake-agent', version: '1.0' }, authMethods: process.env.FAKE_CHATGPT === '1' ? [{ id: 'chat-gpt', name: 'ChatGPT' }] : [] } });
+  if (msg.method === 'authenticate') {
+    if (process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY) return send({ id: msg.id, error: { code: -32000, message: 'clé d’API reçue' } });
+    return msg.params.methodId === 'chat-gpt' ? send({ id: msg.id, result: {} }) : send({ id: msg.id, error: { code: -32602, message: 'méthode inconnue' } });
+  }
   if (msg.method === 'session/new') {
     cwd = msg.params.cwd;
     return send({ id: msg.id, result: { sessionId: 'sess-1' } });

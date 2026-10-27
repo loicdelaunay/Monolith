@@ -1,6 +1,6 @@
 # Licences des dépendances
 
-Généré par `npm run licenses`. 245 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
+Généré par `npm run licenses`. 246 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
 
 | Paquet | Version | Licence | Utilisé par |
 | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Généré par `npm run licenses`. 245 paquets regroupés dans les bundles. Texte
 | @intlify/message-compiler | 11.4.16 | MIT | desktop |
 | @intlify/shared | 11.4.16 | MIT | desktop |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | desktop |
+| @lobehub/icons-static-svg | 1.95.1 | MIT | desktop |
 | @mermaid-js/parser | 2.0.1 | MIT | desktop |
 | @primeuix/styled | 0.7.4 | MIT | desktop |
 | @primeuix/styles | 2.0.3 | MIT | desktop |

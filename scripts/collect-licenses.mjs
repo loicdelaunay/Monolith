@@ -8,12 +8,14 @@ import { dirname, join } from 'node:path';
 const root = join(import.meta.dirname, '..');
 // Racines réellement regroupées dans les bundles (Electron est fourni avec ses propres licences par electron-builder).
 const ROOTS = {
-  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki', 'katex', 'mermaid', 'undici'],
+  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki', 'katex', 'mermaid', 'undici', '@lobehub/icons-static-svg'],
   cli: ['ink', 'react', 'undici'],
 };
 // Paquets exclus des bundles (remplacés par un module local) et licences déclarées hors package.json.
 const EXCLUDED = new Set(['elkjs']);
 const KNOWN_LICENSES = { khroma: 'MIT' };
+// Texte de licence absent du paquet publié : copie du texte amont (dépôt lobehub/lobe-icons).
+const KNOWN_TEXTS = { '@lobehub/icons-static-svg': join(root, 'apps/desktop/build/licenses/lobe-icons-LICENSE.txt') };
 const ALLOWED = new Set(['(MPL-2.0 OR Apache-2.0)', 'MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', '0BSD', 'MIT-0', 'CC0-1.0', 'Unlicense', 'BlueOak-1.0.0', 'Python-2.0', 'PSF-2.0', '(MIT OR CC0-1.0)', '(MIT OR Apache-2.0)', 'MIT OR Apache-2.0']);
 
 function resolvePackage(name, fromDir) {
@@ -39,7 +41,7 @@ function visit(name, fromDir, app) {
   const dir = dirname(pkgPath);
   const licenseFile = readdirSync(dir).find((f) => /^(licen[cs]e|copying)(\.|$)/i.test(f));
   const license = KNOWN_LICENSES[pkg.name] ?? (typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? (Array.isArray(pkg.licenses) ? pkg.licenses.map((l) => l.type).join(' OR ') : 'UNKNOWN')));
-  found.set(key, { name: pkg.name, version: pkg.version, license, apps: new Set([app]), text: licenseFile ? readFileSync(join(dir, licenseFile), 'utf8').trim() : null, homepage: pkg.homepage ?? pkg.repository?.url ?? '' });
+  found.set(key, { name: pkg.name, version: pkg.version, license, apps: new Set([app]), text: licenseFile ? readFileSync(join(dir, licenseFile), 'utf8').trim() : KNOWN_TEXTS[pkg.name] ? readFileSync(KNOWN_TEXTS[pkg.name], 'utf8').trim() : null, homepage: pkg.homepage ?? pkg.repository?.url ?? '' });
   for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies })) visit(dep, dir, app);
 }
 

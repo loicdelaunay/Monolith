@@ -41,12 +41,15 @@ class AcpProcess {
     throw Object.assign(new Error(`Méthode non prise en charge : ${method}`), { code: -32601 });
   };
 
-  constructor(command: string, args: string[], cwd: string, env: Record<string, string>) {
+  constructor(command: string, args: string[], cwd: string, env: Record<string, string>, account: 'chatgpt' | null = null) {
     const win = process.platform === 'win32';
+    // Abonnement ChatGPT : jamais de facturation d'API à l'insu de l'utilisateur ni de Codex substitué.
+    const base: NodeJS.ProcessEnv = { ...process.env };
+    if (account === 'chatgpt') for (const k of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_PATH']) delete base[k];
     // Windows : les agents installés par npm sont des scripts .cmd, lancés par l'interpréteur de commandes.
     this.proc = win
-      ? spawn([command, ...args].map(quoteArg).join(' '), [], { cwd, env: { ...process.env, ...env }, shell: true, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
-      : spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+      ? spawn([command, ...args].map(quoteArg).join(' '), [], { cwd, env: { ...base, ...env }, shell: true, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+      : spawn(command, args, { cwd, env: { ...base, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc.stdout!.setEncoding('utf8');
     this.proc.stdout!.on('data', (d: string) => this.onData(d));
     this.proc.stderr!.setEncoding('utf8');
@@ -195,7 +198,7 @@ export class AcpAdapter implements ProviderAdapter {
     const started = performance.now();
     const acp = conn.options.acp;
     if (!acp.command.trim()) return { ok: false, status: null, latencyMs: 0, modelCount: null, code: 'invalid_argument', message: 'Commande de l’agent manquante', usedCompletion: false };
-    const proc = new AcpProcess(acp.command, acp.args, process.cwd(), acp.env);
+    const proc = new AcpProcess(acp.command, acp.args, process.cwd(), acp.env, acp.account ?? null);
     try {
       const r = await proc.request<{ protocolVersion?: number; agentInfo?: { name?: string; version?: string } }>('initialize', this.initParams(), 30_000);
       const name = r.agentInfo?.name ? ` ${r.agentInfo.name}${r.agentInfo.version ? ` ${r.agentInfo.version}` : ''}` : '';
@@ -203,6 +206,31 @@ export class AcpAdapter implements ProviderAdapter {
     } catch (e) {
       return { ok: false, status: null, latencyMs: Math.round(performance.now() - started), modelCount: null, code: e instanceof HarnessError ? e.code : 'internal', message: (e as Error).message, usedCompletion: false };
     } finally {
+      await proc.kill();
+    }
+  }
+
+  /**
+   * Connexion du compte de l'agent (comme la v1) : méthode `chat-gpt` annoncée par l'adaptateur Codex,
+   * qui ouvre la connexion OpenAI dans le navigateur. Les identifiants restent gérés par Codex.
+   */
+  async authenticate(conn: ProviderConnection, signal: AbortSignal): Promise<{ ok: boolean; message: string }> {
+    const acp = conn.options.acp;
+    if (acp.account !== 'chatgpt') return { ok: false, message: 'Cette connexion n’a pas de compte à connecter.' };
+    const proc = new AcpProcess(acp.command, acp.args, process.cwd(), acp.env, 'chatgpt');
+    const stop = () => void proc.kill();
+    signal.addEventListener('abort', stop, { once: true });
+    try {
+      const init = await proc.request<{ protocolVersion?: number; authMethods?: { id?: string }[] }>('initialize', this.initParams(), 120_000);
+      const method = (init.authMethods ?? []).map((m) => m.id).find((id) => id === 'chat-gpt' || id === 'chatgpt');
+      if (!method) return { ok: false, message: 'Cet adaptateur n’annonce pas la connexion ChatGPT : utilisez l’adaptateur Codex ACP compatible.' };
+      // L'utilisateur termine la connexion dans son navigateur.
+      await proc.request('authenticate', { methodId: method }, 10 * 60_000);
+      return { ok: true, message: 'Compte ChatGPT connecté (identifiants gérés par Codex).' };
+    } catch (e) {
+      return { ok: false, message: signal.aborted ? 'Connexion annulée.' : (e as Error).message };
+    } finally {
+      signal.removeEventListener('abort', stop);
       await proc.kill();
     }
   }
@@ -215,11 +243,11 @@ export class AcpAdapter implements ProviderAdapter {
   private async session(conn: ProviderConnection, ctx: AdapterContext): Promise<Session> {
     const acp = conn.options.acp;
     if (!acp.command.trim()) throw new HarnessError('invalid_argument', 'Commande de l’agent ACP manquante (Réglages › Fournisseurs).');
-    const key = JSON.stringify([acp.command, acp.args, acp.env, ctx.cwd]);
+    const key = JSON.stringify([acp.command, acp.args, acp.env, acp.account ?? null, ctx.cwd]);
     const existing = this.sessions.get(ctx.conversationId);
     if (existing && existing.key === key && !existing.proc.exited) return existing;
     if (existing) await this.close(ctx.conversationId);
-    const proc = new AcpProcess(acp.command, acp.args, ctx.cwd, acp.env);
+    const proc = new AcpProcess(acp.command, acp.args, ctx.cwd, acp.env, acp.account ?? null);
     try {
       const init = await proc.request<{ agentCapabilities?: { promptCapabilities?: { image?: boolean } } }>('initialize', this.initParams(), 60_000);
       const created = await proc.request<{ sessionId: string }>('session/new', { cwd: ctx.cwd, mcpServers: [] }, 60_000);

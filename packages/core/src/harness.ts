@@ -853,6 +853,12 @@ export class Harness {
       'providers.setKey': (p) => this.providers.setKey(p.id, p.apiKey),
       'providers.clearKey': (p) => this.providers.clearKey(p.id),
       'providers.test': (p) => this.withAbort((signal) => this.providers.test(p, signal)),
+      'providers.authenticate': (p) =>
+        this.withAbort(async (signal) => {
+          const { adapter, conn } = await this.providers.connection(p.id);
+          if (!(adapter instanceof AcpAdapter)) return { ok: false, message: 'Cette connexion n’a pas de compte à connecter.' };
+          return adapter.authenticate(conn, signal);
+        }),
       'providers.fetchCatalog': (p) => this.withAbort((signal) => this.providers.fetchCatalog(p.id, signal)),
       'providers.refreshModels': (p) => this.withAbort((signal) => this.providers.refreshModels(p.id, signal)),
       'providers.setModels': (p) => this.providers.setModels(p.id, p.models),

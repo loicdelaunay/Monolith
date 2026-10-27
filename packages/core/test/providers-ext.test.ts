@@ -263,3 +263,28 @@ describe('Modèle composé', () => {
     await expect(h.call('providers.update', { id: pc.id, patch: { options: { composite: { orchestrator: { providerId: po.id, model: 'o' }, specialists: [{ name: 'a', description: '', providerId: ps.id, model: 's' }, { name: 'a', description: '', providerId: ps.id, model: 's' }], maxConsultations: 3 } } } })).rejects.toThrow(/même nom/);
   });
 });
+
+describe('OpenAI Subscription (ChatGPT via Codex ACP)', () => {
+  it('préréglage, connexion du compte par la méthode chat-gpt, clés d’API jamais transmises', async () => {
+    const { h } = await base();
+    const preset = (await h.call('providers.presets')).find((p) => p.id === 'chatgpt')!;
+    expect(preset).toMatchObject({ kind: 'acp', defaults: { acp: { command: 'npx', args: ['-y', '@agentclientprotocol/codex-acp@2.1.1'], account: 'chatgpt' } } });
+    const agent = join(import.meta.dirname, 'fixtures', 'fake-acp-agent.mjs');
+    const previous = { openai: process.env.OPENAI_API_KEY, codex: process.env.CODEX_API_KEY };
+    // Clés factices dans l'environnement du moteur : elles ne doivent pas atteindre l'agent.
+    process.env.OPENAI_API_KEY = 'sk-factice-0000';
+    process.env.CODEX_API_KEY = 'factice';
+    cleanups.push(() => {
+      for (const [k, v] of [['OPENAI_API_KEY', previous.openai], ['CODEX_API_KEY', previous.codex]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+    const p = await h.call('providers.create', { name: 'OpenAI Subscription', kind: 'acp', preset: 'chatgpt', baseUrl: '', options: { acp: { command: process.execPath, args: [agent], env: { FAKE_CHATGPT: '1' }, account: 'chatgpt' } } });
+    expect(p.options.acp.account).toBe('chatgpt');
+    expect(await h.call('providers.authenticate', { id: p.id })).toEqual({ ok: true, message: expect.stringContaining('Compte ChatGPT connecté') });
+    // Adaptateur sans connexion ChatGPT : refus explicite.
+    await h.call('providers.update', { id: p.id, patch: { options: { acp: { command: process.execPath, args: [agent], env: {}, account: 'chatgpt' } } } });
+    expect(await h.call('providers.authenticate', { id: p.id })).toMatchObject({ ok: false, message: expect.stringContaining('n’annonce pas la connexion ChatGPT') });
+  });
+});
