@@ -6,7 +6,7 @@
 
 <p align="center"><strong>Espace de travail IA portable — interface desktop, interface terminal et serveur optionnel.</strong></p>
 
-> **Statut : réécriture en cours (3.0.0-alpha).** La v3 reconstruit Monolith Harness en TypeScript (Electron + Vue 3 + PrimeVue, moteur partagé, SQLite intégré). L'état exact de chaque fonctionnalité est tenu dans la [matrice des fonctionnalités](docs/FEATURE-MATRIX.md) : rien n'y est marqué réalisé sans traitement réel.
+> **Statut : réécriture en cours (3.0.0-alpha.2).** La v3 reconstruit Monolith Harness en TypeScript (Electron + Vue 3 + PrimeVue, moteur partagé, SQLite intégré). L'état exact de chaque fonctionnalité est tenu dans la [matrice des fonctionnalités](docs/FEATURE-MATRIX.md) : rien n'y est marqué réalisé sans traitement réel.
 
 - **Local d'abord** : aucun compte, aucun abonnement, aucune télémétrie. Seuls les fournisseurs que vous configurez sont contactés, et chaque appel réseau est journalisé (hôte, chemin, statut, durée).
 - **Portable** : les données vivent à côté de l'exécutable lorsque le dossier est inscriptible ; un emplacement alternatif est configurable.
@@ -17,8 +17,8 @@
 | Domaine | Fonctionnalités |
 | --- | --- |
 | Projets | Création, modification (nom, icône, couleur, instructions), plusieurs dossiers sources, réorganisation, suppression avec choix pour les conversations |
-| Conversations | Espace personnel, renommage, favoris, épinglage, archivage, déplacement, réorganisation, recherche plein texte, brouillons par conversation, générations simultanées |
-| Chat | Streaming robuste, arrêt, instantané de configuration par génération, Markdown, code coloré, réflexion (Aucun / Réduit / Détaillé), compteurs exacts ou estimés, débit |
+| Conversations | Espace personnel, renommage, favoris, épinglage, archivage, déplacement, réorganisation, recherche plein texte, brouillons, générations simultanées, file d'attente, instructions pendant la génération, « Reprendre ici », bifurcation, export Markdown, modèles de messages, objectif, nommage automatique |
+| Chat | Streaming robuste, arrêt, instantané de configuration par génération, Markdown, code coloré, pièces jointes (images, texte), réflexion (Aucun / Réduit / Détaillé) et niveaux déclarés par modèle, compteurs exacts ou estimés, débit, utilisation et compactage du contexte |
 | Fournisseurs | OpenAI, DeepSeek, OpenRouter, Google AI Studio (compatibilité OpenAI), Groq, Mistral, NVIDIA, Z.ai, Ollama, LM Studio, llama.cpp, tout serveur compatible OpenAI ; clés chiffrées, test, catalogue, sélection des modèles |
 | Fiabilité | Nouvelles tentatives ciblées (transitoires, « 400 JSON tronqué »), reprise de l'état après fermeture |
 | Apparence | Clair / sombre / système, thèmes Monolith, Fluent sombre V2, Graphite, accent, polices, densité, zoom |

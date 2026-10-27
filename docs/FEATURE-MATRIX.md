@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T1 (3.0.0-alpha.1).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T2 (3.0.0-alpha.2).**
 
 ## 1. Fondations
 
@@ -45,14 +45,14 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | C-02 | Créer, renommer, rechercher, favoris, épingler, archiver, supprimer | ✅ | ✅ | ⬜ | T1 | Recherche FTS5 titres + messages. |
 | C-03 | Réorganisation dans la barre latérale | ✅ | 🟡 | ➖ | T1 | Desktop : glisser-déposer (ordre et déplacement entre projets). CLI : `/move` entre projets. |
 | C-04 | Brouillons par conversation | ✅ | ✅ | ➖ | T1 | |
-| C-05 | Nommage automatique (fournisseur/modèle dédiés) | ⬜ | ⬜ | ⬜ | T2 | |
-| C-06 | Objectif persistant | ⬜ | ⬜ | ⬜ | T2 | |
-| C-07 | Modèles de messages | ⬜ | ⬜ | ⬜ | T2 | |
-| C-08 | Export Markdown | ⬜ | ⬜ | ⬜ | T2 | |
-| C-09 | Duplication / bifurcation depuis un message | ⬜ | ⬜ | ⬜ | T2 | |
-| C-10 | « Reprendre ici » (texte + pièces jointes dans l'éditeur), historique précédent préservé | ⬜ | ⬜ | ⬜ | T2 | |
-| C-11 | File d'attente : édition, suppression, réordonnancement | ⬜ | ⬜ | ⬜ | T2 | |
-| C-12 | Instruction pendant génération, traitée à une frontière contrôlée | ⬜ | ⬜ | ⬜ | T2 | |
+| C-05 | Nommage automatique (fournisseur/modèle dédiés) | ✅ | ✅ | ⬜ | T2 | Requête dédiée (connexion/modèle configurables), consommation « naming » à part, titre utilisateur jamais remplacé (test). |
+| C-06 | Objectif persistant | ✅ | ✅ | ⬜ | T2 | En-tête et `/goal` ; transmis au modèle à chaque envoi. |
+| C-07 | Modèles de messages | ✅ | 🟡 | ⬜ | T2 | Desktop : insertion, création depuis le brouillon, gestion. CLI : liste et insertion (`/templates`, `/template`). |
+| C-08 | Export Markdown | ✅ | ✅ | ⬜ | T2 | Avec ou sans réflexion ; dialogue natif « Enregistrer sous » ; le CLI refuse d’écraser un fichier. |
+| C-09 | Duplication / bifurcation depuis un message | ✅ | ✅ | ⬜ | T2 | Depuis un message ou le menu ; provenance conservée (test). |
+| C-10 | « Reprendre ici » (texte + pièces jointes dans l'éditeur), historique précédent préservé | ✅ | ✅ | ⬜ | T2 | Texte et pièces jointes replacés dans l’éditeur ; historique complet sauvegardé dans une conversation archivée (tests). |
+| C-11 | File d'attente : édition, suppression, réordonnancement | ✅ | 🟡 | ⬜ | T2 | Desktop : panneau (modification, suppression, ordre, pause/reprise). CLI : `/queue`, `/unqueue`, `/next`. |
+| C-12 | Instruction pendant génération, traitée à une frontière contrôlée | ✅ | ✅ | ⬜ | T2 | Alt+Entrée / `/steer` ; frontière = fin du tour en cours (frontières entre outils en T3). Test : même instantané. |
 | C-13 | Annulation d'une génération et de ses travaux enfants | 🟡 | 🟡 | ⬜ | T1 | Annulation de la génération testée (contenu partiel conservé, aucune nouvelle tentative) ; travaux enfants : T7. |
 | C-14 | Instantané de configuration par génération | ✅ | ✅ | ⬜ | T1 | Test : changement de modèle pendant la génération sans effet. |
 
@@ -65,10 +65,10 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | U-03 | Barre supérieure : identité unique, contrôles natifs uniques, repli système, drag jusqu'au bord | 🟡 | ➖ | ➖ | T1 | Identité unique, contrôles natifs superposés (un seul jeu), repli « cadre système », zone de déplacement jusqu’au bord. À vérifier manuellement : déplacement depuis une fenêtre maximisée. |
 | U-04 | Bouton version → changelog intégré | ✅ | ✅ | ⬜ | T1 | CLI : `/changelog`. |
 | U-05 | Menu outils dédiés en bas de la barre latérale, à côté de Réglages | ⬜ | ➖ | ➖ | T8 | |
-| U-06 | Saisie multiligne, Entrée/Maj+Entrée, collage, glisser-déposer | 🟡 | 🟡 | ➖ | T1 | Texte multiligne, Entrée / Maj+Entrée, collage de texte ; pièces jointes et dépôt de fichiers en T2 (refus expliqué). |
-| U-07 | Autocomplétion commandes et skills | ⬜ | ⬜ | ➖ | T2 | |
+| U-06 | Saisie multiligne, Entrée/Maj+Entrée, collage, glisser-déposer | ✅ | 🟡 | ➖ | T1 | Pièces jointes par bouton, glisser-déposer et collage (vérifié dans la fenêtre réelle). CLI : `/attach`. |
+| U-07 | Autocomplétion commandes et skills | 🟡 | 🟡 | ➖ | T2 | Commandes « / » dans l’éditeur desktop et autocomplétion CLI ; skills en T6. |
 | U-08 | Agrandissement de la saisie au-delà de 10 lignes, retour sans perte | ✅ | ➖ | ➖ | T1 | |
-| U-09 | Débit et utilisation du contexte (optionnels) | ⬜ | ⬜ | ➖ | T2 | |
+| U-09 | Débit et utilisation du contexte (optionnels) | ✅ | 🟡 | ➖ | T2 | Débit et utilisation du contexte (réglages). CLI : `/context`. |
 | U-10 | Accessibilité : clavier, focus visible, libellés, texte agrandi, petites fenêtres | 🟡 | ➖ | ⬜ | T1→T14 | Navigation clavier, focus visible, libellés ARIA, mise en page étroite ; audit complet en T14. |
 
 ## 5. Chat, rendu et historique
@@ -77,7 +77,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | --- | --- | --- | --- | --- | --- | --- |
 | R-01 | Markdown, tableaux, listes, citations, liens | ✅ | 🟡 | ⬜ | T1 | CLI : rendu texte simplifié. |
 | R-02 | Code coloré, copie, numéros de ligne | ✅ | 🟡 | ⬜ | T1 | Shiki chargé à la demande, copie, numéros de ligne (réglage). CLI : blocs colorés sans coloration syntaxique. |
-| R-03 | Images et documents (limites explicites) | ⬜ | ⬜ | ⬜ | T2 | |
+| R-03 | Images et documents (limites explicites) | 🟡 | 🟡 | ⬜ | T2 | Images PNG/JPEG/WebP/GIF ≤ 10 Mo et texte UTF-8 ≤ 1 Mo, contenu vérifié ; PDF et documents bureautiques non pris en charge (refus expliqué). |
 | R-04 | Mermaid | ⬜ | ➖ | ⬜ | T4 | CLI : source affichée. |
 | R-05 | LaTeX en ligne et en bloc | ⬜ | ➖ | ⬜ | T4 | |
 | R-06 | Cartes web et aperçus interactifs isolés | ⬜ | ➖ | ⬜ | T4 | |
@@ -85,9 +85,9 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | R-08 | Styles de réponse (défaut, court, pragmatique, détaillé, ludique) | ✅ | 🟡 | ⬜ | T1 | Appliqué par le moteur ; CLI : réglage partagé, pas de commande dédiée. |
 | R-09 | Badges de fichiers vérifiés (existence, ligne, type) | ⬜ | ➖ | ⬜ | T4 | |
 | R-10 | Réflexion : affichage Aucun / Réduit / Détaillé | ✅ | ✅ | ⬜ | T2 | Réglage distinct du niveau demandé. |
-| R-11 | Chronologie réflexion/outils/réponses | 🟡 | 🟡 | ⬜ | T2 | Parties ordonnées à l’arrivée (réflexion/texte/notices) ; outils et questions en T3. |
+| R-11 | Chronologie réflexion/outils/réponses | 🟡 | 🟡 | ⬜ | T2 | Réflexion, texte, notices et instructions transmises dans l’ordre d’arrivée ; outils et questions en T3. |
 | R-12 | Défilement : suivi auto, suspension, position conservée | 🟡 | ➖ | ➖ | T1 | Suivi, suspension (molette/clavier), reprise en bas, sans polling ; test automatisé à ajouter. |
-| R-13 | Virtualisation des longues conversations | ⬜ | ➖ | ➖ | T2 | |
+| R-13 | Virtualisation des longues conversations | 🟡 | ➖ | ➖ | T2 | `content-visibility` + fenêtre de 80 messages chargée à la demande, position conservée ; mesure sur très longue conversation à faire. |
 
 ## 6. Fournisseurs et modèles
 
@@ -115,17 +115,17 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Q-01 | Niveaux de réflexion déclarés uniquement, Auto si inconnu, interrupteur simple | ⬜ | ⬜ | ⬜ | T2 | |
-| Q-02 | Niveau demandé / envoyé / paramètre / repli affichés | ⬜ | ⬜ | ⬜ | T2 | |
-| Q-03 | « Sans réflexion » réel ou incompatibilité signalée | ⬜ | ⬜ | ⬜ | T2 | |
-| Q-04 | Niveau rejeté retiré jusqu'à réévaluation | ⬜ | ⬜ | ⬜ | T2 | |
-| Q-05 | Fenêtre de contexte / limite de sortie, auto ou personnalisée | ⬜ | ⬜ | ⬜ | T2 | |
+| Q-01 | Niveaux de réflexion déclarés uniquement, Auto si inconnu, interrupteur simple | ✅ | ✅ | ⬜ | T2 | Table documentée + catalogue OpenRouter + déclaration utilisateur ; interrupteur simple pour Z.ai ; Auto seul si inconnu. |
+| Q-02 | Niveau demandé / envoyé / paramètre / repli affichés | ✅ | ✅ | ⬜ | T2 | Pied de réponse (desktop) et ligne de métadonnées (CLI). |
+| Q-03 | « Sans réflexion » réel ou incompatibilité signalée | 🟡 | 🟡 | ⬜ | T2 | Chat : désactivation réelle ou refus explicite (tests). Agent (T3) et correcteur (T8) à venir. |
+| Q-04 | Niveau rejeté retiré jusqu'à réévaluation | ✅ | ✅ | ⬜ | T2 | Niveau refusé mémorisé, retiré des choix jusqu’à « Actualiser les capacités » (test). |
+| Q-05 | Fenêtre de contexte / limite de sortie, auto ou personnalisée | ✅ | 🟡 | ⬜ | T2 | Par modèle : catalogue ou valeur personnalisée ; fenêtre et sortie distinctes. CLI : lecture seule. |
 | Q-06 | Compteurs API ou estimation signalée, tokens en cache | ✅ | ✅ | ⬜ | T1 | Compteurs API, cache, estimation signalée ; utilisation de la fenêtre de contexte en T2. |
-| Q-07 | Compactage manuel/auto, historique original conservé | ⬜ | ⬜ | ⬜ | T2 | |
+| Q-07 | Compactage manuel/auto, historique original conservé | 🟡 | 🟡 | ⬜ | T2 | Manuel et automatique, historique original conservé, noms des pièces jointes gardés ; préservation des échanges d’outils à vérifier en T3. |
 | Q-08 | Streaming robuste aux fragments | ✅ | ✅ | ⬜ | T1 | Tests : découpage à chaque taille, UTF-8 et CRLF coupés. |
 | Q-09 | Retry configurable (transitoires + 400 JSON tronqué ciblé) | ✅ | ✅ | ⬜ | T1 | Tests : 503 puis succès, 400 ordinaire jamais retenté, 400 « JSON tronqué » retenté. |
 | Q-10 | Reprise des réponses interrompues, aucun outil rejoué | ⬜ | ⬜ | ⬜ | T3 | |
-| Q-11 | Historique reconstruit après changement de fournisseur | ⬜ | ⬜ | ⬜ | T2 | |
+| Q-11 | Historique reconstruit après changement de fournisseur | ✅ | ✅ | ⬜ | T2 | Réflexion jamais renvoyée, images retirées pour un modèle sans vision, rôles fusionnés (test). |
 
 ## 8. Modes, agents, orchestration
 
@@ -212,7 +212,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Z-01 | Registre de consommation (tous types d'appels, exact/estimé/incomplet) | ⬜ | ⬜ | ⬜ | T2 | |
+| Z-01 | Registre de consommation (tous types d'appels, exact/estimé/incomplet) | 🟡 | 🟡 | ⬜ | T2 | Chat, nommage et compactage enregistrés (exact/estimé/incomplet) ; `usage.list` ; mémoire, vision et sous-agents à venir. |
 | Z-02 | Dashboard (courbes, filtres, export CSV) | ⬜ | ⬜ | ⬜ | T9 | |
 | Z-03 | Diagnostics (logs, CPU/RAM/GPU, backend de rendu, stockage, export expurgé) | ⬜ | ⬜ | ⬜ | T9 | |
 | Z-04 | Tâches planifiées CRON (fuseau, prochaine échéance, historique) | ⬜ | ⬜ | ⬜ | T9 | |
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 34 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 47 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

@@ -1,6 +1,6 @@
 {
   "name": "@monolith/desktop",
-  "version": "3.0.0-alpha.1",
+  "version": "3.0.0-alpha.2",
   "private": true,
   "type": "module",
   "description": "Monolith Harness — interface desktop (Electron + Vue 3 + PrimeVue 5)",
@@ -16,8 +16,8 @@
     "dist:linux": "electron-vite build && electron-builder --linux --config electron-builder.yml"
   },
   "devDependencies": {
-    "@monolith/contracts": "3.0.0-alpha.1",
-    "@monolith/core": "3.0.0-alpha.1",
+    "@monolith/contracts": "3.0.0-alpha.2",
+    "@monolith/core": "3.0.0-alpha.2",
     "@primeuix/themes": "2.0.3",
     "@types/markdown-it": "14.2.0",
     "@vitejs/plugin-vue": "6.0.10",

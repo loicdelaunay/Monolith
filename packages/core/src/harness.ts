@@ -24,6 +24,11 @@ import { ConversationService } from './services/conversations.ts';
 import { MessageService } from './services/messages.ts';
 import { ProviderService } from './services/providers.ts';
 import { UsageService } from './services/usage.ts';
+import { AttachmentService } from './services/attachments.ts';
+import { QueueService } from './services/queue.ts';
+import { TemplateService } from './services/templates.ts';
+import { CompactionService } from './services/compactions.ts';
+import { HistoryService } from './services/history.ts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
 import type { ProviderAdapter } from './providers/adapter.ts';
@@ -62,6 +67,11 @@ export class Harness {
   readonly messages: MessageService;
   readonly providers: ProviderService;
   readonly usage: UsageService;
+  readonly attachments: AttachmentService;
+  readonly queue: QueueService;
+  readonly templates: TemplateService;
+  readonly compactions: CompactionService;
+  readonly history: HistoryService;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
   private readonly testControllers = new Set<AbortController>();
@@ -95,6 +105,10 @@ export class Harness {
     this.messages = new MessageService(this.db);
     this.providers = new ProviderService(this.db, this.events, this.secrets, adapters);
     this.usage = new UsageService(this.db);
+    this.attachments = new AttachmentService(this.db, this.layout.attachments);
+    this.queue = new QueueService(this.db, this.events);
+    this.templates = new TemplateService(this.db, this.events);
+    this.compactions = new CompactionService(this.db, this.events);
     this.generation = new GenerationRunner({
       events: this.events,
       logger: this.logger,
@@ -104,6 +118,18 @@ export class Harness {
       messages: this.messages,
       providers: this.providers,
       usage: this.usage,
+      queue: this.queue,
+      attachments: this.attachments,
+      compactions: this.compactions,
+    });
+    this.history = new HistoryService({
+      db: this.db,
+      events: this.events,
+      conversations: this.conversations,
+      messages: this.messages,
+      compactions: this.compactions,
+      projects: this.projects,
+      isGenerating: (id) => this.generation.isActive(id),
     });
 
     if (!this.db.info.readOnly) {
@@ -239,7 +265,32 @@ export class Harness {
         this.conversations.delete(p.id);
       },
       'conversations.reorder': (p) => this.conversations.reorder(p.projectId, p.ids),
-      'conversations.saveDraft': (p) => this.conversations.saveDraft(p.id, p.draft),
+      'conversations.saveDraft': (p) => this.conversations.saveDraft(p.id, p.draft, p.attachmentIds === undefined ? undefined : this.attachments.resolve(p.attachmentIds)),
+      'conversations.fork': (p) => this.history.fork(p.id, p.messageId ?? null),
+      'conversations.resumeFrom': (p) => this.history.resumeFrom(p.id, p.messageId),
+      'conversations.exportMarkdown': (p) => this.history.exportMarkdown(p.id, p.includeReasoning === true),
+      'conversations.compact': (p) => this.generation.compact(p.id),
+      'conversations.contextUsage': (p) => this.generation.contextUsage(p.id),
+      'compactions.list': (p) => this.compactions.list(p.conversationId),
+
+      'queue.list': (p) => this.queue.list(p.conversationId),
+      'queue.update': (p) => this.queue.update(p.id, p.text),
+      'queue.remove': (p) => this.queue.remove(p.id),
+      'queue.reorder': (p) => this.queue.reorder(p.conversationId, p.ids),
+      'queue.sendNext': (p) => this.generation.sendNext(p.conversationId),
+
+      'attachments.upload': (p) => this.attachments.upload(p.name, p.mime, p.dataBase64),
+      'attachments.read': (p) => {
+        const ref = this.attachments.get(p.id);
+        return { name: ref.name, mime: ref.mime, dataBase64: this.attachments.bytes(p.id).toString('base64') };
+      },
+
+      'templates.list': () => this.templates.list(),
+      'templates.create': (p) => this.templates.create(p.name, p.content),
+      'templates.update': (p) => this.templates.update(p.id, p.patch ?? {}),
+      'templates.delete': (p) => this.templates.delete(p.id),
+
+      'usage.list': (p) => this.usage.list(Math.min(5000, Math.max(1, p?.limit ?? 500))),
       'conversations.search': (p) => this.conversations.search(String(p.query ?? ''), Math.min(100, Math.max(1, p.limit ?? 30))),
 
       'messages.list': (p) => this.messages.list(p.conversationId),
@@ -262,6 +313,7 @@ export class Harness {
       'providers.clearKey': (p) => this.providers.clearKey(p.id),
       'providers.test': (p) => this.withAbort((signal) => this.providers.test(p, signal)),
       'providers.fetchCatalog': (p) => this.withAbort((signal) => this.providers.fetchCatalog(p.id, signal)),
+      'providers.refreshModels': (p) => this.withAbort((signal) => this.providers.refreshModels(p.id, signal)),
       'providers.setModels': (p) => this.providers.setModels(p.id, p.models),
     } satisfies { [M in keyof HarnessApi]: Handler<M> };
   }

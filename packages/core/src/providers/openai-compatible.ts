@@ -151,8 +151,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
           contextWindow: m.context_length ?? m.context_window ?? m.top_provider?.context_length ?? m.max_model_len ?? null,
           maxOutputTokens: m.top_provider?.max_completion_tokens ?? null,
           capabilities: {
-            // Les niveaux de réflexion ne sont déduits que de capacités documentées (tranche T2).
-            reasoningLevels: [],
+            // Catalogue OpenRouter : le paramètre unifié `reasoning` accepte les intensités low/medium/high.
+            reasoningLevels: params.includes('reasoning') ? ['low', 'medium', 'high'] : [],
+            reasoningSource: params.includes('reasoning') ? 'catalog' : 'unknown',
+            rejectedLevels: [],
             vision: m.architecture?.input_modalities ? m.architecture.input_modalities.includes('image') : null,
             tools: params.length ? params.includes('tools') : null,
           },
@@ -198,6 +200,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     if (conn.options.streamUsage) body.stream_options = { include_usage: true };
     if (request.temperature !== null) body.temperature = request.temperature;
     if (request.maxOutputTokens !== null) body.max_tokens = request.maxOutputTokens;
+    if (request.extraBody) Object.assign(body, request.extraBody);
 
     let response: Response;
     try {

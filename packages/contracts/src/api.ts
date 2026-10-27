@@ -18,6 +18,12 @@ import type {
   SearchHit,
   AgentMode,
   ConversationMode,
+  AttachmentRef,
+  Compaction,
+  ContextUsage,
+  MessageTemplate,
+  QueuedInput,
+  UsageRecord,
 } from './model.ts';
 import type { Settings, SettingsPatch } from './settings.ts';
 import type { PlatformCapabilities } from './platform.ts';
@@ -110,17 +116,33 @@ export interface ProviderTestInput {
 
 export interface SendInput {
   text: string;
+  attachmentIds?: Id[];
+  /**
+   * `send` (défaut) : refusé si une génération est en cours ;
+   * `queue` : envoyé maintenant si la conversation est libre, sinon mis en file ;
+   * `steer` : transmis à la prochaine frontière contrôlée de la génération en cours (sinon envoyé maintenant).
+   */
+  mode?: 'send' | 'queue' | 'steer';
 }
 
 export interface SendResult {
-  userMessageId: Id;
-  assistantMessageId: Id;
+  status: 'started' | 'queued' | 'steered';
+  userMessageId?: Id;
+  assistantMessageId?: Id;
+  queuedId?: Id;
+}
+
+export interface ResumeResult {
+  text: string;
+  attachments: AttachmentRef[];
+  /** Conversation archivée qui conserve l'historique complet avant la reprise. */
+  backupConversationId: Id;
 }
 
 export interface GenerationState {
   conversationId: Id;
   messageId: Id;
-  status: 'running' | 'retrying' | 'finished';
+  status: 'running' | 'retrying' | 'compacting' | 'finished';
   attempt: number;
   /** Raison d'une nouvelle tentative. */
   retryReason?: string;
@@ -155,7 +177,32 @@ export interface HarnessApi {
   'conversations.update': { params: { id: Id; patch: ConversationPatch }; result: Conversation };
   'conversations.delete': { params: { id: Id }; result: void };
   'conversations.reorder': { params: { projectId: Id | null; ids: Id[] }; result: void };
-  'conversations.saveDraft': { params: { id: Id; draft: string }; result: void };
+  'conversations.saveDraft': { params: { id: Id; draft: string; attachmentIds?: Id[] }; result: void };
+  /** Copie la conversation jusqu'au message indiqué inclus (toute la conversation si absent). */
+  'conversations.fork': { params: { id: Id; messageId?: Id | null }; result: Conversation };
+  /** « Reprendre ici » : sauvegarde l'historique complet, retire ce message et la suite, rend son texte et ses pièces jointes. */
+  'conversations.resumeFrom': { params: { id: Id; messageId: Id }; result: ResumeResult };
+  'conversations.exportMarkdown': { params: { id: Id; includeReasoning?: boolean }; result: { fileName: string; markdown: string } };
+  'conversations.compact': { params: { id: Id }; result: Compaction };
+  'conversations.contextUsage': { params: { id: Id }; result: ContextUsage };
+  'compactions.list': { params: { conversationId: Id }; result: Compaction[] };
+
+  'queue.list': { params: { conversationId: Id }; result: QueuedInput[] };
+  'queue.update': { params: { id: Id; text: string }; result: QueuedInput };
+  'queue.remove': { params: { id: Id }; result: void };
+  'queue.reorder': { params: { conversationId: Id; ids: Id[] }; result: void };
+  /** Envoie le premier élément de la file (reprise après une annulation ou une erreur). */
+  'queue.sendNext': { params: { conversationId: Id }; result: SendResult };
+
+  'attachments.upload': { params: { name: string; mime: string; dataBase64: string }; result: AttachmentRef };
+  'attachments.read': { params: { id: Id }; result: { name: string; mime: string; dataBase64: string } };
+
+  'templates.list': { params: void; result: MessageTemplate[] };
+  'templates.create': { params: { name: string; content: string }; result: MessageTemplate };
+  'templates.update': { params: { id: Id; patch: { name?: string; content?: string } }; result: MessageTemplate };
+  'templates.delete': { params: { id: Id }; result: void };
+
+  'usage.list': { params: { limit?: number }; result: UsageRecord[] };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -175,6 +222,8 @@ export interface HarnessApi {
   'providers.clearKey': { params: { id: Id }; result: Provider };
   'providers.test': { params: ProviderTestInput; result: ConnectionTestResult };
   'providers.fetchCatalog': { params: { id: Id }; result: CatalogModel[] };
+  /** Réévalue les capacités des modèles enregistrés (catalogue + table documentée) et oublie les niveaux refusés. */
+  'providers.refreshModels': { params: { id: Id }; result: Provider };
   'providers.setModels': { params: { id: Id; models: ProviderModel[] }; result: Provider };
 }
 
@@ -195,6 +244,11 @@ export interface HarnessEvents {
   /** Deltas regroupés pendant le streaming ; `message.updated` reste la source de vérité finale. */
   'message.delta': { conversationId: Id; messageId: Id; deltas: MessageDelta[] };
   'generation.state': GenerationState;
+  /** Historique réécrit (reprise, compactage) : l'interface recharge les messages. */
+  'conversation.messagesReset': { conversationId: Id };
+  'queue.changed': { conversationId: Id; items: QueuedInput[] };
+  'templates.changed': { templates: MessageTemplate[] };
+  'compaction.added': { compaction: Compaction };
   'log.error': { message: string; code: string };
 }
 

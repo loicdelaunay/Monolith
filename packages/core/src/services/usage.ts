@@ -25,6 +25,29 @@ export class UsageService {
     ).lastInsertRowid;
   }
 
+  list(limit: number): UsageRecord[] {
+    return this.db
+      .all<Record<string, unknown>>('SELECT * FROM usage ORDER BY id DESC LIMIT ?', limit)
+      .map((r) => ({
+        id: r.id as number,
+        kind: r.kind as UsageRecord['kind'],
+        conversationId: (r.conversation_id as number | null) ?? null,
+        projectId: (r.project_id as number | null) ?? null,
+        providerId: (r.provider_id as number | null) ?? null,
+        providerName: r.provider_name as string,
+        model: r.model as string,
+        startedAt: r.started_at as string,
+        finishedAt: (r.finished_at as string | null) ?? null,
+        firstTokenMs: (r.first_token_ms as number | null) ?? null,
+        inputTokens: (r.input_tokens as number | null) ?? null,
+        outputTokens: (r.output_tokens as number | null) ?? null,
+        cachedInputTokens: (r.cached_input_tokens as number | null) ?? null,
+        reasoningTokens: (r.reasoning_tokens as number | null) ?? null,
+        estimated: r.estimated === 1,
+        status: r.status as UsageRecord['status'],
+      }));
+  }
+
   finish(id: Id, end: UsageEnd): void {
     this.db.run(
       'UPDATE usage SET finished_at = ?, first_token_ms = ?, input_tokens = ?, output_tokens = ?, cached_input_tokens = ?, reasoning_tokens = ?, estimated = ?, status = ? WHERE id = ?',

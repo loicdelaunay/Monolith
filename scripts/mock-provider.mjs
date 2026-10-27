@@ -41,7 +41,18 @@ createServer((req, res) => {
       return;
     }
     const request = JSON.parse(body || '{}');
-    const last = request.messages?.at(-1)?.content ?? '';
+    const system = String(request.messages?.[0]?.content ?? '');
+    const lastContent = request.messages?.at(-1)?.content ?? '';
+    const last = typeof lastContent === 'string' ? lastContent : JSON.stringify(lastContent);
+    // Requêtes auxiliaires du moteur : nommage et compactage.
+    if (system.includes('titre court') || system.includes('Tu résumes')) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      const out = system.includes('titre court') ? 'Démonstration Markdown complète' : 'Résumé : l’utilisateur explore la démonstration Markdown.';
+      res.write(chunk({ content: out }));
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 200, completion_tokens: 12 } })}\n\n`);
+      res.end('data: [DONE]\n\n');
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const reasoning = request.model === 'mock-reasoner';
     if (reasoning) {

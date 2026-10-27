@@ -28,10 +28,11 @@ const modelOptions = computed(() => {
 const model = computed(() => provider.value?.models.find((m) => m.id === effectiveModel.value) ?? null);
 /** Niveaux de réflexion : uniquement ceux déclarés pour le modèle ; Auto seul si inconnus. */
 const reasoningOptions = computed(() => {
-  const levels: ReasoningLevel[] = ['auto', ...(model.value?.capabilities.reasoningLevels ?? [])];
+  const caps = model.value?.capabilities;
+  const levels: ReasoningLevel[] = ['auto', ...(caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l))];
   return levels.map((l) => ({ label: t(`reasoningLevels.${l}`), value: l }));
 });
-const reasoningUnknown = computed(() => reasoningOptions.value.length === 1);
+const reasoningUnknown = computed(() => reasoningOptions.value.length === 1 && props.conversation.reasoningLevel === 'auto');
 
 async function update(patch: Parameters<typeof api.call<'conversations.update'>>[1]['patch']) {
   try {

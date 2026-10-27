@@ -2,6 +2,8 @@
 
 Chaque tranche se termine par : compilation (`npm run typecheck`, `npm run build`), tests (`npm test`), mise à jour de [FEATURE-MATRIX.md](FEATURE-MATRIX.md) et, si visible pour l'utilisateur, une entrée du [CHANGELOG](../CHANGELOG.md). Le CLI suit chaque tranche puisqu'il partage le moteur.
 
+État au 2026-10-27 : **T0, T1 et T2 livrées** (3.0.0-alpha.2). Les éléments encore partiels de ces tranches sont détaillés dans la matrice (ex. PDF en pièce jointe, CLI sans édition de file).
+
 | Tranche | Contenu | Dépend de |
 | --- | --- | --- |
 | **T0 — Fondations** | Monorepo TS, contrats d'API, chemins portables + emplacement alternatif, SQLite (`node:sqlite`) + migrations vérifiées + sauvegarde, secrets (clé maître protégée par le système), logs expurgés, i18n FR/EN, CI GitHub (build + tests, sans publication). | — |

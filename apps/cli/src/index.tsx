@@ -118,7 +118,7 @@ async function printMode(harness: Harness, client: ReturnType<typeof createInPro
     process.exitCode = 0;
   });
   const sent = await client.call('chat.send', { conversationId: conv.id, input: { text } });
-  assistantId = sent.assistantMessageId;
+  assistantId = sent.assistantMessageId ?? null;
   const code = await done;
   await harness.generation.idle();
   return code;

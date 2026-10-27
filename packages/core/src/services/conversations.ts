@@ -1,5 +1,6 @@
 import {
   HarnessError,
+  type AttachmentRef,
   type AgentMode,
   type Conversation,
   type ConversationListQuery,
@@ -9,7 +10,7 @@ import {
   type ReasoningLevel,
   type SearchHit,
 } from '@monolith/contracts';
-import { bool, type Database } from '../storage/database.ts';
+import { bool, json, type Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import { now } from '../util.ts';
 
@@ -32,6 +33,9 @@ interface ConversationRow {
   created_at: string;
   updated_at: string;
   last_message_at: string | null;
+  draft_attachments_json: string;
+  forked_from_conversation_id: number | null;
+  forked_from_message_id: number | null;
 }
 
 const REASONING: ReasoningLevel[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
@@ -66,7 +70,12 @@ export class ConversationService {
     return this.map(row);
   }
 
-  create(projectId: Id | null, title?: string, defaults?: { providerId: Id | null; model: string | null; reasoningLevel: ReasoningLevel }): Conversation {
+  create(
+    projectId: Id | null,
+    title?: string,
+    defaults?: { providerId: Id | null; model: string | null; reasoningLevel: ReasoningLevel },
+    extra?: { forkedFrom?: { conversationId: Id; messageId: Id | null }; archived?: boolean; source?: Conversation; titleSource?: Conversation['titleSource'] },
+  ): Conversation {
     if (projectId !== null && !this.db.get('SELECT 1 AS x FROM projects WHERE id = ?', projectId)) {
       throw new HarnessError('not_found', `Projet ${projectId} introuvable`);
     }
@@ -76,18 +85,26 @@ export class ConversationService {
       projectId,
     )?.m ?? 0;
     const cleanTitle = (title ?? '').trim().slice(0, MAX_TITLE);
+    const src = extra?.source;
     const { lastInsertRowid } = this.db.run(
-      `INSERT INTO conversations (project_id, title, title_source, sort_order, provider_id, model, reasoning_level, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      'INSERT INTO conversations (project_id, title, title_source, sort_order, provider_id, model, reasoning_level, goal, mode, agent_mode, archived, ' +
+        'forked_from_conversation_id, forked_from_message_id, created_at, updated_at, last_message_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       projectId,
       cleanTitle || 'Nouvelle conversation',
-      cleanTitle ? 'user' : 'default',
+      extra?.titleSource ?? (cleanTitle ? 'user' : 'default'),
       min - 1,
-      defaults?.providerId ?? null,
-      defaults?.model ?? null,
-      defaults?.reasoningLevel ?? 'auto',
+      src ? src.providerId : (defaults?.providerId ?? null),
+      src ? src.model : (defaults?.model ?? null),
+      src ? src.reasoningLevel : (defaults?.reasoningLevel ?? 'auto'),
+      src?.goal ?? '',
+      src?.mode ?? 'chat',
+      src?.agentMode ?? 'plan',
+      extra?.archived ? 1 : 0,
+      extra?.forkedFrom?.conversationId ?? null,
+      extra?.forkedFrom?.messageId ?? null,
       t,
       t,
+      src ? t : null,
     );
     return this.changed(lastInsertRowid);
   }
@@ -142,10 +159,10 @@ export class ConversationService {
   }
 
   /** Titre automatique : ne remplace jamais un titre choisi par l'utilisateur. */
-  setAutoTitle(id: Id, title: string): Conversation | null {
+  setAutoTitle(id: Id, title: string, source: 'auto' | 'ai' = 'auto'): Conversation | null {
     const clean = title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE);
     if (!clean) return null;
-    const r = this.db.run("UPDATE conversations SET title = ?, title_source = 'auto', updated_at = ? WHERE id = ? AND title_source != 'user'", clean, now(), id);
+    const r = this.db.run("UPDATE conversations SET title = ?, title_source = ?, updated_at = ? WHERE id = ? AND title_source != 'user'", clean, source, now(), id);
     return r.changes ? this.changed(id) : null;
   }
 
@@ -163,11 +180,18 @@ export class ConversationService {
     this.events.emit('conversations.reordered', { projectId, ids });
   }
 
-  saveDraft(id: Id, draft: string): void {
+  saveDraft(id: Id, draft: string, attachments?: AttachmentRef[]): void {
     if (typeof draft !== 'string') throw new HarnessError('invalid_argument', 'Brouillon invalide');
     if (draft.length > MAX_DRAFT) throw new HarnessError('invalid_argument', 'Brouillon trop volumineux');
     // Pas d'événement : le brouillon appartient à l'éditeur qui l'envoie.
-    this.db.run('UPDATE conversations SET draft = ? WHERE id = ?', draft, id);
+    if (attachments) this.db.run('UPDATE conversations SET draft = ?, draft_attachments_json = ? WHERE id = ?', draft, JSON.stringify(attachments), id);
+    else this.db.run('UPDATE conversations SET draft = ? WHERE id = ?', draft, id);
+  }
+
+  /** Brouillon remplacé par le moteur (reprise d'un message) : l'interface est prévenue. */
+  setDraft(id: Id, draft: string, attachments: AttachmentRef[]): Conversation {
+    this.saveDraft(id, draft, attachments);
+    return this.changed(id);
   }
 
   touch(id: Id): Conversation {
@@ -230,6 +254,8 @@ export class ConversationService {
       model: r.model,
       reasoningLevel: r.reasoning_level as ReasoningLevel,
       draft: r.draft,
+      draftAttachments: json<AttachmentRef[]>(r.draft_attachments_json, []),
+      forkedFrom: r.forked_from_conversation_id !== null ? { conversationId: r.forked_from_conversation_id, messageId: r.forked_from_message_id } : null,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       lastMessageAt: r.last_message_at,

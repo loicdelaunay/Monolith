@@ -35,7 +35,8 @@ export interface Conversation {
   /** null : espace personnel (conversation sans projet). */
   projectId: Id | null;
   title: string;
-  titleSource: 'default' | 'user' | 'auto';
+  /** `auto` : titre provisoire tiré du premier message ; `ai` : nommage automatique par un modèle. */
+  titleSource: 'default' | 'user' | 'auto' | 'ai';
   favorite: boolean;
   pinned: boolean;
   archived: boolean;
@@ -47,6 +48,10 @@ export interface Conversation {
   model: string | null;
   reasoningLevel: ReasoningLevel;
   draft: string;
+  /** Pièces jointes du brouillon (conservées avec le texte). */
+  draftAttachments: AttachmentRef[];
+  /** Provenance d'une bifurcation ou d'une sauvegarde avant reprise. */
+  forkedFrom: { conversationId: Id; messageId: Id | null } | null;
   createdAt: string;
   updatedAt: string;
   lastMessageAt: string | null;
@@ -65,6 +70,7 @@ export type MessageStatus = 'complete' | 'streaming' | 'error' | 'cancelled' | '
  */
 export type MessagePart =
   | { type: 'text'; text: string }
+  | { type: 'attachment'; attachment: AttachmentRef }
   | { type: 'reasoning'; text: string; durationMs?: number }
   | { type: 'notice'; level: 'info' | 'warning' | 'error'; code: string; text: string };
 
@@ -77,12 +83,24 @@ export interface MessageUsage {
   estimated: boolean;
 }
 
+/** Niveau de réflexion : demandé, réellement envoyé, paramètre utilisé et éventuel repli. */
+export interface ReasoningResolution {
+  requested: ReasoningLevel;
+  /** null : aucun paramètre envoyé (Auto). */
+  sent: ReasoningLevel | null;
+  /** Paramètre de transport, ex. `reasoning_effort=high`, `reasoning.enabled=false`, `thinking.type=disabled`. */
+  parameter: string | null;
+  /** Raison d'un repli (niveau non déclaré, refusé par le fournisseur…). */
+  fallback: string | null;
+}
+
 export interface GenerationSnapshot {
   providerId: Id;
   providerName: string;
   providerKind: ProviderKind;
   model: string;
   reasoningLevel: ReasoningLevel;
+  reasoning?: ReasoningResolution;
   mode: ConversationMode;
   agentMode: AgentMode;
   responseStyle: ResponseStyle;
@@ -99,11 +117,15 @@ export interface MessageError {
   attempts?: number;
 }
 
+/** Origine d'un message utilisateur. */
+export type MessageOrigin = 'direct' | 'queue' | 'steer';
+
 export interface Message {
   id: Id;
   conversationId: Id;
   seq: number;
   role: MessageRole;
+  origin: MessageOrigin;
   status: MessageStatus;
   parts: MessagePart[];
   snapshot: GenerationSnapshot | null;
@@ -139,6 +161,10 @@ export interface ProviderModel {
 export interface ModelCapabilities {
   /** Niveaux de réflexion documentés pour ce modèle et ce transport ; vide = inconnu (Auto seul). */
   reasoningLevels: ReasoningLevel[];
+  /** Origine des niveaux : table documentée, catalogue du fournisseur ou saisie de l'utilisateur. */
+  reasoningSource: 'unknown' | 'documented' | 'catalog' | 'user';
+  /** Niveaux explicitement refusés par le fournisseur ; retirés jusqu'à la prochaine actualisation. */
+  rejectedLevels: ReasoningLevel[];
   vision: boolean | null;
   tools: boolean | null;
 }
@@ -211,7 +237,7 @@ export interface CatalogModel {
 
 export interface UsageRecord {
   id: Id;
-  kind: 'chat' | 'naming' | 'memory' | 'vision' | 'subagent' | 'benchmark' | 'tool' | 'test' | 'other';
+  kind: 'chat' | 'naming' | 'compaction' | 'memory' | 'vision' | 'subagent' | 'benchmark' | 'tool' | 'test' | 'other';
   conversationId: Id | null;
   projectId: Id | null;
   providerId: Id | null;
@@ -234,4 +260,64 @@ export interface SearchHit {
   title: string;
   snippet: string;
   messageId: Id | null;
+}
+
+export type AttachmentKind = 'image' | 'text';
+
+export interface AttachmentRef {
+  id: Id;
+  name: string;
+  mime: string;
+  size: number;
+  kind: AttachmentKind;
+}
+
+/** Limites explicites des pièces jointes (affichées dans l'interface). */
+export const ATTACHMENT_LIMITS = {
+  imageBytes: 10 * 1024 * 1024,
+  textBytes: 1024 * 1024,
+  perMessage: 10,
+  imageMimes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+} as const;
+
+export interface QueuedInput {
+  id: Id;
+  conversationId: Id;
+  /** `queue` : envoyé après la génération en cours ; `steer` : transmis à la prochaine frontière contrôlée. */
+  kind: 'queue' | 'steer';
+  text: string;
+  attachments: AttachmentRef[];
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface MessageTemplate {
+  id: Id;
+  name: string;
+  content: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Compaction {
+  id: Id;
+  conversationId: Id;
+  /** Messages de rang ≤ upToSeq remplacés par le résumé dans les requêtes (conservés dans l'historique). */
+  upToSeq: number;
+  summary: string;
+  model: string;
+  estimatedTokensBefore: number | null;
+  trigger: 'manual' | 'auto';
+  createdAt: string;
+}
+
+export interface ContextUsage {
+  conversationId: Id;
+  /** Tokens d'entrée de la prochaine requête (dernier compteur API + estimation du reste, ou estimation complète). */
+  tokens: number;
+  source: 'api' | 'estimate';
+  contextWindow: number | null;
+  maxOutputTokens: number | null;
+  compactions: number;
 }

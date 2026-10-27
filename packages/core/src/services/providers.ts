@@ -22,6 +22,7 @@ import type { EventBus } from '../events.ts';
 import type { SecretStore } from '../security/secrets.ts';
 import type { ProviderAdapter, ProviderConnection } from '../providers/adapter.ts';
 import { now } from '../util.ts';
+import { documentedLevels } from '../generation/reasoning.ts';
 
 interface ProviderRow {
   id: number;
@@ -49,7 +50,8 @@ interface ModelRow {
 }
 
 const REASONING: ReasoningLevel[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
-const EMPTY_CAPS: ModelCapabilities = { reasoningLevels: [], vision: null, tools: null };
+const EMPTY_CAPS: ModelCapabilities = { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null };
+const SOURCES: ModelCapabilities['reasoningSource'][] = ['unknown', 'documented', 'catalog', 'user'];
 
 /**
  * Validation volontairement permissive : aucune règle de préfixe (les formats évoluent et
@@ -109,7 +111,9 @@ function cleanOptions(input: Partial<ProviderOptions> | undefined, base: Provide
 
 function cleanCapabilities(c: Partial<ModelCapabilities> | undefined): ModelCapabilities {
   return {
-    reasoningLevels: Array.isArray(c?.reasoningLevels) ? c.reasoningLevels.filter((l) => REASONING.includes(l)) : [],
+    reasoningLevels: Array.isArray(c?.reasoningLevels) ? [...new Set(c.reasoningLevels.filter((l) => REASONING.includes(l)))] : [],
+    reasoningSource: c?.reasoningSource && SOURCES.includes(c.reasoningSource) ? c.reasoningSource : Array.isArray(c?.reasoningLevels) && c.reasoningLevels.length ? 'user' : 'unknown',
+    rejectedLevels: Array.isArray(c?.rejectedLevels) ? c.rejectedLevels.filter((l) => REASONING.includes(l)) : [],
     vision: typeof c?.vision === 'boolean' ? c.vision : null,
     tools: typeof c?.tools === 'boolean' ? c.tools : null,
   };
@@ -307,8 +311,64 @@ export class ProviderService {
   }
 
   async fetchCatalog(id: Id, signal: AbortSignal): Promise<CatalogModel[]> {
-    const { adapter, conn } = await this.connection(id);
-    return adapter.listModels(conn, signal);
+    const { adapter, conn, provider } = await this.connection(id);
+    const catalog = await adapter.listModels(conn, signal);
+    return catalog.map((m) => ({ ...m, capabilities: withKnownLevels(provider.preset, m.id, m.capabilities) }));
+  }
+
+  /**
+   * Réévalue les capacités des modèles enregistrés : catalogue du fournisseur puis table documentée.
+   * Les niveaux saisis par l'utilisateur sont conservés ; les niveaux refusés sont oubliés.
+   */
+  async refreshModels(id: Id, signal: AbortSignal): Promise<Provider> {
+    const provider = this.get(id);
+    let catalog: CatalogModel[] = [];
+    try {
+      catalog = await this.fetchCatalog(id, signal);
+    } catch {
+      // Catalogue indisponible : la table documentée suffit pour réévaluer.
+    }
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    const models = provider.models.map((m): ProviderModel => {
+      const c = byId.get(m.id);
+      const known = withKnownLevels(provider.preset, m.id, c?.capabilities ?? EMPTY_CAPS);
+      const keepUser = m.capabilities.reasoningSource === 'user';
+      return {
+        ...m,
+        contextWindow: m.contextWindow ?? c?.contextWindow ?? null,
+        maxOutputTokens: m.maxOutputTokens ?? c?.maxOutputTokens ?? null,
+        capabilities: {
+          reasoningLevels: keepUser ? m.capabilities.reasoningLevels : known.reasoningLevels,
+          reasoningSource: keepUser ? 'user' : known.reasoningSource,
+          rejectedLevels: [],
+          vision: c?.capabilities.vision ?? m.capabilities.vision,
+          tools: c?.capabilities.tools ?? m.capabilities.tools,
+        },
+      };
+    });
+    return this.setModels(id, models);
+  }
+
+  /** Le fournisseur a refusé ce niveau : il disparaît des choix jusqu'à la prochaine réévaluation. */
+  rejectLevel(id: Id, modelId: string, level: ReasoningLevel): void {
+    const row = this.db.get<ModelRow>('SELECT * FROM provider_models WHERE provider_id = ? AND model_id = ?', id, modelId);
+    if (!row) return;
+    const caps = cleanCapabilities(json<Partial<ModelCapabilities>>(row.capabilities_json, EMPTY_CAPS));
+    if (caps.rejectedLevels.includes(level)) return;
+    caps.rejectedLevels.push(level);
+    this.db.run('UPDATE provider_models SET capabilities_json = ?, updated_at = ? WHERE provider_id = ? AND model_id = ?', JSON.stringify(caps), now(), id, modelId);
+    this.changed();
+  }
+
+  /** Capacités enregistrées d'un modèle (null si le modèle n'est pas dans la liste de la connexion). */
+  modelCapabilities(id: Id, modelId: string): ModelCapabilities | null {
+    const row = this.db.get<ModelRow>('SELECT * FROM provider_models WHERE provider_id = ? AND model_id = ?', id, modelId);
+    return row ? cleanCapabilities(json<Partial<ModelCapabilities>>(row.capabilities_json, EMPTY_CAPS)) : null;
+  }
+
+  modelLimits(id: Id, modelId: string): { contextWindow: number | null; maxOutputTokens: number | null } {
+    const row = this.db.get<ModelRow>('SELECT * FROM provider_models WHERE provider_id = ? AND model_id = ?', id, modelId);
+    return { contextWindow: row?.context_window ?? null, maxOutputTokens: row?.max_output_tokens ?? null };
   }
 
   private map(r: ProviderRow, models: ModelRow[]): Provider {
@@ -346,4 +406,12 @@ export class ProviderService {
 
 function positiveOrNull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+}
+
+/** Complète les capacités d'un modèle par la table documentée lorsque le catalogue ne déclare rien. */
+function withKnownLevels(preset: string, modelId: string, caps: ModelCapabilities): ModelCapabilities {
+  const base = cleanCapabilities(caps);
+  if (base.reasoningLevels.length) return { ...base, reasoningSource: base.reasoningSource === 'unknown' ? 'catalog' : base.reasoningSource };
+  const documented = documentedLevels(preset, modelId);
+  return documented.length ? { ...base, reasoningLevels: documented, reasoningSource: 'documented' } : { ...base, reasoningSource: 'unknown' };
 }

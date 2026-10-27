@@ -22,6 +22,17 @@ export interface Settings {
     codeLineNumbers: boolean;
     /** Instructions système globales ajoutées avant celles du projet. */
     customInstructions: string;
+    /** Nommage automatique après la première réponse (requête dédiée, comptabilisée). */
+    autoNaming: boolean;
+    /** Connexion et modèle dédiés au nommage ; null : ceux de la conversation. */
+    namingProviderId: Id | null;
+    namingModel: string | null;
+    /** Compactage automatique avant envoi lorsque le contexte dépasse le seuil. */
+    autoCompact: boolean;
+    /** Seuil en pourcentage de la fenêtre de contexte (moins la réserve de sortie). */
+    compactThreshold: number;
+    /** Nombre de derniers échanges (question + réponse) toujours conservés intacts. */
+    compactKeepTurns: number;
   };
   appearance: {
     mode: ThemeMode;
@@ -72,6 +83,12 @@ export const DEFAULT_SETTINGS: Settings = {
     showContextUsage: false,
     codeLineNumbers: true,
     customInstructions: '',
+    autoNaming: true,
+    namingProviderId: null,
+    namingModel: null,
+    autoCompact: true,
+    compactThreshold: 80,
+    compactKeepTurns: 4,
   },
   appearance: {
     mode: 'system',
@@ -117,4 +134,6 @@ export const SETTINGS_BOUNDS = {
   'network.retryMaxAttempts': [1, 8],
   'network.retryBaseDelayMs': [100, 10_000],
   'layout.sidebarWidth': [200, 520],
+  'chat.compactThreshold': [40, 95],
+  'chat.compactKeepTurns': [1, 20],
 } as const satisfies Record<string, readonly [number, number]>;

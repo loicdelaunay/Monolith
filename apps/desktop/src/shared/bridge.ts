@@ -17,6 +17,8 @@ export interface HostApi {
   pickDirectory(title?: string): Promise<string | null>;
   openExternal(url: string): Promise<boolean>;
   showItemInFolder(path: string): Promise<void>;
+  /** Dialogue « Enregistrer sous » puis écriture du texte ; retourne le chemin ou null si annulé. */
+  saveTextFile(defaultName: string, content: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   setTitleBarColors(colors: { background: string; symbols: string }): Promise<void>;
   setZoom(factor: number): void;
   relaunch(): Promise<void>;

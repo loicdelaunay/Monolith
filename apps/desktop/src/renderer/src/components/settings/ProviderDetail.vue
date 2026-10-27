@@ -15,8 +15,10 @@ import Checkbox from 'primevue/checkbox';
 import Textarea from 'primevue/textarea';
 import Paginator from 'primevue/paginator';
 import Message from 'primevue/message';
+import MultiSelect from 'primevue/multiselect';
+import Select from 'primevue/select';
 import { useToast } from 'primevue/usetoast';
-import type { CatalogModel, ConnectionTestResult, Provider, ProviderModel, Settings } from '@monolith/contracts';
+import type { CatalogModel, ConnectionTestResult, Provider, ProviderModel, ReasoningLevel, Settings } from '@monolith/contracts';
 import { api, errorMessage, host } from '../../api.ts';
 import { store } from '../../stores/app.ts';
 import ProviderLogo from '../ProviderLogo.vue';
@@ -185,7 +187,14 @@ async function fetchCatalog() {
       if (existing) {
         existing.contextWindow ??= c.contextWindow;
         existing.maxOutputTokens ??= c.maxOutputTokens;
-        existing.capabilities = { ...c.capabilities, reasoningLevels: existing.capabilities.reasoningLevels.length ? existing.capabilities.reasoningLevels : c.capabilities.reasoningLevels };
+        // Réévaluation : les niveaux saisis par l'utilisateur restent, les refus sont oubliés.
+        const user = existing.capabilities.reasoningSource === 'user';
+        existing.capabilities = {
+          ...c.capabilities,
+          reasoningLevels: user ? existing.capabilities.reasoningLevels : c.capabilities.reasoningLevels,
+          reasoningSource: user ? 'user' : c.capabilities.reasoningSource,
+          rejectedLevels: [],
+        };
         existing.source = 'catalog';
       } else {
         form.models.push({ id: c.id, label: c.label, enabled: false, contextWindow: c.contextWindow, maxOutputTokens: c.maxOutputTokens, source: 'catalog', capabilities: { ...c.capabilities } });
@@ -212,9 +221,37 @@ function setAll(value: boolean) {
 function addManual() {
   const id = manualId.value.trim();
   if (!id || form.models.some((m) => m.id === id)) return;
-  form.models.unshift({ id, label: id, enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], vision: null, tools: null } });
+  form.models.unshift({ id, label: id, enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null } });
   manualId.value = '';
 }
+// Édition des capacités d'un modèle (niveaux de réflexion déclarés, vision, limites).
+const expandedModel = ref<string | null>(null);
+const LEVELS: ReasoningLevel[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
+const levelOptions = computed(() => LEVELS.map((l) => ({ label: t(`reasoningLevels.${l}`), value: l })));
+const visionOptions = computed(() => [
+  { label: t('settings.providers.visionUnknown'), value: null },
+  { label: t('settings.providers.visionYes'), value: true },
+  { label: t('settings.providers.visionNo'), value: false },
+]);
+function setLevels(m: ProviderModel, levels: ReasoningLevel[]) {
+  m.capabilities.reasoningLevels = levels;
+  m.capabilities.reasoningSource = levels.length ? 'user' : 'unknown';
+}
+const refreshing = ref(false);
+async function refreshCapabilities() {
+  refreshing.value = true;
+  try {
+    const updated = await api.call('providers.refreshModels', { id: props.provider.id });
+    Object.assign(form, snapshot(updated));
+    saved = JSON.stringify(form);
+    toast.add({ severity: 'success', summary: t('settings.providers.capabilitiesRefreshed'), life: 2500 });
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('settings.providers.refreshCapabilities'), detail: errorMessage(e), life: 7000 });
+  } finally {
+    refreshing.value = false;
+  }
+}
+
 function removeModel(m: ProviderModel) {
   form.models.splice(form.models.indexOf(m), 1);
 }
@@ -293,6 +330,9 @@ function removeModel(m: ProviderModel) {
         <TabPanel value="models">
           <div class="mh-row wrap tools">
             <Button :label="t('settings.providers.fetchCatalog')" icon="pi pi-download" size="small" :loading="fetching" @click="fetchCatalog" />
+            <span v-tooltip.top="dirty ? t('settings.providers.saveFirst') : t('settings.providers.refreshCapabilitiesHint')">
+              <Button :label="t('settings.providers.refreshCapabilities')" icon="pi pi-refresh" size="small" severity="secondary" outlined :loading="refreshing" :disabled="dirty || form.models.length === 0" @click="refreshCapabilities" />
+            </span>
             <span v-if="catalog" class="mh-hint">{{ t('settings.providers.catalogCount', { count: catalog.length }) }}</span>
             <span class="grow" />
             <span class="mh-hint">{{ t('settings.providers.enabledCount', { enabled: enabledCount, total: form.models.length }) }}</span>
@@ -308,12 +348,40 @@ function removeModel(m: ProviderModel) {
           </div>
           <p v-if="form.models.length === 0" class="mh-hint">{{ t('settings.providers.modelsEmpty') }}</p>
           <ul v-else class="models">
-            <li v-for="m in pageModels" :key="m.id" class="model-row">
-              <Checkbox v-model="m.enabled" binary :input-id="`m-${provider.id}-${m.id}`" />
-              <label :for="`m-${provider.id}-${m.id}`" class="model-id">{{ m.id }}</label>
-              <span v-if="m.contextWindow" class="mh-hint">{{ t('settings.providers.contextWindow') }} {{ formatTokens(m.contextWindow) }}</span>
-              <span class="src" :class="m.source">{{ m.source === 'catalog' ? t('settings.providers.catalog') : t('settings.providers.manual') }}</span>
-              <button v-if="m.source === 'manual'" type="button" class="mh-icon-btn" :aria-label="t('common.remove')" @click="removeModel(m)"><i class="pi pi-times" /></button>
+            <li v-for="m in pageModels" :key="m.id" class="model-item">
+              <div class="model-row">
+                <Checkbox v-model="m.enabled" binary :input-id="`m-${provider.id}-${m.id}`" />
+                <label :for="`m-${provider.id}-${m.id}`" class="model-id">{{ m.id }}</label>
+                <span v-if="m.contextWindow" class="mh-hint">{{ t('settings.providers.contextWindow') }} {{ formatTokens(m.contextWindow) }}</span>
+                <span v-if="m.capabilities.reasoningLevels.length" class="mh-hint" :title="t(`settings.providers.reasoningSources.${m.capabilities.reasoningSource}`)"><i class="pi pi-sparkles" /> {{ m.capabilities.reasoningLevels.length }}</span>
+                <span v-if="m.capabilities.rejectedLevels.length" class="rejected" :title="t('settings.providers.rejectedHint')"><i class="pi pi-ban" /> {{ m.capabilities.rejectedLevels.length }}</span>
+                <span class="src" :class="m.source">{{ m.source === 'catalog' ? t('settings.providers.catalog') : t('settings.providers.manual') }}</span>
+                <button type="button" class="mh-icon-btn" :aria-expanded="expandedModel === m.id" :aria-label="t('settings.providers.capabilities')" v-tooltip.top="t('settings.providers.capabilities')" @click="expandedModel = expandedModel === m.id ? null : m.id"><i class="pi pi-sliders-h" /></button>
+                <button v-if="m.source === 'manual'" type="button" class="mh-icon-btn" :aria-label="t('common.remove')" @click="removeModel(m)"><i class="pi pi-times" /></button>
+              </div>
+              <div v-if="expandedModel === m.id" class="caps">
+                <div class="mh-field">
+                  <label :for="`cw-${m.id}`">{{ t('settings.providers.contextWindow') }}</label>
+                  <InputNumber :input-id="`cw-${m.id}`" v-model="m.contextWindow" :min="256" :max="20000000" :placeholder="t('settings.providers.unknown')" />
+                </div>
+                <div class="mh-field">
+                  <label :for="`mo-${m.id}`">{{ t('settings.providers.maxOutput') }}</label>
+                  <InputNumber :input-id="`mo-${m.id}`" v-model="m.maxOutputTokens" :min="1" :max="2000000" :placeholder="t('settings.providers.unknown')" />
+                </div>
+                <div class="mh-field">
+                  <label :for="`vi-${m.id}`">{{ t('settings.providers.vision') }}</label>
+                  <Select :input-id="`vi-${m.id}`" v-model="m.capabilities.vision" :options="visionOptions" option-label="label" option-value="value" />
+                </div>
+                <div class="mh-field wide">
+                  <label :for="`rl-${m.id}`">{{ t('settings.providers.reasoningLevels') }}</label>
+                  <MultiSelect :input-id="`rl-${m.id}`" :model-value="m.capabilities.reasoningLevels" :options="levelOptions" option-label="label" option-value="value" display="chip" :placeholder="t('settings.providers.reasoningUnknown')" @update:model-value="(v: ReasoningLevel[]) => setLevels(m, v)" />
+                  <p class="mh-hint">{{ t(`settings.providers.reasoningSources.${m.capabilities.reasoningSource}`) }} — {{ t('settings.providers.reasoningLevelsHint') }}</p>
+                  <p v-if="m.capabilities.rejectedLevels.length" class="mh-hint rejected">
+                    {{ t('settings.providers.rejectedList', { levels: m.capabilities.rejectedLevels.map((l) => t(`reasoningLevels.${l}`)).join(', ') }) }}
+                    <button type="button" class="link-btn" @click="m.capabilities.rejectedLevels = []">{{ t('settings.providers.clearRejected') }}</button>
+                  </p>
+                </div>
+              </div>
             </li>
           </ul>
           <Paginator v-if="filteredModels.length > PAGE" v-model:first="first" :rows="PAGE" :total-records="filteredModels.length" template="PrevPageLink PageLinks NextPageLink" />
@@ -424,15 +492,37 @@ function removeModel(m: ProviderModel) {
   border: 1px solid var(--mh-border);
   border-radius: var(--mh-radius-sm);
 }
+.model-item {
+  border-bottom: 1px solid var(--mh-border);
+}
+.model-item:last-child {
+  border-bottom: 0;
+}
 .model-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--mh-border);
 }
-.model-row:last-child {
-  border-bottom: 0;
+.caps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0 14px;
+  padding: 6px 12px 4px 38px;
+  background: var(--mh-bg);
+}
+.caps .wide {
+  grid-column: 1 / -1;
+}
+.rejected {
+  color: var(--mh-warning);
+}
+.link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--mh-accent);
+  cursor: pointer;
+  padding: 0 4px;
 }
 .model-id {
   flex: 1;

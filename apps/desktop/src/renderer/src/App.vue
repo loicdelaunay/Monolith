@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import ProgressSpinner from 'primevue/progressspinner';
+import { useToast } from 'primevue/usetoast';
 import { resolveLocale, type Settings } from '@monolith/contracts';
 import { host, errorMessage } from './api.ts';
 import { initStore, store } from './stores/app.ts';
@@ -47,6 +48,15 @@ watch(
 );
 
 const customTitleBar = computed(() => store.renderer?.customTitleBar ?? false);
+
+// Erreurs signalées par le moteur hors d'un appel (ex. élément de file non envoyé).
+const toast = useToast();
+watch(
+  () => store.engineErrors.length,
+  () => {
+    for (const e of store.engineErrors.splice(0)) toast.add({ severity: 'error', summary: t(`errors.${e.code}`), detail: e.message, life: 8000 });
+  },
+);
 
 function openSettings(section?: SettingsSectionId) {
   uiState.settingsSection = section ?? uiState.settingsSection;

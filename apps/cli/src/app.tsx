@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { Box, Static, Text, useApp, useInput, usePaste, useStdout, useWindowSize } from 'ink';
 import {
   APP_VERSION,
@@ -9,8 +11,11 @@ import {
   type HarnessClient,
   type Id,
   type Locale,
+  type AttachmentRef,
   type Message,
   type MessageDelta,
+  type QueuedInput,
+  type ReasoningLevel,
   type Project,
   type Provider,
   type Settings,
@@ -80,10 +85,16 @@ function MessageView({ message, theme, settings, locale, tail }: { message: Mess
   const t = (k: string, p?: Record<string, string | number>) => translate(locale, k, p);
   if (message.role === 'user') {
     const text = message.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
+    const files = message.parts.filter((p) => p.type === 'attachment').map((p) => sanitize((p as { attachment: AttachmentRef }).attachment.name));
+    const origin = message.origin === 'steer' ? `⚡ ${t('queue.originSteer')}` : message.origin === 'queue' ? `⏱ ${t('queue.originQueue')}` : null;
     return (
-      <Box marginTop={1}>
-        <Text color={theme.accent} bold>{'› '}</Text>
-        <Text color={theme.user}>{sanitize(text)}</Text>
+      <Box marginTop={1} flexDirection="column">
+        {origin ? <Text color={theme.muted}>{origin}</Text> : null}
+        <Box>
+          <Text color={theme.accent} bold>{'› '}</Text>
+          <Text color={theme.user}>{sanitize(text)}</Text>
+        </Box>
+        {files.length ? <Text color={theme.muted}>{`  📎 ${files.join(', ')}`}</Text> : null}
       </Box>
     );
   }
@@ -105,6 +116,7 @@ function MessageView({ message, theme, settings, locale, tail }: { message: Mess
           );
         }
         if (part.type === 'text') return <MarkdownLines key={i} text={part.text} theme={theme} {...(tail ? { maxLines: tail } : {})} />;
+        if (part.type !== 'notice') return null;
         return (
           <Text key={i} color={part.level === 'info' ? theme.muted : theme.warning}>
             {`⚠ ${sanitize(part.text)}`}
@@ -121,6 +133,9 @@ function MessageView({ message, theme, settings, locale, tail }: { message: Mess
             message.snapshot?.model,
             message.usage ? `${message.usage.inputTokens ?? '—'} ${t('chat.tokensIn')} · ${message.usage.outputTokens ?? '—'} ${t('chat.tokensOut')}${message.usage.cachedInputTokens ? ` · ${message.usage.cachedInputTokens} ${t('chat.cached')}` : ''}${message.usage.estimated ? ` (${t('chat.estimated')})` : ''}` : null,
             message.durationMs ? `${(message.durationMs / 1000).toFixed(1)} s` : null,
+            message.snapshot?.reasoning && (message.snapshot.reasoning.requested !== 'auto' || message.snapshot.reasoning.fallback)
+              ? `✻ ${t('chat.reasoningSent', { requested: t(`reasoningLevels.${message.snapshot.reasoning.requested}`), sent: t(`reasoningLevels.${message.snapshot.reasoning.sent ?? 'auto'}`) })}${message.snapshot.reasoning.parameter ? ` (${message.snapshot.reasoning.parameter})` : ''}${message.snapshot.reasoning.fallback ? ` — ${t('chat.reasoningFallback', { reason: message.snapshot.reasoning.fallback })}` : ''}`
+              : null,
           ]
             .filter(Boolean)
             .join('  ·  ')}
@@ -150,6 +165,8 @@ export function App({ client, locale, dataDir, changelog }: Props) {
   const [editor, setEditor] = useState<ed.EditorState>(ed.empty());
   const [selection, setSelection] = useState(0);
   const [pendingConfirm, setPendingConfirm] = useState<{ prompt: string; run: () => Promise<void> } | null>(null);
+  const [queue, setQueue] = useState<QueuedInput[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const history = useRef(new ed.History());
   const activeRef = useRef<Conversation | null>(null);
   const streamingRef = useRef<Message | null>(null);
@@ -213,6 +230,17 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         setStreaming(null);
         setItems((list) => [...list, { key: nextKey(), kind: 'message', message }]);
       }),
+      client.on('queue.changed', ({ conversationId, items }) => {
+        if (conversationId === activeRef.current?.id) setQueue(items);
+      }),
+      client.on('conversation.messagesReset', ({ conversationId }) => {
+        const c = activeRef.current;
+        if (c && c.id === conversationId) void client.call('conversations.get', { id: c.id }).then((fresh) => openConversationRef.current?.(fresh));
+      }),
+      client.on('compaction.added', ({ compaction }) => {
+        if (compaction.conversationId === activeRef.current?.id) note(t(compaction.trigger === 'auto' ? 'chat.compactedAuto' : 'chat.compactedManual', { date: new Date(compaction.createdAt).toLocaleString() }), 'accent');
+      }),
+      client.on('log.error', (e) => note(`${t(`errors.${e.code}`)} — ${e.message}`, 'error')),
       client.on('generation.state', (s) => {
         if (s.conversationId !== activeRef.current?.id) return;
         setGen(s.status === 'finished' ? null : s);
@@ -229,8 +257,8 @@ export function App({ client, locale, dataDir, changelog }: Props) {
     const c = activeRef.current;
     if (!c) return;
     clearTimeout(draftTimer.current);
-    draftTimer.current = setTimeout(() => void client.call('conversations.saveDraft', { id: c.id, draft: editor.text }).catch(() => undefined), 500);
-  }, [editor.text, client]);
+    draftTimer.current = setTimeout(() => void client.call('conversations.saveDraft', { id: c.id, draft: editor.text, attachmentIds: attachments.map((a) => a.id) }).catch(() => undefined), 500);
+  }, [editor.text, attachments, client]);
 
   const clearScreen = () => {
     stdout.write('\u001b[2J\u001b[3J\u001b[H');
@@ -254,10 +282,14 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         ...messages.filter((m) => m !== running).map((message): Item => ({ key: nextKey(), kind: 'message', message })),
       ]);
       setEditor({ text: c.draft, cursor: c.draft.length });
+      setAttachments(c.draftAttachments);
+      setQueue(await client.call('queue.list', { conversationId: c.id }));
       history.current.reset();
     },
     [client],
   );
+  const openConversationRef = useRef(openConversation);
+  openConversationRef.current = openConversation;
 
   const projectName = (id: Id | null) => (id === null ? t('sidebar.personal') : (projects.find((p) => p.id === id)?.name ?? '?'));
   const effective = (c: Conversation | null) => {
@@ -379,6 +411,110 @@ export function App({ client, locale, dataDir, changelog }: Props) {
       case 'cancel':
         if (c) await client.call('chat.cancel', { conversationId: c.id });
         return;
+      case 'steer': {
+        const conv = needConversation();
+        if (!arg) return note(t('cli.argRequired'), 'error');
+        const r = await client.call('chat.send', { conversationId: conv.id, input: { text: arg, mode: 'steer' } });
+        return note(r.status === 'steered' ? t('queue.steered') : t('cli.sentNow'), 'success');
+      }
+      case 'queue':
+        if (queue.length === 0) return note(t('cli.queueEmpty'));
+        return note(queue.map((q, i) => `${String(i + 1).padStart(3)}. ${q.kind === 'steer' ? '⚡' : '⏱'} ${sanitize(q.text)}${q.attachments.length ? ` 📎${q.attachments.length}` : ''}`).join('\n'));
+      case 'unqueue': {
+        const item = queue[Number(arg) - 1];
+        if (!item) return note(t('sidebar.noResults'), 'error');
+        await client.call('queue.remove', { id: item.id });
+        return note(t('common.saved'), 'success');
+      }
+      case 'next':
+        await client.call('queue.sendNext', { conversationId: needConversation().id });
+        return;
+      case 'history': {
+        const list = (await client.call('messages.list', { conversationId: needConversation().id })).filter((m) => m.role === 'user');
+        if (list.length === 0) return note(t('sidebar.noConversations'));
+        return note(list.map((m, i) => `${String(i + 1).padStart(3)}. ${sanitize(m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('').split('\n')[0]!.slice(0, 90))}`).join('\n') + `\n${t('cli.historyHint')}`);
+      }
+      case 'resume': {
+        const conv = needConversation();
+        const users = (await client.call('messages.list', { conversationId: conv.id })).filter((m) => m.role === 'user');
+        const target = users[Number(arg) - 1];
+        if (!target) return note(t('cli.historyHint'), 'error');
+        const r = await client.call('conversations.resumeFrom', { id: conv.id, messageId: target.id });
+        const backup = await client.call('conversations.get', { id: r.backupConversationId });
+        note(t('actions.resumedDetail', { title: sanitize(backup.title) }), 'success');
+        return;
+      }
+      case 'fork': {
+        const conv = needConversation();
+        let messageId: number | null = null;
+        if (arg) {
+          const users = (await client.call('messages.list', { conversationId: conv.id })).filter((m) => m.role === 'user');
+          messageId = users[Number(arg) - 1]?.id ?? null;
+          if (messageId === null) return note(t('cli.historyHint'), 'error');
+        }
+        const copy = await client.call('conversations.fork', { id: conv.id, messageId });
+        await openConversation(copy);
+        return note(messageId === null ? t('actions.duplicated') : t('actions.forked'), 'success');
+      }
+      case 'export': {
+        const conv = needConversation();
+        const includeReasoning = /--reasoning\b/.test(arg);
+        const target = arg.replace(/--reasoning\b/, '').trim();
+        const { fileName, markdown } = await client.call('conversations.exportMarkdown', { id: conv.id, includeReasoning });
+        const path = resolve(target || fileName);
+        // Aucun écrasement silencieux.
+        if (existsSync(path)) return note(t('cli.fileExists', { path }), 'error');
+        writeFileSync(path, markdown, 'utf8');
+        return note(`${t('actions.exported')} : ${path}`, 'success');
+      }
+      case 'goal': {
+        const conv = needConversation();
+        if (!arg) return note(conv.goal ? `${t('actions.goal')} : ${sanitize(conv.goal)}` : t('cli.noGoal'));
+        await client.call('conversations.update', { id: conv.id, patch: { goal: arg === '-' ? '' : arg } });
+        return note(t('common.saved'), 'success');
+      }
+      case 'compact': {
+        note(t('actions.compacting'));
+        const c2 = await client.call('conversations.compact', { id: needConversation().id });
+        return note(t('actions.compactedDetail', { count: c2.upToSeq }), 'success');
+      }
+      case 'context': {
+        const u = await client.call('conversations.contextUsage', { id: needConversation().id });
+        return note(`${t('chat.contextUsage', { used: u.tokens, total: u.contextWindow ?? '?' })}${u.source === 'estimate' ? ` (${t('chat.estimated')})` : ''} · ${t('cli.compactions', { count: u.compactions })}`);
+      }
+      case 'templates': {
+        const list = await client.call('templates.list');
+        if (list.length === 0) return note(t('templates.empty'));
+        return note(list.map((x) => `• ${sanitize(x.name)} — ${sanitize(x.content.split('\n')[0]!.slice(0, 70))}`).join('\n'));
+      }
+      case 'template': {
+        const list = await client.call('templates.list');
+        const tpl = list.find((x) => x.name.toLowerCase() === arg.toLowerCase()) ?? list.find((x) => x.name.toLowerCase().includes(arg.toLowerCase()));
+        if (!arg || !tpl) return note(t('sidebar.noResults'), 'error');
+        setEditor({ text: tpl.content, cursor: tpl.content.length });
+        return;
+      }
+      case 'attach': {
+        if (!arg) return note(t('cli.argRequired'), 'error');
+        const path = resolve(arg.replace(/^["']|["']$/g, ''));
+        if (!existsSync(path)) return note(t('cli.fileMissing', { path }), 'error');
+        const ref = await client.call('attachments.upload', { name: basename(path), mime: '', dataBase64: readFileSync(path).toString('base64') });
+        setAttachments((list) => [...list, ref]);
+        return note(`📎 ${sanitize(ref.name)} (${ref.kind}, ${Math.round(ref.size / 1024)} Ko)`, 'success');
+      }
+      case 'detach':
+        setAttachments([]);
+        return note(t('cli.detached'), 'success');
+      case 'reasoning': {
+        const conv = needConversation();
+        const e = effective(conv);
+        const caps = e.provider?.models.find((m) => m.id === e.model)?.capabilities;
+        const levels: ReasoningLevel[] = ['auto', ...(caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l))];
+        if (!arg) return note(`${t('chat.reasoning')} : ${t(`reasoningLevels.${conv.reasoningLevel}`)} — ${t('cli.levels')} ${levels.join(', ')}${levels.length === 1 ? `\n${t('chat.reasoningOnlyAuto')}` : ''}`);
+        if (!levels.includes(arg as ReasoningLevel)) return note(`${t('cli.levels')} ${levels.join(', ')}`, 'error');
+        await client.call('conversations.update', { id: conv.id, patch: { reasoningLevel: arg as ReasoningLevel } });
+        return note(t('common.saved'), 'success');
+      }
       case 'theme': {
         if (!arg || !CLI_THEMES.some((x) => x.id === arg)) return note(`${t('cli.themes')} ${CLI_THEMES.map((x) => x.id).join(', ')}`);
         await client.call('settings.update', { cli: { theme: arg } });
@@ -401,7 +537,7 @@ export function App({ client, locale, dataDir, changelog }: Props) {
 
   const submit = async () => {
     const text = editor.text;
-    if (!text.trim()) return;
+    if (!text.trim() && attachments.length === 0) return;
     if (text.trim().startsWith('/')) {
       const parsed = parseCommand(text);
       const matches = completions(text.trim());
@@ -419,7 +555,11 @@ export function App({ client, locale, dataDir, changelog }: Props) {
       }
       history.current.push(text);
       setEditor(ed.empty());
-      await client.call('chat.send', { conversationId: conv.id, input: { text } });
+      const ids = attachments.map((a) => a.id);
+      setAttachments([]);
+      // Pendant une génération, Entrée met en file ; /steer transmet à la prochaine frontière.
+      const r = await client.call('chat.send', { conversationId: conv.id, input: { text, attachmentIds: ids, mode: 'queue' } });
+      if (r.status === 'queued') note(t('queue.added'));
     } catch (e) {
       note(errorText(locale, e), 'error');
     }
@@ -587,7 +727,7 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         </Box>
       ) : null}
       <Text color={theme.muted}>
-        {`${projectName(active?.projectId ?? contextProject)}${active ? ` › ${sanitize(active.title)}` : ''}  ·  ${provider ? sanitize(provider.name) : t('cli.noProvider')}${model ? ` / ${model}` : ''}  ·  /help`}
+        {`${projectName(active?.projectId ?? contextProject)}${active ? ` › ${sanitize(active.title)}` : ''}  ·  ${provider ? sanitize(provider.name) : t('cli.noProvider')}${model ? ` / ${model}` : ''}${active && active.reasoningLevel !== 'auto' ? ` · ✻ ${active.reasoningLevel}` : ''}${queue.length ? `  ·  ⏱ ${queue.length}` : ''}${attachments.length ? `  ·  📎 ${attachments.map((a) => sanitize(a.name)).join(', ')}` : ''}${active?.goal ? '  ·  ⚑' : ''}  ·  /help`}
       </Text>
     </Box>
   );

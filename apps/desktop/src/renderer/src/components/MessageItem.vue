@@ -2,12 +2,14 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ProgressSpinner from 'primevue/progressspinner';
-import type { Message, MessagePart } from '@monolith/contracts';
+import type { AttachmentRef, Message, MessagePart } from '@monolith/contracts';
 import { messageVersions, store } from '../stores/app.ts';
 import { formatDuration, formatTokens, throughput } from '../lib/format.ts';
 import MarkdownView from './MarkdownView.vue';
+import AttachmentChip from './AttachmentChip.vue';
 
-const props = defineProps<{ message: Message }>();
+const props = defineProps<{ message: Message; busy?: boolean }>();
+const emit = defineEmits<{ resume: []; fork: [] }>();
 const { t, te } = useI18n();
 
 /** Lecture de la version : le composant se re-rend à chaque delta de ce message uniquement. */
@@ -22,6 +24,15 @@ const status = computed(() => {
 const streaming = computed(() => status.value === 'streaming');
 const display = computed(() => store.settings?.chat.reasoningDisplay ?? 'collapsed');
 const userText = computed(() => parts.value.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(''));
+const attachments = computed(() => parts.value.filter((p) => p.type === 'attachment').map((p) => (p as { attachment: AttachmentRef }).attachment));
+/** Niveau de réflexion demandé / envoyé / paramètre / repli (jamais présenté comme l'effort réel du modèle). */
+const reasoningInfo = computed(() => {
+  const r = props.message.snapshot?.reasoning;
+  if (!r || (r.requested === 'auto' && !r.fallback)) return null;
+  const requested = t(`reasoningLevels.${r.requested}`);
+  const sent = r.sent ? t(`reasoningLevels.${r.sent}`) : t('reasoningLevels.auto');
+  return { text: t('chat.reasoningSent', { requested, sent }), detail: [r.parameter ? t('chat.reasoningParameter', { parameter: r.parameter }) : null, r.fallback ? t('chat.reasoningFallback', { reason: r.fallback }) : null].filter(Boolean).join(' · '), fallback: !!r.fallback };
+});
 const hasVisible = computed(() => parts.value.some((p) => (p.type === 'text' && p.text.trim()) || (p.type === 'reasoning' && display.value !== 'none')));
 /** Statut minimal « Raisonnement… » : réflexion en cours et affichage réglé sur Aucun, ou rien encore reçu. */
 const reasoningOnly = computed(() => streaming.value && parts.value.at(-1)?.type === 'reasoning' && display.value === 'none');
@@ -50,7 +61,21 @@ const errorTitle = computed(() => {
 <template>
   <article class="msg" :class="message.role" :aria-label="message.role === 'user' ? t('chat.userMessage') : t('chat.assistantMessage')">
     <template v-if="message.role === 'user'">
-      <div class="bubble user-bubble">{{ userText }}</div>
+      <div class="user-col">
+        <span v-if="message.origin !== 'direct'" class="origin" :class="message.origin">
+          <i class="pi" :class="message.origin === 'steer' ? 'pi-bolt' : 'pi-clock'" />
+          {{ message.origin === 'steer' ? t('queue.originSteer') : t('queue.originQueue') }}
+        </span>
+        <div v-if="attachments.length" class="attachments">
+          <AttachmentChip v-for="a in attachments" :key="a.id" :attachment="a" large />
+        </div>
+        <div v-if="userText" class="bubble user-bubble">{{ userText }}</div>
+        <div class="user-actions">
+          <button type="button" class="mh-icon-btn act" :disabled="busy" :aria-label="t('actions.resumeHere')" v-tooltip.top="busy ? t('actions.resumeBusy') : t('actions.resumeHere')" @click="emit('resume')"><i class="pi pi-replay" /></button>
+          <button type="button" class="mh-icon-btn act" :aria-label="t('actions.forkHere')" v-tooltip.top="t('actions.forkHere')" @click="emit('fork')"><i class="pi pi-clone" /></button>
+          <button type="button" class="mh-icon-btn act" :aria-label="t('chat.copyMessage')" v-tooltip.top="copied ? t('common.copied') : t('chat.copyMessage')" @click="copy"><i class="pi" :class="copied ? 'pi-check' : 'pi-copy'" /></button>
+        </div>
+      </div>
     </template>
 
     <template v-else>
@@ -101,6 +126,10 @@ const errorTitle = computed(() => {
         </span>
         <span v-if="message.durationMs">{{ formatDuration(message.durationMs) }}</span>
         <span v-if="tps">{{ t('chat.throughput', { value: tps.toFixed(1) }) }}</span>
+        <span v-if="reasoningInfo" class="reasoning-info" :class="{ fallback: reasoningInfo.fallback }" v-tooltip.top="reasoningInfo.detail || undefined">
+          <i class="pi pi-sparkles" /> {{ reasoningInfo.text }}
+        </span>
+        <button type="button" class="mh-icon-btn copy" :aria-label="t('actions.forkHere')" v-tooltip.top="t('actions.forkHere')" @click="emit('fork')"><i class="pi pi-clone" /></button>
         <button type="button" class="mh-icon-btn copy" :aria-label="t('chat.copyMessage')" v-tooltip.top="copied ? t('common.copied') : t('chat.copyMessage')" @click="copy">
           <i class="pi" :class="copied ? 'pi-check' : 'pi-copy'" />
         </button>
@@ -116,6 +145,61 @@ const errorTitle = computed(() => {
 .msg.user {
   display: flex;
   justify-content: flex-end;
+}
+/* Rendu différé des messages hors écran : longues conversations fluides, sélection et recherche conservées. */
+.msg {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
+}
+.user-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: min(78%, 720px);
+}
+.user-col .bubble {
+  max-width: 100%;
+}
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 6px;
+}
+.origin {
+  font-size: 11.5px;
+  color: var(--mh-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.origin.steer {
+  color: var(--mh-accent);
+}
+.user-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--mh-transition);
+}
+.msg:hover .user-actions,
+.user-actions:focus-within {
+  opacity: 1;
+}
+.act {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.reasoning-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.reasoning-info.fallback {
+  color: var(--mh-warning);
 }
 .bubble {
   max-width: min(78%, 720px);

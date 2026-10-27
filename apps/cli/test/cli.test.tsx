@@ -81,9 +81,9 @@ afterEach(async () => {
 });
 
 let lastOutput = () => '';
-const until = async (check: () => boolean, ms = 5000) => {
+const until = async (check: () => boolean | Promise<boolean>, ms = 5000) => {
   const start = Date.now();
-  while (!check()) {
+  while (!(await check())) {
     if (Date.now() - start > ms) throw new Error(`délai dépassé ; sortie :
 ${lastOutput().slice(-1500)}`);
     await new Promise((r) => setTimeout(r, 20));
@@ -125,5 +125,18 @@ describe('parcours interactif', () => {
     stdin.write('\r');
     await until(() => stdout.text.includes('Enregistré'));
     expect((await harness.call('conversations.get', { id: conversations[0]!.id })).title).toBe('Titre CLI');
+
+    // Objectif, historique numéroté puis reprise depuis le premier message (génération terminée).
+    await harness.generation.idle();
+    stdin.write('/goal Livrer vite');
+    await until(() => stdout.text.includes('/goal Livrer vite'));
+    stdin.write('\r');
+    await until(async () => (await harness.call('conversations.get', { id: conversations[0]!.id })).goal === 'Livrer vite');
+    stdin.write('/resume 1');
+    await until(() => stdout.text.includes('/resume 1'));
+    stdin.write('\r');
+    await until(() => stdout.text.includes('avant reprise'));
+    expect(await harness.call('messages.list', { conversationId: conversations[0]!.id })).toEqual([]);
+    expect((await harness.call('conversations.get', { id: conversations[0]!.id })).draft).toBe('Bonjour');
   });
 });

@@ -6,6 +6,7 @@ import ToggleSwitch from 'primevue/toggleswitch';
 import Textarea from 'primevue/textarea';
 import InputNumber from 'primevue/inputnumber';
 import RadioButton from 'primevue/radiobutton';
+import Slider from 'primevue/slider';
 import type { ResponseStyle, Settings } from '@monolith/contracts';
 import { store } from '../../stores/app.ts';
 
@@ -16,6 +17,15 @@ const styles: ResponseStyle[] = ['default', 'short', 'pragmatic', 'detailed', 'p
 const displays = ['none', 'collapsed', 'expanded'] as const;
 
 const providerOptions = computed(() => store.providers.map((p) => ({ label: p.name, value: p.id })));
+const namingModelOptions = computed(() => {
+  const p = store.providers.find((x) => x.id === props.draft.chat.namingProviderId);
+  return (p?.models ?? []).filter((m) => m.enabled).map((m) => ({ label: m.label, value: m.id }));
+});
+function setNamingProvider(id: number | null) {
+  props.draft.chat.namingProviderId = id;
+  const p = store.providers.find((x) => x.id === id);
+  props.draft.chat.namingModel = p?.models.find((m) => m.enabled)?.id ?? null;
+}
 const modelOptions = computed(() => {
   const p = store.providers.find((x) => x.id === props.draft.chat.defaultProviderId);
   return (p?.models ?? []).filter((m) => m.enabled).map((m) => ({ label: m.label, value: m.id }));
@@ -55,8 +65,47 @@ function setProvider(id: number | null) {
     <ToggleSwitch input-id="tps" v-model="draft.chat.showThroughput" />
   </div>
   <div class="mh-switch-row">
+    <label for="ctxu">{{ t('settings.chat.showContextUsage') }}</label>
+    <ToggleSwitch input-id="ctxu" v-model="draft.chat.showContextUsage" />
+  </div>
+  <div class="mh-switch-row">
     <label for="lines">{{ t('settings.chat.codeLineNumbers') }}</label>
     <ToggleSwitch input-id="lines" v-model="draft.chat.codeLineNumbers" />
+  </div>
+
+  <h3 class="mh-section-title">{{ t('settings.chat.naming') }}</h3>
+  <div class="mh-switch-row">
+    <div>
+      <label for="naming">{{ t('settings.chat.autoNaming') }}</label>
+      <p class="mh-hint">{{ t('settings.chat.autoNamingHint') }}</p>
+    </div>
+    <ToggleSwitch input-id="naming" v-model="draft.chat.autoNaming" />
+  </div>
+  <div v-if="draft.chat.autoNaming" class="mh-field top-gap">
+    <span class="mh-label">{{ t('settings.chat.namingModel') }}</span>
+    <div class="mh-row wrap">
+      <Select :model-value="draft.chat.namingProviderId" :options="providerOptions" option-label="label" option-value="value" show-clear :placeholder="t('settings.chat.namingSame')" :aria-label="t('chat.provider')" class="sel" @update:model-value="setNamingProvider" />
+      <Select v-model="draft.chat.namingModel" :options="namingModelOptions" option-label="label" option-value="value" filter :placeholder="t('chat.chooseModel')" :aria-label="t('chat.model')" :disabled="!draft.chat.namingProviderId" class="sel" />
+    </div>
+  </div>
+
+  <h3 class="mh-section-title">{{ t('settings.chat.compaction') }}</h3>
+  <div class="mh-switch-row">
+    <div>
+      <label for="autocompact">{{ t('settings.chat.autoCompact') }}</label>
+      <p class="mh-hint">{{ t('settings.chat.autoCompactHint') }}</p>
+    </div>
+    <ToggleSwitch input-id="autocompact" v-model="draft.chat.autoCompact" />
+  </div>
+  <div class="mh-row wrap top-gap">
+    <div class="mh-field grow">
+      <label id="lbl-thr">{{ t('settings.chat.compactThreshold', { value: draft.chat.compactThreshold }) }}</label>
+      <Slider v-model="draft.chat.compactThreshold" :min="40" :max="95" :step="5" aria-labelledby="lbl-thr" :disabled="!draft.chat.autoCompact" />
+    </div>
+    <div class="mh-field">
+      <label for="keep">{{ t('settings.chat.compactKeepTurns') }}</label>
+      <InputNumber input-id="keep" v-model="draft.chat.compactKeepTurns" :min="1" :max="20" show-buttons :allow-empty="false" />
+    </div>
   </div>
 
   <div class="mh-field top-gap">
@@ -108,5 +157,9 @@ function setProvider(id: number | null) {
 }
 .top-gap {
   margin-top: 18px;
+}
+.grow {
+  flex: 1;
+  min-width: 220px;
 }
 </style>

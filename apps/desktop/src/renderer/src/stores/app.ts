@@ -1,7 +1,10 @@
 import { computed, reactive, shallowRef, triggerRef, type ShallowRef } from 'vue';
 import type {
   AppInfo,
+  Compaction,
   Conversation,
+  MessageTemplate,
+  QueuedInput,
   GenerationState,
   Id,
   Message,
@@ -31,6 +34,11 @@ export const store = reactive({
   generations: new Map<Id, GenerationState>(),
   activeId: null as Id | null,
   loadingMessages: false,
+  queues: new Map<Id, QueuedInput[]>(),
+  compactions: new Map<Id, Compaction[]>(),
+  templates: [] as MessageTemplate[],
+  /** Erreurs signalées par le moteur hors d'un appel (ex. élément de file non envoyé). */
+  engineErrors: [] as { code: string; message: string }[],
 });
 
 /** Messages par conversation ouverte. `shallowRef` : on déclenche le rendu explicitement. */
@@ -57,7 +65,14 @@ export async function loadMessages(conversationId: Id): Promise<void> {
   const ref = messagesOf(conversationId);
   store.loadingMessages = true;
   try {
-    ref.value = await api.call('messages.list', { conversationId });
+    const [messages, queue, compactions] = await Promise.all([
+      api.call('messages.list', { conversationId }),
+      api.call('queue.list', { conversationId }),
+      api.call('compactions.list', { conversationId }),
+    ]);
+    ref.value = messages;
+    store.queues.set(conversationId, queue);
+    store.compactions.set(conversationId, compactions);
   } finally {
     store.loadingMessages = false;
   }
@@ -128,6 +143,16 @@ function wireEvents(): void {
     bump(messageId);
     triggerRef(ref);
   });
+  api.on('queue.changed', ({ conversationId, items }) => store.queues.set(conversationId, items));
+  api.on('templates.changed', ({ templates }) => (store.templates = templates));
+  api.on('compaction.added', ({ compaction }) => {
+    const list = store.compactions.get(compaction.conversationId) ?? [];
+    store.compactions.set(compaction.conversationId, [...list, compaction]);
+  });
+  api.on('conversation.messagesReset', ({ conversationId }) => {
+    if (messageCache.has(conversationId)) void loadMessages(conversationId);
+  });
+  api.on('log.error', (e) => store.engineErrors.push(e));
   api.on('generation.state', (state) => {
     if (state.status === 'finished') store.generations.delete(state.conversationId);
     else store.generations.set(state.conversationId, state);
@@ -137,7 +162,7 @@ function wireEvents(): void {
 }
 
 export async function reloadAll(): Promise<void> {
-  const [info, settings, projects, providers, presets, conversations, active] = await Promise.all([
+  const [info, settings, projects, providers, presets, conversations, active, templates] = await Promise.all([
     api.call('app.info'),
     api.call('settings.get'),
     api.call('projects.list'),
@@ -145,8 +170,9 @@ export async function reloadAll(): Promise<void> {
     api.call('providers.presets'),
     api.call('conversations.list', { includeArchived: true }),
     api.call('chat.active'),
+    api.call('templates.list'),
   ]);
-  Object.assign(store, { info, settings, projects, providers, presets });
+  Object.assign(store, { info, settings, projects, providers, presets, templates });
   store.conversations = new Map(conversations.map((c) => [c.id, c]));
   store.generations = new Map(active.map((g) => [g.conversationId, g]));
   if (store.activeId !== null) {

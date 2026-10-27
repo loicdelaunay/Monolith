@@ -23,7 +23,7 @@ function setup() {
 
 async function provider(url: string, h = setup().harness) {
   const p = await h.call('providers.create', { name: 'Mock', kind: 'openai-compatible', preset: 'custom', baseUrl: url, apiKey: 'test-key-ABCDEFGH' });
-  await h.call('providers.setModels', { id: p.id, models: [{ id: 'mock-model', label: 'Mock', enabled: true, contextWindow: 8000, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], vision: null, tools: null } }] });
+  await h.call('providers.setModels', { id: p.id, models: [{ id: 'mock-model', label: 'Mock', enabled: true, contextWindow: 8000, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null } }] });
   await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'mock-model' } });
   return p;
 }
@@ -58,7 +58,7 @@ describe('stockage', () => {
     Database.open({ path, backupDir: join(dir, 'b'), logger: silentLogger }).close();
     const next = [...MIGRATIONS, { version: 99, name: 'test', sql: 'CREATE TABLE extra (x INTEGER);' }];
     Database.open({ path, backupDir: join(dir, 'b'), logger: silentLogger, migrations: next }).close();
-    expect(readdirSync(join(dir, 'b')).some((f) => f.startsWith('monolith-v1-'))).toBe(true);
+    expect(readdirSync(join(dir, 'b')).some((f) => f.startsWith(`monolith-v${MIGRATIONS.at(-1)!.version}-`))).toBe(true);
     const old = Database.open({ path, backupDir: join(dir, 'b'), logger: silentLogger });
     expect(old.info.readOnly).toBe(true);
     expect(() => old.run('DELETE FROM settings')).toThrow(/lecture seule/);

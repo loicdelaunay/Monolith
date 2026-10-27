@@ -15,12 +15,14 @@ import type { MenuItem } from 'primevue/menuitem';
 import type { Conversation, Id, Project, SearchHit } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
 import { activeConversation, conversationsIn, openConversation, store } from '../stores/app.ts';
+import { chatActions } from '../lib/chat-actions.ts';
 import { uiState, type SettingsSectionId } from '../ui-state.ts';
 
 const emit = defineEmits<{ 'open-settings': [section?: SettingsSectionId] }>();
 const { t } = useI18n();
 const confirm = useConfirm();
 const toast = useToast();
+const actions = chatActions(toast);
 
 const layout = computed(() => store.settings!.layout);
 const showArchived = computed(() => layout.value.showArchived);
@@ -134,6 +136,8 @@ function conversationMenu(c: Conversation): MenuItem[] {
     { label: c.pinned ? t('conversation.unpin') : t('conversation.pin'), icon: 'pi pi-thumbtack', command: () => patch(c, { pinned: !c.pinned }) },
     { label: c.archived ? t('conversation.unarchive') : t('conversation.archive'), icon: 'pi pi-inbox', command: () => patch(c, { archived: !c.archived }) },
     ...(targets.length ? [{ label: t('conversation.moveTo'), icon: 'pi pi-arrow-right-arrow-left', items: targets }] : []),
+    { label: t('actions.duplicate'), icon: 'pi pi-clone', command: () => actions.fork(c.id) },
+    { label: t('actions.exportMarkdown'), icon: 'pi pi-download', command: () => actions.exportMarkdown(c.id, false) },
     { separator: true },
     { label: t('conversation.delete'), icon: 'pi pi-trash', class: 'mh-danger-item', command: () => removeConversation(c) },
   ];

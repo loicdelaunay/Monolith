@@ -2,6 +2,7 @@
 // moteur. Aucune requête SQL ni aucun streaming ici : le moteur tourne dans un utilityProcess.
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { EngineHost } from './engine-host.ts';
 import type { RendererInfo } from '../shared/bridge.ts';
@@ -183,6 +184,16 @@ function registerIpc(): void {
   });
   ipcMain.handle('host:showItemInFolder', (event, path: unknown) => {
     if (fromOurWindow(event) && typeof path === 'string') shell.showItemInFolder(path);
+  });
+  // Écriture uniquement vers un chemin choisi par l'utilisateur dans le dialogue natif.
+  ipcMain.handle('host:saveTextFile', async (event, defaultName: unknown, content: unknown, filters: unknown) => {
+    const win = fromOurWindow(event);
+    if (!win || typeof content !== 'string' || content.length > 50 * 1024 * 1024) return null;
+    const name = typeof defaultName === 'string' ? defaultName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120) : 'export.txt';
+    const r = await dialog.showSaveDialog(win, { defaultPath: name, filters: Array.isArray(filters) ? (filters as Electron.FileFilter[]) : undefined });
+    if (r.canceled || !r.filePath) return null;
+    await writeFile(r.filePath, content, 'utf8');
+    return r.filePath;
   });
   ipcMain.handle('host:setTitleBarColors', (event, colors: { background?: unknown; symbols?: unknown }) => {
     const win = fromOurWindow(event);

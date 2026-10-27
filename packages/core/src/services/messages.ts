@@ -4,6 +4,7 @@ import {
   type Id,
   type Message,
   type MessageError,
+  type MessageOrigin,
   type MessagePart,
   type MessageRole,
   type MessageStatus,
@@ -26,6 +27,7 @@ interface MessageRow {
   completed_at: string | null;
   duration_ms: number | null;
   first_token_ms: number | null;
+  meta_json: string | null;
 }
 
 /** Texte indexé pour la recherche : réponses et texte utilisateur, sans la réflexion. */
@@ -55,10 +57,11 @@ export class MessageService {
     status: MessageStatus;
     parts: MessagePart[];
     snapshot?: GenerationSnapshot | null;
+    origin?: MessageOrigin;
   }): Message {
     const seq = (this.db.get<{ m: number | null }>('SELECT MAX(seq) AS m FROM messages WHERE conversation_id = ?', input.conversationId)?.m ?? 0) + 1;
     const { lastInsertRowid } = this.db.run(
-      'INSERT INTO messages (conversation_id, seq, role, status, parts_json, text, snapshot_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO messages (conversation_id, seq, role, status, parts_json, text, snapshot_json, meta_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       input.conversationId,
       seq,
       input.role,
@@ -66,10 +69,34 @@ export class MessageService {
       JSON.stringify(input.parts),
       searchableText(input.parts),
       input.snapshot ? JSON.stringify(input.snapshot) : null,
+      input.origin && input.origin !== 'direct' ? JSON.stringify({ origin: input.origin }) : null,
       now(),
       input.status === 'streaming' ? null : now(),
     );
     return this.get(lastInsertRowid);
+  }
+
+  /** Met à jour l'instantané (résolution du niveau de réflexion après un repli). */
+  saveSnapshot(id: Id, snapshot: GenerationSnapshot): void {
+    this.db.run('UPDATE messages SET snapshot_json = ? WHERE id = ?', JSON.stringify(snapshot), id);
+  }
+
+  /** Copie les messages de rang ≤ upToSeq (tous si null) vers une autre conversation (bifurcation). */
+  copyTo(sourceId: Id, targetId: Id, upToSeq: number | null): number {
+    return this.db.run(
+      'INSERT INTO messages (conversation_id, seq, role, status, parts_json, text, snapshot_json, usage_json, error_json, meta_json, created_at, completed_at, duration_ms, first_token_ms) ' +
+        "SELECT ?, seq, role, CASE status WHEN 'streaming' THEN 'interrupted' ELSE status END, parts_json, text, snapshot_json, usage_json, error_json, meta_json, created_at, completed_at, duration_ms, first_token_ms " +
+        'FROM messages WHERE conversation_id = ? AND (? IS NULL OR seq <= ?) ORDER BY seq',
+      targetId,
+      sourceId,
+      upToSeq,
+      upToSeq,
+    ).changes;
+  }
+
+  /** Retire les messages de rang ≥ seq (reprise). */
+  deleteFrom(conversationId: Id, seq: number): number {
+    return this.db.run('DELETE FROM messages WHERE conversation_id = ? AND seq >= ?', conversationId, seq).changes;
   }
 
   /** Persistance intermédiaire pendant le streaming (sans mise à jour de l'index plein texte). */
@@ -115,6 +142,7 @@ function map(r: MessageRow): Message {
     conversationId: r.conversation_id,
     seq: r.seq,
     role: r.role as MessageRole,
+    origin: json<{ origin?: MessageOrigin }>(r.meta_json, {}).origin ?? 'direct',
     status: r.status as MessageStatus,
     parts: json<MessagePart[]>(r.parts_json, []),
     snapshot: json<GenerationSnapshot | null>(r.snapshot_json, null),

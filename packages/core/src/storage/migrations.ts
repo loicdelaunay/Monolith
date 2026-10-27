@@ -153,6 +153,62 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX usage_started ON usage(started_at);
     `,
   },
+  {
+    version: 2,
+    name: 'conversation-workflow',
+    sql: /* sql */ `
+      ALTER TABLE conversations ADD COLUMN draft_attachments_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE conversations ADD COLUMN forked_from_conversation_id INTEGER;
+      ALTER TABLE conversations ADD COLUMN forked_from_message_id INTEGER;
+      ALTER TABLE messages ADD COLUMN meta_json TEXT;
+
+      -- Pièces jointes : contenu dans workspace/attachments/<sha256>, métadonnées ici.
+      CREATE TABLE attachments (
+        id INTEGER PRIMARY KEY,
+        sha256 TEXT NOT NULL,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX attachments_sha ON attachments(sha256);
+
+      -- File d'attente et instructions transmises pendant une génération.
+      CREATE TABLE queued_inputs (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        text TEXT NOT NULL,
+        attachments_json TEXT NOT NULL DEFAULT '[]',
+        sort_order REAL NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX queued_inputs_conv ON queued_inputs(conversation_id, kind, sort_order);
+
+      CREATE TABLE templates (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        sort_order REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      -- Compactage : résumé des messages jusqu'à up_to_seq ; l'historique original est conservé.
+      CREATE TABLE compactions (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        up_to_seq INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        model TEXT NOT NULL,
+        estimated_tokens_before INTEGER,
+        trigger TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX compactions_conv ON compactions(conversation_id, up_to_seq);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

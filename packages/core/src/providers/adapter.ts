@@ -1,9 +1,11 @@
 import type { CatalogModel, ConnectionTestResult, ProviderKind, ProviderOptions, ReasoningLevel } from '@monolith/contracts';
 
+export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+
 /** Message normalisé envoyé à un adaptateur (indépendant du protocole). */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ContentPart[];
 }
 
 export interface ChatRequest {
@@ -12,6 +14,8 @@ export interface ChatRequest {
   reasoningLevel: ReasoningLevel;
   temperature: number | null;
   maxOutputTokens: number | null;
+  /** Champs propres au transport (paramètres de réflexion…), fusionnés au corps de la requête. */
+  extraBody?: Record<string, unknown>;
 }
 
 /** Événements normalisés produits par tous les adaptateurs. */
