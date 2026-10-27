@@ -39,7 +39,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'claude-code', kind: 'acp', name: 'Claude Code (ACP)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://github.com/zed-industries/claude-code-acp', available: true, defaults: { acp: { command: 'npx', args: ['-y', '@zed-industries/claude-code-acp'], env: {} } }, keyKind: 'none' },
   { id: 'acp', kind: 'acp', name: 'Agent externe (ACP, personnalisé)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://agentclientprotocol.com/', available: true, keyKind: 'none' },
   { id: 'composite', kind: 'composite', name: 'Modèle composé (orchestrateur + spécialistes)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: true, keyKind: 'none' },
-  { id: 'local', kind: 'local', name: 'Modèle local intégré (GGUF)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: false, unavailableReason: 'Moteur d’inférence intégré prévu en tranche T10. Les serveurs locaux compatibles OpenAI (Ollama, LM Studio, llama.cpp) fonctionnent déjà.' },
+  { id: 'local', kind: 'local', name: 'Modèles locaux (GGUF, llama.cpp)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://github.com/ggml-org/llama.cpp', available: true, keyKind: 'none' },
 ];
 
 export function findPreset(id: string): ProviderPreset | undefined {

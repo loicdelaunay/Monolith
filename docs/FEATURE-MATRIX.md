@@ -3,9 +3,11 @@
 Légende : ✅ réalisé et vérifié · 🟡 partiel (détail en note) · ⬜ restant · ⛔ bloqué (raison) · ➖ non applicable à cette plateforme (raison).
 Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tranche prévue ([ROADMAP](ROADMAP.md)). macOS : voir §16.
 
+**Reports demandés par l'utilisateur** : la suite du développement du **CLI** (colonne C non ✅) est décrite dans [`cli-todo.md`](../cli-todo.md) et celle du **serveur** (colonne S) dans [`server-todo.md`](../server-todo.md).
+
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T9 (3.0.0-alpha.9).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T10 (3.0.0-alpha.10).**
 
 ## 1. Fondations
 
@@ -100,7 +102,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | M-05 | OpenRouter, Z.ai, Groq, Mistral, NVIDIA | 🟡 | 🟡 | ⬜ | T5 | Préréglages compatibles OpenAI avec transports de réflexion dédiés (OpenRouter `reasoning`, Z.ai `thinking`) ; non vérifiés contre les services réels (pas de clés). |
 | M-06 | OpenCode | 🟡 | 🟡 | ⬜ | T5 | Via ACP (`opencode acp`), préréglage prêt. OpenCode n'est pas installé sur ce poste : non vérifié avec le vrai binaire. |
 | M-07 | Agents externes ACP | ✅ | 🟡 | ⬜ | T5 | Client ACP (JSON-RPC stdio) : session par conversation, réflexion, plan, actions affichées, demandes d'autorisation soumises aux règles et au mode, lecture/écriture de fichiers limitées à la portée, annulation, arrêt de l'arbre de processus. Préréglages OpenCode, Gemini CLI, Claude Code. Vérifié avec un agent ACP de test ; agents réels non installés ici. |
-| M-08 | Modèles locaux (GGUF, HF, llama.cpp) | ⬜ | ⬜ | ⬜ | T10 | |
+| M-08 | Modèles locaux (GGUF, HF, llama.cpp) | 🟡 | ⬜ | ⛔ | T10 | Réglages › Modèles locaux : matériel (RAM, CPU, VRAM via nvidia-smi), catalogue Hugging Face (fichiers GGUF, quantification, estimation RAM/VRAM et couches GPU), téléchargement reprenable vérifié SHA-256 (jeton chiffré pour les modèles protégés), import .gguf, lecture des métadonnées GGUF, moteur llama.cpp (chemin vérifié ou installation officielle vérifiée par empreinte), serveur démarré à la demande et arrêté après inactivité. Vérifié avec un faux moteur et un faux catalogue (tests) ; llama.cpp réel et Hugging Face réel non testés sur ce poste. CLI : voir cli-todo.md. |
 | M-09 | Modèles composés (orchestrateur + spécialistes) | ✅ | 🟡 | ⬜ | T5 | Outil `consult_specialist`, consultations parallèles affichées, consommation cumulée, imbrication refusée, limite de consultations (test). CLI : utilisable, configuration dans l'interface desktop. |
 | M-10 | Connexions multiples indépendantes du même fournisseur | ✅ | ✅ | ⬜ | T1 | Duplication avec clé recopiée. |
 | M-11 | Écran liste/détail, logos locaux, onglets Connexion/Modèles/Avancé | ✅ | ➖ | ⬜ | T1 | CLI : `/providers` (lecture seule). |
@@ -265,4 +267,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 106 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 108 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

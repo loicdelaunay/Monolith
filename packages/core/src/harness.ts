@@ -49,6 +49,8 @@ import { AssetService } from './services/assets.ts';
 import { studioTools } from './tools/studio.ts';
 import { applyPendingRestore, BackupService, DashboardService, MaintenanceService, NotificationService } from './services/ops.ts';
 import { SchedulerService } from './services/scheduler.ts';
+import { LocalModelService } from './local/service.ts';
+import { LocalAdapter } from './providers/local.ts';
 import { redactValue } from './security/redact.ts';
 import { readdirSync as readDir, statSync as statOf } from 'node:fs';
 import { memoryTools } from './tools/memory.ts';
@@ -78,6 +80,8 @@ export interface HarnessOptions {
   allowFileKeyFallback?: boolean;
   /** Services de l'hôte graphique (navigateur intégré, captures) ; absent en CLI et sur le serveur. */
   hostBridge?: HostBridge | null;
+  /** Tests : adresses de Hugging Face et de l'API GitHub. */
+  localEndpoints?: { hfBase?: string; githubApi?: string };
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -121,6 +125,7 @@ export class Harness {
   readonly sandbox: SandboxService;
   readonly studio: StudioService;
   readonly webHttp: WebHttpClient;
+  readonly local: LocalModelService;
   readonly backups: BackupService;
   readonly dashboard: DashboardService;
   readonly notifications: NotificationService;
@@ -157,8 +162,10 @@ export class Harness {
     const http = new HttpClient(this.logger);
     const googleAuth = new GoogleAuth(http);
     const composite = new CompositeAdapter();
+    const openai = new OpenAICompatibleAdapter('openai-compatible', http);
     const adapters = new Map<ProviderKind, ProviderAdapter>([
-      ['openai-compatible', new OpenAICompatibleAdapter('openai-compatible', http)],
+      ['openai-compatible', openai],
+      ['local', new LocalAdapter(() => this.local, openai)],
       ['deepseek', new OpenAICompatibleAdapter('deepseek', http)],
       ['gemini', new GeminiAdapter('gemini', http, googleAuth)],
       ['vertex', new GeminiAdapter('vertex', http, googleAuth)],
@@ -203,6 +210,7 @@ export class Harness {
       ...studioTools(() => this.studio, () => this.assets, () => this.attachments),
     ]);
     this.webHttp = new WebHttpClient(join(this.layout.workspace, 'web'));
+    this.local = new LocalModelService({ dir: join(this.layout.root, 'local'), events: this.events, settings: () => this.settings.get(), secrets: this.secrets, logger: this.logger, ...(options.localEndpoints ?? {}) });
     this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
     this.assets = new AssetService(join(this.layout.workspace, 'assets'), this.events);
     this.memory = new MemoryService(this.db, this.events);
@@ -344,6 +352,7 @@ export class Harness {
     for (const a of this.adapters.values()) await a.dispose?.();
     await this.mcp.dispose();
     await this.webHttp.dispose();
+    await this.local.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
   }
@@ -714,6 +723,22 @@ export class Harness {
       'notifications.add': (p) => this.notifications.add(['info', 'success', 'warning', 'error'].includes(p.level) ? p.level : 'info', String(p.title ?? ''), String(p.body ?? ''), p.conversationId ?? null),
 
       'maintenance.run': () => this.maintenance.run(),
+
+      'local.hardware': () => this.local.hardware(),
+      'local.models': () => this.local.models(),
+      'local.deleteModel': (p) => this.local.deleteModel(String(p.id)),
+      'local.importFile': (p) => this.local.importFile(String(p.path)),
+      'local.estimate': (p) => this.local.estimate(String(p.id), p.contextSize),
+      'local.hfSearch': (p) => this.local.hfSearch(String(p.query ?? '')),
+      'local.hfFiles': (p) => this.local.hfFiles(String(p.repo), p.contextSize),
+      'local.download': (p) => this.local.download(String(p.repo), String(p.file)),
+      'local.downloads': () => this.local.listDownloads(),
+      'local.cancelDownload': (p) => this.local.cancelDownload(String(p.id)),
+      'local.setHfToken': (p) => this.local.setHfToken(p.token ?? null),
+      'local.engine': () => this.local.engine(),
+      'local.installEngine': (p) => this.local.installEngine(p.backend === 'cuda' || p.backend === 'vulkan' ? p.backend : 'cpu'),
+      'local.setEnginePath': (p) => this.local.setEnginePath(p.path ?? null),
+      'local.stop': () => this.local.stop(),
 
       'git.run': async (p) => {
         const root = await this.requireGitRoot(p.conversationId);

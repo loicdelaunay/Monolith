@@ -115,6 +115,16 @@ export interface Settings {
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
   };
+  local: {
+    /** Taille de contexte par défaut des modèles locaux (tokens). */
+    contextSize: number;
+    /** Couches sur le GPU : -1 = estimation automatique, 0 = CPU seul. */
+    gpuLayers: number;
+    /** Threads CPU : 0 = automatique. */
+    threads: number;
+    /** Arrêt du serveur local après N minutes d'inactivité (0 : jamais). */
+    idleUnloadMin: number;
+  };
   notifications: {
     /** Notifications système (centre de notifications du système). */
     system: boolean;
@@ -302,6 +312,12 @@ export const DEFAULT_SETTINGS: Settings = {
     htmlPreview: true,
     fileBadges: true,
   },
+  local: {
+    contextSize: 8192,
+    gpuLayers: -1,
+    threads: 0,
+    idleUnloadMin: 10,
+  },
   notifications: {
     system: false,
     sound: false,
@@ -398,6 +414,10 @@ export const SETTINGS_BOUNDS = {
   'loop.window': [3, 100],
   'memory.forcedReadCount': [1, 100],
   'maintenance.autoArchiveDays': [0, 3650],
+  'local.contextSize': [512, 262_144],
+  'local.gpuLayers': [-1, 999],
+  'local.threads': [0, 256],
+  'local.idleUnloadMin': [0, 1440],
   'maintenance.autoDeleteArchivedDays': [0, 3650],
   'subagents.maxDepth': [1, 3],
   'subagents.maxParallel': [1, 8],

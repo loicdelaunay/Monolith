@@ -2,6 +2,15 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.10 — 2026-10-27
+
+Tranche T10 : modèles locaux.
+
+- **Modèles locaux** (Réglages › Modèles locaux) : matériel détecté (mémoire, processeur, VRAM des GPU NVIDIA), catalogue Hugging Face des modèles GGUF avec quantification et estimation de la mémoire nécessaire (poids, contexte, couches sur le GPU), téléchargements reprenables vérifiés par empreinte SHA-256, jeton chiffré pour les modèles protégés, import de fichiers .gguf.
+- **Moteur llama.cpp** : chemin d'un `llama-server` existant (vérifié) ou installation de la version officielle (CPU, CUDA, Vulkan) vérifiée par son empreinte publiée ; le serveur démarre à la demande sur 127.0.0.1 avec le contexte et les couches GPU choisis (ou estimés), puis s'arrête après inactivité.
+- Fournisseur **« Modèles locaux »** : les modèles installés apparaissent dans le sélecteur du chat.
+- **CLI** : développement reporté (voir `cli-todo.md`) ; le CLI existant reste disponible.
+
 ## 3.0.0-alpha.9 — 2026-10-27
 
 Tranche T9 : suivi, maintenance et confort. Client HTTP intégré.

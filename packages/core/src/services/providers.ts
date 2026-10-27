@@ -230,10 +230,10 @@ export class ProviderService {
       }
     }
     // Agent externe et modèle composé : un modèle unique, activé d'office pour apparaître dans le chat.
-    if (preset.kind === 'acp' || preset.kind === 'composite') {
+    if (preset.kind === 'acp' || preset.kind === 'composite' || preset.kind === 'local') {
       const conn: ProviderConnection = { kind: preset.kind, baseUrl, apiKey: null, options };
-      const [m] = await this.adapters.get(preset.kind)!.listModels(conn, AbortSignal.timeout(5000));
-      if (m) return this.setModels(id, [{ id: m.id, label: m.label, enabled: true, contextWindow: null, maxOutputTokens: null, source: 'catalog', capabilities: m.capabilities }]);
+      const list = await this.adapters.get(preset.kind)!.listModels(conn, AbortSignal.timeout(5000));
+      if (list.length) return this.setModels(id, list.map((m) => ({ id: m.id, label: m.label, enabled: true, contextWindow: m.contextWindow, maxOutputTokens: null, source: 'catalog' as const, capabilities: m.capabilities })));
     }
     this.changed();
     return this.get(id);

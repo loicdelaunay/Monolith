@@ -2,7 +2,7 @@
 
 Chaque tranche se termine par : compilation (`npm run typecheck`, `npm run build`), tests (`npm test`), mise à jour de [FEATURE-MATRIX.md](FEATURE-MATRIX.md) et, si visible pour l'utilisateur, une entrée du [CHANGELOG](../CHANGELOG.md). Le CLI suit chaque tranche puisqu'il partage le moteur.
 
-État au 2026-10-27 : **T0 à T9 livrées** (3.0.0-alpha.3). Les éléments encore partiels de ces tranches sont détaillés dans la matrice (ex. PDF en pièce jointe, CLI sans édition de file).
+État au 2026-10-27 : **T0 à T10 livrées** (3.0.0-alpha.3). Les éléments encore partiels de ces tranches sont détaillés dans la matrice (ex. PDF en pièce jointe, CLI sans édition de file).
 
 | Tranche | Contenu | Dépend de |
 | --- | --- | --- |
@@ -18,6 +18,6 @@ Chaque tranche se termine par : compilation (`npm run typecheck`, `npm run build
 | **T9 — Exploitation** | Dashboard de consommation, diagnostics, tâches planifiées, notifications, animations de fond, réglages Avancé (GPU, backend, rafraîchissement), réinitialisations ciblées. | T2 |
 | **T10 — Modèles locaux** | GGUF, catalogue Hugging Face, téléchargements vérifiés, llama.cpp, CPU/GPU, estimation RAM/VRAM. | T5 |
 | **T11 — Contrôle desktop** | Windows UI Automation / API / Legacy séparés souris/clavier, capacités Linux/macOS déclarées. | T4 |
-| **T12 — CLI complet** | Parité CLI (sous-agents, sandbox, MCP, réglages, mises à jour), thèmes rétro/CRT. | T7 |
+| **T12 — CLI complet** (reporté) | Reporté à plus tard à la demande de l’utilisateur : périmètre restant dans `cli-todo.md`. | T7 |
 | **T13 — Serveur** (reporté) | Reporté à plus tard à la demande de l’utilisateur : périmètre détaillé dans `server-todo.md`. | T7 |
 | **T14 — Distribution** | Paquets Windows/Linux, SEA CLI/serveur, mises à jour vérifiées, SHA-256, licences, tests visuels/accessibilité/performance. | toutes |

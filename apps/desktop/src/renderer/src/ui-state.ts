@@ -14,6 +14,7 @@ export type SettingsSectionId =
   | 'loop'
   | 'shortcuts'
   | 'scheduler'
+  | 'local'
   | 'notifications'
   | 'server'
   | 'advanced'

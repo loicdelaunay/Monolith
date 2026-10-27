@@ -49,6 +49,7 @@ import type {
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
 import type { AiDetectionResult, AssetInfo, AssetKind, BenchmarkInput, BenchmarkState, ImageGenInput, ImageGenResult, TextTaskInput, TextTaskResult } from './studio.ts';
+import type { DownloadState, HardwareInfo, HfFile, HfModel, LocalEngineInfo, LocalModel, ModelEstimate } from './local.ts';
 import type { BackupInfo, DashboardData, DashboardQuery, DiagnosticsInfo, MaintenanceReport, NotificationItem, ScheduledRun, ScheduledTask, ScheduledTaskInput } from './ops.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
@@ -343,6 +344,22 @@ export interface HarnessApi {
   'notifications.add': { params: { level: NotificationItem['level']; title: string; body: string; conversationId?: Id | null }; result: NotificationItem };
 
   'maintenance.run': { params: void; result: MaintenanceReport };
+
+  'local.hardware': { params: void; result: HardwareInfo };
+  'local.models': { params: void; result: LocalModel[] };
+  'local.deleteModel': { params: { id: string }; result: void };
+  'local.importFile': { params: { path: string }; result: LocalModel };
+  'local.estimate': { params: { id: string; contextSize?: number }; result: ModelEstimate };
+  'local.hfSearch': { params: { query: string }; result: HfModel[] };
+  'local.hfFiles': { params: { repo: string; contextSize?: number }; result: HfFile[] };
+  'local.download': { params: { repo: string; file: string }; result: DownloadState };
+  'local.downloads': { params: void; result: DownloadState[] };
+  'local.cancelDownload': { params: { id: string }; result: void };
+  'local.setHfToken': { params: { token: string | null }; result: { hasToken: boolean } };
+  'local.engine': { params: void; result: LocalEngineInfo };
+  'local.installEngine': { params: { backend: 'cpu' | 'cuda' | 'vulkan' }; result: LocalEngineInfo };
+  'local.setEnginePath': { params: { path: string | null }; result: LocalEngineInfo };
+  'local.stop': { params: void; result: LocalEngineInfo };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -405,6 +422,8 @@ export interface HarnessEvents {
   'assets.changed': { assets: AssetInfo[] };
   'notification.added': NotificationItem;
   'scheduler.changed': { tasks: ScheduledTask[] };
+  'local.download': DownloadState;
+  'local.changed': { models: LocalModel[]; engine: LocalEngineInfo };
   'log.error': { message: string; code: string };
 }
 

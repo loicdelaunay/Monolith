@@ -29,6 +29,7 @@ import MemorySection from './MemorySection.vue';
 import NotificationsSection from './NotificationsSection.vue';
 import SchedulerSection from './SchedulerSection.vue';
 import AdvancedSection from './AdvancedSection.vue';
+import LocalModelsSection from './LocalModelsSection.vue';
 
 const { t, tm } = useI18n();
 const confirm = useConfirm();
@@ -40,6 +41,7 @@ const SECTIONS: { id: SettingsSectionId; icon: string; tranche?: string }[] = [
   { id: 'chat', icon: 'pi-comments' },
   { id: 'appearance', icon: 'pi-palette' },
   { id: 'providers', icon: 'pi-server' },
+  { id: 'local', icon: 'pi-desktop' },
   { id: 'skills', icon: 'pi-bolt' },
   { id: 'agents', icon: 'pi-sitemap' },
   { id: 'mcp', icon: 'pi-link' },
@@ -210,6 +212,7 @@ function onVisible(v: boolean) {
         <NotificationsSection v-else-if="current.id === 'notifications'" :draft="draft.value" />
         <SchedulerSection v-else-if="current.id === 'scheduler'" />
         <AdvancedSection v-else-if="current.id === 'advanced'" :draft="draft.value" />
+        <LocalModelsSection v-else-if="current.id === 'local'" :draft="draft.value" />
         <ResetSection v-else-if="current.id === 'reset'" />
         <AboutSection v-else-if="current.id === 'about'" />
         <PlannedSection v-else :tranche="current.tranche ?? ''" />
