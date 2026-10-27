@@ -95,7 +95,8 @@ export interface Settings {
   };
   permissions: {
     policy: PermissionPolicy;
-    /** Validateur du mode Automatique (connexion et modèle) ; non configuré : chaque action est demandée. */
+    /** Validateur du mode Automatique : LANCET Nano local (commandes) ou modèle d'une connexion ; none : tout est demandé. */
+    validator: 'none' | 'lancet' | 'model';
     validatorProviderId: Id | null;
     validatorModel: string | null;
   };
@@ -207,7 +208,9 @@ export interface Settings {
     legacyFallback: boolean;
   };
   rag: {
-    /** Connexion et modèle d'embeddings (compatibles OpenAI) ; null : recherche lexicale seule. */
+    /** Embeddings : MiniLM multilingue local, connexion compatible OpenAI, ou aucun (recherche lexicale seule). */
+    embeddingSource: 'none' | 'local' | 'provider';
+    /** Connexion et modèle d'embeddings (compatibles OpenAI). */
     embeddingProviderId: Id | null;
     embeddingModel: string | null;
     chunkLines: number;
@@ -289,6 +292,7 @@ export const DEFAULT_SETTINGS: Settings = {
   permissions: {
     // Lecture dans la portée : automatique ; écriture, commandes, réseau : demande (sauf règle).
     policy: 'rules',
+    validator: 'none',
     validatorProviderId: null,
     validatorModel: null,
   },
@@ -404,6 +408,7 @@ export const DEFAULT_SETTINGS: Settings = {
     legacyFallback: false,
   },
   rag: {
+    embeddingSource: 'none',
     embeddingProviderId: null,
     embeddingModel: null,
     chunkLines: 60,
@@ -463,3 +468,15 @@ export const SETTINGS_BOUNDS = {
   'rag.chunkLines': [10, 400],
   'rag.topK': [1, 50],
 } as const satisfies Record<string, readonly [number, number]>;
+
+/** Validateur effectif du mode Automatique (un modèle configuré avant l'option `validator` reste utilisé). */
+export function effectiveValidator(p: Settings['permissions']): 'none' | 'lancet' | 'model' {
+  if (p.validator !== 'none') return p.validator;
+  return p.validatorProviderId !== null && p.validatorModel ? 'model' : 'none';
+}
+
+/** Source effective des embeddings du RAG. */
+export function effectiveEmbeddings(r: Settings['rag']): 'none' | 'local' | 'provider' {
+  if (r.embeddingSource !== 'none') return r.embeddingSource;
+  return r.embeddingProviderId !== null && r.embeddingModel ? 'provider' : 'none';
+}

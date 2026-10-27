@@ -25,6 +25,7 @@ import {
   type ToolEffect,
   type UsageRecord,
   type CustomSkill,
+  effectiveValidator,
 } from '@monolith/contracts';
 import type { EventBus } from '../events.ts';
 import type { Logger } from '../log/logger.ts';
@@ -44,7 +45,8 @@ import { modeAllows } from '../tools/registry.ts';
 import type { ToolContext, ToolDefinition } from '../tools/types.ts';
 import { limit } from '../tools/types.ts';
 import type { ResourceScope } from '../tools/scope.ts';
-import type { Evaluation, PermissionEngine } from '../permissions/engine.ts';
+import type { Evaluation, PermissionEngine, PermissionQuery } from '../permissions/engine.ts';
+import type { LocalAiService } from '../local/ai-runtime.ts';
 import type { ResourceService } from '../services/resources.ts';
 import type { TerminalManager } from '../tools/terminals.ts';
 import { LoopDetector, type LoopGate, type ProposalService, type QuestionBroker } from '../tools/interactions.ts';
@@ -68,6 +70,17 @@ interface Job {
 }
 
 /** Configuration figée d'une génération (instantané) et accès au fournisseur. */
+/** Commande shell d'une action (run_command, ou terminal d'un agent externe), sinon null. */
+function commandOf(action: ValidatedAction): string | null {
+  if (action.tool !== 'run_command' && action.family !== 'terminal') return null;
+  try {
+    const args = JSON.parse(action.arguments) as { command?: unknown };
+    return typeof args.command === 'string' ? args.command : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Action soumise au validateur du mode Automatique. */
 interface ValidatedAction {
   tool: string;
@@ -112,6 +125,8 @@ export interface GenerationDeps {
   compactions: CompactionService;
   tools: ToolRegistry;
   permissions: PermissionEngine;
+  /** IA locale (LANCET Nano) ; absente : le validateur local est indisponible. */
+  localAi?: Pick<LocalAiService, 'classify'>;
   resources: ResourceService;
   terminals: TerminalManager;
   questions: QuestionBroker;
@@ -507,7 +522,7 @@ export class GenerationRunner {
         if (blocked) {
           permission = { decision: 'deny', source: 'mode', ruleId: null, scope: null, reason: `Effet « ${blocked} » non autorisé dans ce mode.`, decidedAt: nowIso };
         } else {
-          const evaluation = await this.applyValidator(permissions.evaluate(query, ctx.settings.permissions.policy), ctx, { tool: req.toolName, family: req.family, effects: req.effects, target: req.title, arguments: req.arguments }, signal);
+          const evaluation = await this.applyValidator(permissions.evaluate(query, ctx.settings.permissions.policy), ctx, { tool: req.toolName, family: req.family, effects: req.effects, target: req.title, arguments: req.arguments }, signal, query);
           if (evaluation.decision === 'ask') {
             const resp = await permissions.request({ conversationId: job.conversationId, messageId, tool: req.toolName, family: req.family, effects: req.effects, target: req.title, arguments: req.arguments, preview: null, reason: evaluation.reason }, query, signal);
             permission = { decision: resp.decision, source: 'user', ruleId: null, scope: resp.scope, reason: resp.reason, decidedAt: nowIso };
@@ -902,7 +917,7 @@ export class GenerationRunner {
       },
       authorize: async (resources, label, reason) => {
         const q = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources, grant: resources.at(-1) ?? '' };
-        const ev = await this.applyValidator(permissions.evaluate(q, ctx.settings.permissions.policy), ctx, { tool: def.name, family: def.family, effects: def.effects, target: label, arguments: call.arguments }, signal);
+        const ev = await this.applyValidator(permissions.evaluate(q, ctx.settings.permissions.policy), ctx, { tool: def.name, family: def.family, effects: def.effects, target: label, arguments: call.arguments }, signal, q);
         let decided: NonNullable<ToolCallRecord['permission']>;
         if (ev.decision === 'ask') {
           record.status = 'awaiting_permission';
@@ -942,7 +957,7 @@ export class GenerationRunner {
 
     // Autorisation.
     const query = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources: target.resources, ...(target.grant ? { grant: target.grant } : {}) };
-    const evaluation = await this.applyValidator(permissions.evaluate(query, ctx.settings.permissions.policy), ctx, { tool: def.name, family: def.family, effects: def.effects, target: target.label, arguments: call.arguments }, signal);
+    const evaluation = await this.applyValidator(permissions.evaluate(query, ctx.settings.permissions.policy), ctx, { tool: def.name, family: def.family, effects: def.effects, target: target.label, arguments: call.arguments }, signal, query);
     let permission: NonNullable<ToolCallRecord['permission']>;
     if (evaluation.decision === 'ask') {
       let preview = null;
@@ -984,10 +999,33 @@ export class GenerationRunner {
   // ---------------------------------------------------------------------------
 
   /** Remplace la décision `validate` par celle du validateur : autoriser (risque faible) ou demander. */
-  private async applyValidator(ev: Evaluation, ctx: JobContext, action: ValidatedAction, signal: AbortSignal): Promise<Evaluation & { decision: 'allow' | 'deny' | 'ask' }> {
+  private async applyValidator(ev: Evaluation, ctx: JobContext, action: ValidatedAction, signal: AbortSignal, query?: PermissionQuery): Promise<Evaluation & { decision: 'allow' | 'deny' | 'ask' }> {
     if (ev.decision !== 'validate') return ev as Evaluation & { decision: 'allow' | 'deny' | 'ask' };
+    const kind = effectiveValidator(ctx.settings.permissions);
+    if (kind === 'lancet') {
+      const command = commandOf(action);
+      // Comme la v1 : LANCET Nano n'analyse que les commandes ; les autres actions suivent les règles.
+      if (command === null) {
+        const byRules = query ? this.deps.permissions.evaluate(query, 'rules') : null;
+        if (byRules && byRules.decision === 'allow' && byRules.source === 'rule') return { ...byRules, decision: 'allow' };
+        return { decision: 'ask', source: 'policy', ruleId: null, scope: null, reason: 'Politique « Automatique » : LANCET Nano n’analyse que les commandes ; votre accord est demandé pour cette action.' };
+      }
+      const v = await this.validateCommand(command, signal);
+      return v.allow ? { decision: 'allow', source: 'validator', ruleId: null, scope: null, reason: v.reason } : { decision: 'ask', source: 'policy', ruleId: null, scope: null, reason: v.reason };
+    }
     const v = await this.validateAction(ctx, action, signal);
     return v.allow ? { decision: 'allow', source: 'validator', ruleId: null, scope: null, reason: v.reason } : { decision: 'ask', source: 'policy', ruleId: null, scope: null, reason: v.reason };
+  }
+
+  /** LANCET Nano (local) : seule une commande « non signalée » avec un score valide passe sans accord. */
+  private async validateCommand(command: string, signal: AbortSignal): Promise<{ allow: boolean; reason: string }> {
+    if (!this.deps.localAi) return { allow: false, reason: 'Politique « Automatique » : LANCET Nano indisponible sur cet hôte ; votre accord est demandé.' };
+    const shell = process.platform === 'win32' ? 'powershell' : 'bash';
+    const r = await this.deps.localAi.classify(command, shell, signal);
+    const score = r.score !== null ? ` (score ${r.score.toFixed(2)})` : '';
+    if (r.classification === 'not_flagged' && r.score !== null) return { allow: true, reason: `LANCET Nano : commande non signalée${score}.` };
+    const label = r.classification === 'risky' ? 'commande risquée' : 'commande à vérifier';
+    return { allow: false, reason: `LANCET Nano : ${label}${score}${r.reason ? ` — ${r.reason}` : ''} ; votre accord est demandé.` };
   }
 
   /**
@@ -998,7 +1036,7 @@ export class GenerationRunner {
   private async validateAction(ctx: JobContext, action: ValidatedAction, signal: AbortSignal): Promise<{ allow: boolean; reason: string }> {
     const s = ctx.settings.permissions;
     const ask = (why: string) => ({ allow: false, reason: `Politique « Automatique » : ${why} ; votre accord est demandé.` });
-    if (!s.validatorProviderId || !s.validatorModel) return ask('aucun validateur configuré (Réglages › Autorisations)');
+    if (effectiveValidator(s) !== 'model' || !s.validatorProviderId || !s.validatorModel) return ask('aucun validateur configuré (Réglages › Autorisations)');
     let target: Pick<JobContext, 'adapter' | 'conn' | 'provider'>;
     try {
       target = await this.deps.providers.connection(s.validatorProviderId);

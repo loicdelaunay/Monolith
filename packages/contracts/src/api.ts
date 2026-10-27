@@ -51,6 +51,7 @@ import type { PlatformCapabilities } from './platform.ts';
 import type { AiDetectionResult, AssetInfo, AssetKind, BenchmarkInput, BenchmarkState, ImageGenInput, ImageGenResult, TextTaskInput, TextTaskResult } from './studio.ts';
 import type { DownloadState, HardwareInfo, HfFile, HfModel, LocalEngineInfo, LocalModel, ModelEstimate } from './local.ts';
 import type { UpdateState } from './updates.ts';
+import type { LocalAiComponent, LocalAiProgress, LocalAiStatus } from './local-ai.ts';
 import type { BackupInfo, DashboardData, DashboardQuery, DiagnosticsInfo, MaintenanceReport, NotificationItem, ScheduledRun, ScheduledTask, ScheduledTaskInput } from './ops.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
@@ -346,6 +347,10 @@ export interface HarnessApi {
 
   'maintenance.run': { params: void; result: MaintenanceReport };
 
+  'localai.status': { params: void; result: LocalAiStatus };
+  /** Télécharge et prépare un composant (après accord de l'utilisateur) ; progression par `localai.progress`. */
+  'localai.install': { params: { component: LocalAiComponent }; result: LocalAiStatus };
+  'localai.cancel': { params: void; result: void };
   'updates.status': { params: void; result: UpdateState };
   'updates.check': { params: void; result: UpdateState };
   'updates.download': { params: void; result: UpdateState };
@@ -431,6 +436,8 @@ export interface HarnessEvents {
   'local.download': DownloadState;
   'local.changed': { models: LocalModel[]; engine: LocalEngineInfo };
   'updates.changed': UpdateState;
+  'localai.progress': LocalAiProgress;
+  'localai.changed': LocalAiStatus;
   'log.error': { message: string; code: string };
 }
 

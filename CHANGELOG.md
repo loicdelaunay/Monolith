@@ -4,6 +4,10 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 ## 3.0.0-alpha.15 — 2026-10-28
 
+- **Première utilisation, comme la v1** : en choisissant le mode Automatique sans validateur, ou en activant le RAG sans embeddings, une fenêtre propose de **télécharger et utiliser le modèle local**, d'**utiliser un modèle spécifique** d'une connexion, ou d'**annuler** (rien ne change).
+- **LANCET Nano (local)** valide les commandes du mode Automatique sur ce poste : une commande non signalée passe, une commande à vérifier ou risquée vous est soumise ; les autres actions suivent vos règles.
+- **MiniLM multilingue (local)** calcule les embeddings du RAG sur ce poste, en français comme en anglais.
+- Les modèles et leur environnement Python sont téléchargés uniquement après votre accord, chaque fichier vérifié par son empreinte ; progression et annulation dans la fenêtre et dans les réglages (Autorisations, Skills).
 - **Vertex AI · clé API Google Cloud de projet** (comme la v1) : nouvelle authentification « Clé API Google Cloud · projet » ; indiquez l'ID du projet (ex. `project-…`) et la région, puis collez la clé complète (points compris) dans le champ Clé. Elle est chiffrée et envoyée dans l'en-tête `x-goog-api-key`, jamais dans l'URL. Les identifiants de modèle `google/gemini-…` sont acceptés.
 
 ## 3.0.0-alpha.14 — 2026-10-28

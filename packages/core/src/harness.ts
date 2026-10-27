@@ -41,6 +41,7 @@ import { browserTools, type HostBridge } from './tools/browser.ts';
 import { desktopTools } from './desktop/input.ts';
 import { UiaDriver, type DesktopDriver } from './desktop/uia-host.ts';
 import { UpdateService } from './services/updates.ts';
+import { LocalAiService, type LocalAiOptions } from './local/ai-runtime.ts';
 import { WorkspaceFiles } from './services/workspace.ts';
 import { MemoryService } from './services/memory.ts';
 import { RagService } from './services/rag.ts';
@@ -87,6 +88,8 @@ export interface HarnessOptions {
   localEndpoints?: { hfBase?: string; githubApi?: string };
   /** Contrôle du bureau (tests) ; par défaut UI Automation sous Windows avec l'interface de bureau. */
   desktopDriver?: DesktopDriver | null;
+  /** IA locale auxiliaire (LANCET Nano, MiniLM) : adresses et Python imposé (tests). */
+  localAi?: Omit<LocalAiOptions, 'dir' | 'events' | 'logger'>;
   /** Mises à jour : vérification automatique (version installée) et adresses (tests). */
   updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean };
 }
@@ -135,6 +138,7 @@ export class Harness {
   readonly local: LocalModelService;
   readonly backups: BackupService;
   readonly updates: UpdateService;
+  readonly localAi: LocalAiService;
   readonly dashboard: DashboardService;
   readonly notifications: NotificationService;
   readonly scheduler: SchedulerService;
@@ -225,7 +229,8 @@ export class Harness {
     this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
     this.assets = new AssetService(join(this.layout.workspace, 'assets'), this.events);
     this.memory = new MemoryService(this.db, this.events);
-    this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get());
+    this.localAi = new LocalAiService({ dir: join(this.layout.root, 'local', 'ai'), events: this.events, logger: this.logger, ...(options.localAi ?? {}) });
+    this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get(), this.localAi);
     this.sandbox = new SandboxService(this.resources, join(this.layout.workspace, 'sandboxes'));
     this.mcp = new McpService(this.db, this.events, this.secrets, this.tools, this.logger, (_ctx, name, data) => this.attachments.storeImage(name, data).id);
     // Outils du navigateur et des captures : seulement si l'hôte les fournit réellement.
@@ -248,6 +253,7 @@ export class Harness {
       compactions: this.compactions,
       tools: this.tools,
       permissions: this.permissions,
+      localAi: this.localAi,
       resources: this.resources,
       terminals: this.terminals,
       questions: this.questions,
@@ -384,6 +390,7 @@ export class Harness {
     await this.local.dispose();
     await this.desktop?.dispose();
     this.updates.dispose();
+    this.localAi.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
   }
@@ -784,6 +791,9 @@ export class Harness {
       'local.downloads': () => this.local.listDownloads(),
       'local.cancelDownload': (p) => this.local.cancelDownload(String(p.id)),
       'local.setHfToken': (p) => this.local.setHfToken(p.token ?? null),
+      'localai.status': () => this.localAi.status(),
+      'localai.install': (p) => this.localAi.install(p.component),
+      'localai.cancel': () => this.localAi.cancel(),
       'updates.status': () => this.updates.state(),
       'updates.check': () => this.updates.check(),
       'updates.download': () => this.updates.download(),

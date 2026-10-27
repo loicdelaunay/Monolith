@@ -3,7 +3,10 @@ import { computed, onMounted, ref } from 'vue';
 import Select from 'primevue/select';
 import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
-import { DEFAULT_SETTINGS, type CustomSkill } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, effectiveEmbeddings, type CustomSkill } from '@monolith/contracts';
+import RadioButton from 'primevue/radiobutton';
+import { askFirstUse } from '../../lib/first-use.ts';
+import LocalAiInstall from '../LocalAiInstall.vue';
 import { store } from '../../stores/app.ts';
 import { useI18n } from 'vue-i18n';
 import ToggleSwitch from 'primevue/toggleswitch';
@@ -19,15 +22,25 @@ onMounted(async () => {
   [skills.value, custom.value] = await Promise.all([api.call('skills.list'), api.call('skills.custom', {}).catch(() => [])]);
 });
 const isOn = (id: string) => props.draft.skills.enabled[id] ?? DEFAULT_SETTINGS.skills.enabled[id] ?? false;
-const providerOptions = computed(() => [{ label: t('skills.config.embeddingNone'), value: null }, ...store.providers.filter((p) => p.kind === 'openai-compatible').map((p) => ({ label: p.name, value: p.id }))]);
+const providerOptions = computed(() => store.providers.filter((p) => p.kind === 'openai-compatible').map((p) => ({ label: p.name, value: p.id })));
 const searchOptions = computed(() => (['duckduckgo', 'searxng', 'none'] as const).map((v) => ({ label: t(`skills.config.providers.${v}`), value: v })));
 const modeOptions = computed(() => (['smart', 'legacy'] as const).map((v) => ({ label: t(`skills.config.httpModes.${v}`), value: v })));
 const inputOptions = computed(() => (['auto', 'uia', 'legacy'] as const).map((v) => ({ label: t(`skills.config.inputModes.${v}`), value: v })));
 const desktopAvailable = computed(() => skills.value.find((s) => s.id === 'keyboard')?.available ?? false);
 
-function setEnabled(id: string, value: boolean) {
+async function setEnabled(id: string, value: boolean) {
+  // RAG : à la première activation, choisir les embeddings (comme la v1) ; Annuler laisse le skill désactivé.
+  if (id === 'rag' && value && effectiveEmbeddings(props.draft.rag) === 'none') {
+    const r = await askFirstUse('rag');
+    if (!r) return;
+    Object.assign(props.draft.rag, r.rag);
+  }
   props.draft.skills.enabled = { ...props.draft.skills.enabled, [id]: value };
 }
+const embeddingSource = computed({
+  get: () => effectiveEmbeddings(props.draft.rag),
+  set: (v) => (props.draft.rag.embeddingSource = v),
+});
 </script>
 
 <template>
@@ -118,12 +131,22 @@ function setEnabled(id: string, value: boolean) {
   </div>
 
   <h3 class="mh-section-title">{{ t('skills.config.rag') }}</h3>
-  <div class="mh-row wrap">
-    <div class="mh-field">
-      <label for="rag-prov">{{ t('skills.config.embeddingProvider') }}</label>
-      <Select input-id="rag-prov" :aria-label="t('skills.config.embeddingProvider')" v-model="draft.rag.embeddingProviderId" :options="providerOptions" option-label="label" option-value="value" />
+  <div class="kinds" role="radiogroup" :aria-label="t('skills.config.embeddings')">
+    <div v-for="k in ['none', 'local', 'provider'] as const" :key="k" class="mh-row">
+      <RadioButton v-model="embeddingSource" :input-id="`emb-${k}`" :value="k" />
+      <label :for="`emb-${k}`">{{ t(`skills.config.embeddingSources.${k}`) }}</label>
     </div>
-    <div v-if="draft.rag.embeddingProviderId !== null" class="mh-field">
+  </div>
+  <div v-if="embeddingSource === 'local'" class="sub">
+    <p class="mh-hint">{{ t('skills.config.localEmbeddingsHint') }}</p>
+    <LocalAiInstall component="minilm" />
+  </div>
+  <div class="mh-row wrap">
+    <div v-if="embeddingSource === 'provider'" class="mh-field">
+      <label for="rag-prov">{{ t('skills.config.embeddingProvider') }}</label>
+      <Select input-id="rag-prov" :aria-label="t('skills.config.embeddingProvider')" v-model="draft.rag.embeddingProviderId" :options="providerOptions" option-label="label" option-value="value" :placeholder="t('firstUse.chooseProvider')" />
+    </div>
+    <div v-if="embeddingSource === 'provider' && draft.rag.embeddingProviderId !== null" class="mh-field">
       <label for="rag-model">{{ t('skills.config.embeddingModel') }}</label>
       <InputText id="rag-model" v-model="draft.rag.embeddingModel" placeholder="text-embedding-3-small" />
     </div>
@@ -179,5 +202,14 @@ function setEnabled(id: string, value: boolean) {
 .grow {
   flex: 1;
   min-width: 200px;
+}
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 6px 0 10px;
+}
+.sub {
+  margin: 0 0 10px 4px;
 }
 </style>

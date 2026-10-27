@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FirstUseDialog from './components/FirstUseDialog.vue';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Toast from 'primevue/toast';
@@ -154,6 +155,7 @@ onBeforeUnmount(() => {
     <StudioDialog v-if="store.ready && uiState.studio.open" />
     <Toast position="bottom-right" />
     <ConfirmDialog />
+    <FirstUseDialog />
   </div>
 </template>
 

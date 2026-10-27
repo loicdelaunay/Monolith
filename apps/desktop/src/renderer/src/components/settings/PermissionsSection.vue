@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import RadioButton from 'primevue/radiobutton';
 import Select from 'primevue/select';
@@ -7,7 +7,9 @@ import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import { useToast } from 'primevue/usetoast';
-import { PERMISSION_POLICIES, type PermissionDecisionLog, type PermissionRule, type Settings } from '@monolith/contracts';
+import { PERMISSION_POLICIES, effectiveValidator, type PermissionDecisionLog, type PermissionRule, type Settings } from '@monolith/contracts';
+import { askFirstUse } from '../../lib/first-use.ts';
+import LocalAiInstall from '../LocalAiInstall.vue';
 import { api, errorMessage } from '../../api.ts';
 import { store } from '../../stores/app.ts';
 
@@ -41,12 +43,26 @@ const projectName = (id: number | null) => store.projects.find((p) => p.id === i
 const severity = (d: string) => (d === 'allow' ? 'success' : d === 'deny' ? 'danger' : 'warn');
 
 // Validateur du mode Automatique : connexion compatible (pas d'agent externe) et modèle activé.
-const validatorProviders = computed(() => [{ label: t('permissionsSettings.validatorNone'), value: null }, ...store.providers.filter((p) => p.enabled && p.kind !== 'acp').map((p) => ({ label: p.name, value: p.id }))]);
+const validatorProviders = computed(() => store.providers.filter((p) => p.enabled && p.kind !== 'acp').map((p) => ({ label: p.name, value: p.id })));
 const validatorModels = computed(() => (store.providers.find((p) => p.id === props.draft.permissions.validatorProviderId)?.models ?? []).filter((m) => m.enabled).map((m) => ({ label: m.label, value: m.id })));
 function setValidatorProvider(id: number | null) {
   props.draft.permissions.validatorProviderId = id;
   props.draft.permissions.validatorModel = id === null ? null : (validatorModels.value[0]?.value ?? null);
 }
+const validatorKind = computed({
+  get: () => effectiveValidator(props.draft.permissions),
+  set: (v) => (props.draft.permissions.validator = v),
+});
+// Automatique sans validateur : demande de première utilisation (comme la v1) ; Annuler rétablit la politique.
+watch(
+  () => props.draft.permissions.policy,
+  async (policy, previous) => {
+    if (policy !== 'auto' || effectiveValidator(props.draft.permissions) !== 'none') return;
+    const r = await askFirstUse('validator');
+    if (r) Object.assign(props.draft.permissions, r.permissions);
+    else props.draft.permissions.policy = previous ?? 'rules';
+  },
+);
 </script>
 
 <template>
@@ -64,17 +80,27 @@ function setValidatorProvider(id: number | null) {
 
   <h3 class="mh-section-title">{{ t('permissionsSettings.validator') }}</h3>
   <p class="mh-hint">{{ t('permissionsSettings.validatorHint') }}</p>
-  <div class="mh-row wrap">
+  <div class="kinds" role="radiogroup" :aria-label="t('permissionsSettings.validator')">
+    <div v-for="k in ['none', 'lancet', 'model'] as const" :key="k" class="radio">
+      <RadioButton v-model="validatorKind" :input-id="`valk-${k}`" :value="k" />
+      <label :for="`valk-${k}`">{{ t(`permissionsSettings.validatorKinds.${k}`) }}</label>
+    </div>
+  </div>
+  <div v-if="validatorKind === 'lancet'" class="sub">
+    <p class="mh-hint">{{ t('permissionsSettings.lancetHint') }}</p>
+    <LocalAiInstall component="lancet" />
+  </div>
+  <div v-if="validatorKind === 'model'" class="mh-row wrap sub">
     <div class="mh-field">
       <label for="val-prov">{{ t('permissionsSettings.validatorProvider') }}</label>
-      <Select input-id="val-prov" :aria-label="t('permissionsSettings.validatorProvider')" :model-value="draft.permissions.validatorProviderId" :options="validatorProviders" option-label="label" option-value="value" :placeholder="t('permissionsSettings.validatorNone')" class="pick" @update:model-value="setValidatorProvider" />
+      <Select input-id="val-prov" :aria-label="t('permissionsSettings.validatorProvider')" :model-value="draft.permissions.validatorProviderId" :options="validatorProviders" option-label="label" option-value="value" :placeholder="t('firstUse.chooseProvider')" class="pick" @update:model-value="setValidatorProvider" />
     </div>
     <div v-if="draft.permissions.validatorProviderId !== null" class="mh-field">
       <label for="val-model">{{ t('permissionsSettings.validatorModel') }}</label>
       <Select input-id="val-model" :aria-label="t('permissionsSettings.validatorModel')" v-model="draft.permissions.validatorModel" :options="validatorModels" option-label="label" option-value="value" class="pick" />
     </div>
   </div>
-  <p v-if="draft.permissions.policy === 'auto' && (!draft.permissions.validatorProviderId || !draft.permissions.validatorModel)" class="mh-hint warn">{{ t('permissionsSettings.validatorMissing') }}</p>
+  <p v-if="draft.permissions.policy === 'auto' && validatorKind === 'none'" class="mh-hint warn">{{ t('permissionsSettings.validatorMissing') }}</p>
 
   <div class="mh-row between">
     <h3 class="mh-section-title">{{ t('permissionsSettings.rules') }}</h3>
@@ -143,6 +169,15 @@ function setValidatorProvider(id: number | null) {
 }
 .pick {
   min-width: 240px;
+}
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 6px 0 8px;
+}
+.sub {
+  margin: 4px 0 8px 4px;
 }
 .plain {
   border: 0;

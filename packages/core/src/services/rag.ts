@@ -1,7 +1,8 @@
+import type { LocalAiService } from '../local/ai-runtime.ts';
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { HarnessError, type Id, type RagRootStatus, type RagStatus, type Settings } from '@monolith/contracts';
+import { HarnessError, effectiveEmbeddings, type Id, type RagRootStatus, type RagStatus, type Settings } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import type { ProviderService } from './providers.ts';
@@ -63,6 +64,9 @@ function cosine(a: Float32Array, b: Float32Array): number {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
+/** Index construits avec MiniLM multilingue local (incompatibles avec ceux d'une connexion). */
+export const LOCAL_EMBEDDING_MODEL = 'local:paraphrase-multilingual-MiniLM-L12-v2';
+
 /**
  * RAG local : les ressources autorisées de la conversation sont découpées et indexées
  * (recherche lexicale FTS5 ; embeddings facultatifs via une connexion compatible OpenAI).
@@ -77,7 +81,16 @@ export class RagService {
     private readonly providers: ProviderService,
     private readonly http: HttpClient,
     private readonly settings: () => Settings,
+    /** Embeddings locaux (MiniLM multilingue). */
+    private readonly localAi: Pick<LocalAiService, 'embed'> | null = null,
   ) {}
+
+  /** Identifiant du modèle d'embeddings des index (null : recherche lexicale seule). */
+  private embeddingModel(): string | null {
+    const r = this.settings().rag;
+    const source = effectiveEmbeddings(r);
+    return source === 'local' ? LOCAL_EMBEDDING_MODEL : source === 'provider' ? r.embeddingModel : null;
+  }
 
   private files(root: string): string[] {
     return walk(root, { max: MAX_FILES }).paths.filter((p) => !/(^|\/)(index\.ohm|package-lock\.json|.*\.min\.(js|css)|.*\.lock)$/.test(p));
@@ -124,7 +137,12 @@ export class RagService {
   /** Embeddings via la connexion configurée (null : recherche lexicale seule). */
   private async embed(texts: string[], signal: AbortSignal): Promise<{ vectors: number[][]; model: string } | null> {
     const s = this.settings().rag;
-    if (s.embeddingProviderId === null || !s.embeddingModel) return null;
+    const source = effectiveEmbeddings(s);
+    if (source === 'local') {
+      if (!this.localAi) return null;
+      return { vectors: await this.localAi.embed(texts, signal), model: LOCAL_EMBEDDING_MODEL };
+    }
+    if (source !== 'provider' || s.embeddingProviderId === null || !s.embeddingModel) return null;
     const { conn } = await this.providers.connection(s.embeddingProviderId);
     const body = await this.http.json<{ data?: { embedding: number[]; index: number }[] }>(joinUrl(conn.baseUrl, 'embeddings'), {
       method: 'POST',
@@ -146,7 +164,7 @@ export class RagService {
     const emit = () => this.events.emit('rag.progress', { conversationId, status: this.status(conversationId, roots) });
     try {
       const chunkLines = this.settings().rag.chunkLines;
-      const model = this.settings().rag.embeddingProviderId !== null ? this.settings().rag.embeddingModel : null;
+      const model = this.embeddingModel();
       const work = roots.flatMap((root) => this.files(root).map((rel) => ({ root, rel })));
       state.progress.total = work.length;
       for (const root of roots) {
@@ -209,12 +227,14 @@ export class RagService {
       : [];
     const scores = new Map<number, { row: Row; score: number }>();
     lexical.forEach((row, i) => scores.set(row.id, { row, score: 1 / (60 + i) }));
-    const hasVectors = this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM rag_chunks c JOIN rag_sources s ON s.id = c.source_id WHERE c.embedding IS NOT NULL AND s.root IN (${marks})`, ...roots)!.n;
+    // Seuls les vecteurs du modèle actuel sont comparés (dimensions et espace identiques).
+    const model = this.embeddingModel();
+    const hasVectors = model ? this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM rag_chunks c JOIN rag_sources s ON s.id = c.source_id WHERE c.embedding IS NOT NULL AND s.embedding_model = ? AND s.root IN (${marks})`, model, ...roots)!.n : 0;
     if (hasVectors) {
       const q = await this.embed([query], signal).catch(() => null);
       if (q) {
         const qv = new Float32Array(q.vectors[0]!);
-        const rows = this.db.all<Row>(`SELECT c.id, s.path, s.root, c.start_line, c.end_line, c.text, c.embedding FROM rag_chunks c JOIN rag_sources s ON s.id = c.source_id WHERE c.embedding IS NOT NULL AND s.root IN (${marks}) LIMIT 50000`, ...roots);
+        const rows = this.db.all<Row>(`SELECT c.id, s.path, s.root, c.start_line, c.end_line, c.text, c.embedding FROM rag_chunks c JOIN rag_sources s ON s.id = c.source_id WHERE c.embedding IS NOT NULL AND s.embedding_model = ? AND s.root IN (${marks}) LIMIT 50000`, model, ...roots);
         rows
           .map((row) => ({ row, sim: cosine(qv, fromBlob(row.embedding!)) }))
           .sort((a, b) => b.sim - a.sim)

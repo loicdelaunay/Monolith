@@ -14,3 +14,4 @@ export * from './studio.ts';
 export * from './ops.ts';
 export * from './local.ts';
 export * from './updates.ts';
+export * from './local-ai.ts';

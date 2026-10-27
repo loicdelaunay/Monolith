@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n';
 import Popover from 'primevue/popover';
 import ToggleSwitch from 'primevue/toggleswitch';
 import { useToast } from 'primevue/usetoast';
-import { DEFAULT_SETTINGS, PERMISSION_POLICIES, type Conversation, type SettingsPatch, type SkillInfo } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, PERMISSION_POLICIES, effectiveEmbeddings, effectiveValidator, type Conversation, type PermissionPolicy, type SettingsPatch, type SkillInfo } from '@monolith/contracts';
+import { askFirstUse } from '../lib/first-use.ts';
 import { api, errorMessage } from '../api.ts';
 import { store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
@@ -41,7 +42,7 @@ async function save(patch: SettingsPatch) {
 }
 const POLICY_ICONS = { deny_all: 'pi-ban', ask: 'pi-question-circle', rules: 'pi-list-check', auto: 'pi-shield', allow_all: 'pi-unlock' } as const;
 const policy = computed(() => store.settings?.permissions.policy ?? 'rules');
-const validatorMissing = computed(() => policy.value === 'auto' && (!store.settings?.permissions.validatorProviderId || !store.settings?.permissions.validatorModel));
+const validatorMissing = computed(() => policy.value === 'auto' && !!store.settings && effectiveValidator(store.settings.permissions) === 'none');
 function permissionSettings() {
   pop.value?.hide();
   uiState.settingsSection = 'permissions';
@@ -52,9 +53,26 @@ const skills = ref<SkillInfo[]>([]);
 const skillName = (id: string) => (te(`skills.names.${id}`) ? t(`skills.names.${id}`) : id);
 const sortedSkills = computed(() => [...skills.value].sort((a, b) => Number(b.available) - Number(a.available) || skillName(a.id).localeCompare(skillName(b.id))));
 const isOn = (id: string) => store.settings?.skills.enabled[id] ?? DEFAULT_SETTINGS.skills.enabled[id] ?? false;
-function setSkill(id: string, value: boolean) {
+async function setSkill(id: string, value: boolean) {
   if (!store.settings) return;
+  // RAG : à la première activation, choisir les embeddings (comme la v1).
+  if (id === 'rag' && value && effectiveEmbeddings(store.settings.rag) === 'none') {
+    pop.value?.hide();
+    const r = await askFirstUse('rag');
+    if (!r || !store.settings) return;
+    return save({ rag: r.rag, skills: { enabled: { ...store.settings.skills.enabled, rag: true } } });
+  }
   void save({ skills: { enabled: { ...store.settings.skills.enabled, [id]: value } } });
+}
+/** Automatique : à la première utilisation, choisir le validateur (comme la v1). */
+async function setPolicy(p: PermissionPolicy) {
+  if (p === 'auto' && store.settings && effectiveValidator(store.settings.permissions) === 'none') {
+    pop.value?.hide();
+    const r = await askFirstUse('validator');
+    if (!r) return;
+    return save({ permissions: { ...r.permissions, policy: 'auto' } });
+  }
+  void save({ permissions: { policy: p } });
 }
 
 async function open(e: Event) {
@@ -93,7 +111,7 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
         <section>
           <h4>{{ t('composer.quick.permissions') }} <span class="mh-hint">{{ t('composer.quick.global') }}</span></h4>
           <div class="options compact" role="radiogroup" :aria-label="t('composer.quick.permissions')">
-            <button v-for="p in PERMISSION_POLICIES" :key="p" type="button" class="opt" role="radio" :aria-checked="p === policy" :class="{ active: p === policy, danger: p === 'allow_all' }" :title="t(`permissionsSettings.policyHints.${p}`)" @click="save({ permissions: { policy: p } })">
+            <button v-for="p in PERMISSION_POLICIES" :key="p" type="button" class="opt" role="radio" :aria-checked="p === policy" :class="{ active: p === policy, danger: p === 'allow_all' }" :title="t(`permissionsSettings.policyHints.${p}`)" @click="setPolicy(p)">
               <i class="pi" :class="POLICY_ICONS[p]" />
               <span>{{ t(`permissionsSettings.policies.${p}`) }}</span>
               <i v-if="p === policy" class="pi pi-check check" />

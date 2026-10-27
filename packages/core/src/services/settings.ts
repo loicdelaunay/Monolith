@@ -95,6 +95,8 @@ export class SettingsService {
       if (section === 'desktop' && (key === 'keyboardMode' || key === 'mouseMode') && !['auto', 'uia', 'legacy'].includes(String(value))) continue;
       if (section === 'subagents' && key === 'mode' && !['auto', 'forced', 'off'].includes(String(value))) continue;
       if (section === 'permissions' && key === 'policy' && !PERMISSION_POLICIES.includes(value as PermissionPolicy)) continue;
+      if (section === 'permissions' && key === 'validator' && !['none', 'lancet', 'model'].includes(String(value))) continue;
+      if (section === 'rag' && key === 'embeddingSource' && !['none', 'local', 'provider'].includes(String(value))) continue;
       if (section === 'updates' && key === 'mode' && !['off', 'notify', 'auto'].includes(String(value))) continue;
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));
