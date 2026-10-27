@@ -54,11 +54,25 @@ export interface Conversation {
   draftAttachments: AttachmentRef[];
   /** Provenance d'une bifurcation ou d'une sauvegarde avant reprise. */
   forkedFrom: { conversationId: Id; messageId: Id | null } | null;
+  /** Sous-agent : conversation parente (null pour une conversation normale). */
+  parentId: Id | null;
+  /** Profondeur de délégation (0 : conversation de l'utilisateur). */
+  depth: number;
+  /** Rôle (préréglage) du sous-agent. */
+  role: string | null;
+  /** Budget d'un sous-agent (null : réglages généraux). */
+  budget: ConversationBudget | null;
   createdAt: string;
   updatedAt: string;
   lastMessageAt: string | null;
   /** Calculé : une génération est en cours dans le moteur. */
   generating: boolean;
+}
+
+export interface ConversationBudget {
+  maxRounds: number | null;
+  maxOutputTokens: number | null;
+  timeoutSec: number | null;
 }
 
 export type ReasoningLevel = 'auto' | 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'on';

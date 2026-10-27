@@ -44,6 +44,8 @@ import type {
   GitAction,
   GitCommit,
   GitStatusInfo,
+  SandboxChange,
+  SandboxStatus,
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
@@ -291,6 +293,15 @@ export interface HarnessApi {
   'rag.clear': { params: { conversationId: Id }; result: RagStatus };
 
   'skills.custom': { params: { projectId?: Id | null }; result: CustomSkill[] };
+
+  'subagents.list': { params: { conversationId: Id }; result: Conversation[] };
+  'subagents.removeWorktree': { params: { conversationId: Id }; result: void };
+
+  'sandbox.status': { params: { conversationId: Id }; result: SandboxStatus };
+  'sandbox.enable': { params: { conversationId: Id }; result: SandboxStatus };
+  'sandbox.diff': { params: { conversationId: Id }; result: SandboxChange[] };
+  'sandbox.apply': { params: { conversationId: Id; files: { root: number; path: string }[]; force?: boolean }; result: { applied: number; conflicts: string[] } };
+  'sandbox.discard': { params: { conversationId: Id }; result: SandboxStatus };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };

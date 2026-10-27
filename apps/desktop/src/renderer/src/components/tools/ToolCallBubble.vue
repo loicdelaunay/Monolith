@@ -9,11 +9,12 @@ import type { Id, ToolCallRecord } from '@monolith/contracts';
 import DiffView from './DiffView.vue';
 import QuestionCard from './QuestionCard.vue';
 import ActionsCard from './ActionsCard.vue';
+import SubagentsCard from './SubagentsCard.vue';
 
 const props = defineProps<{ call: ToolCallRecord; conversationId: Id; messageId: Id }>();
 const { t, te } = useI18n();
 
-const ICONS: Record<string, string> = { sources: 'pi-folder-open', edit: 'pi-pencil', terminal: 'pi-desktop', info: 'pi-info-circle', questions: 'pi-question-circle', actions: 'pi-bolt', planning: 'pi-list-check', mcp: 'pi-link', web: 'pi-globe', memory: 'pi-database', git: 'pi-sitemap', browser: 'pi-globe', desktop: 'pi-camera', acp: 'pi-android', composite: 'pi-users' };
+const ICONS: Record<string, string> = { sources: 'pi-folder-open', edit: 'pi-pencil', terminal: 'pi-desktop', info: 'pi-info-circle', questions: 'pi-question-circle', actions: 'pi-bolt', planning: 'pi-list-check', mcp: 'pi-link', web: 'pi-globe', memory: 'pi-database', git: 'pi-sitemap', browser: 'pi-globe', desktop: 'pi-camera', acp: 'pi-android', composite: 'pi-users', subagents: 'pi-sitemap', file_index: 'pi-list', rag: 'pi-search', python: 'pi-code', skills: 'pi-book' };
 const icon = computed(() => ICONS[props.call.family] ?? 'pi-wrench');
 const active = computed(() => ['pending', 'running', 'awaiting_permission'].includes(props.call.status));
 const open = ref(false);
@@ -38,7 +39,7 @@ const prettyArgs = computed(() => {
 const display = computed(() => props.call.display);
 const hasFormatted = computed(() => display.value?.kind === 'changes');
 // Les questions en attente s'affichent ouvertes : l'utilisateur doit pouvoir répondre.
-const showBody = computed(() => open.value || (display.value?.kind === 'question' && active.value) || display.value?.kind === 'actions' || display.value?.kind === 'plan' || display.value?.kind === 'image');
+const showBody = computed(() => open.value || (display.value?.kind === 'question' && active.value) || display.value?.kind === 'actions' || display.value?.kind === 'plan' || display.value?.kind === 'image' || display.value?.kind === 'subagents');
 const image = ref<string | null>(null);
 watch(
   () => (display.value?.kind === 'image' ? display.value.attachmentId : null),
@@ -65,6 +66,7 @@ watch(
     <div v-if="showBody" class="body">
       <QuestionCard v-if="display?.kind === 'question'" :call="call" :conversation-id="conversationId" />
       <ActionsCard v-else-if="display?.kind === 'actions'" :call="call" :conversation-id="conversationId" :message-id="messageId" />
+      <SubagentsCard v-else-if="display?.kind === 'subagents'" :items="display.items" />
       <figure v-else-if="display?.kind === 'image'" class="shot">
         <img v-if="image" :src="image" :alt="display.caption" />
         <figcaption class="mh-hint">{{ display.caption }}</figcaption>

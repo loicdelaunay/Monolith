@@ -43,6 +43,8 @@ export const COMMANDS: CommandSpec[] = [
   { name: 'mcp', args: '[connect|disconnect|on|off <n°>]', help: 'cli.cmd.mcp' },
   { name: 'memory', args: '[texte]', help: 'cli.cmd.memory' },
   { name: 'rag', args: '[index | clear]', help: 'cli.cmd.rag' },
+  { name: 'subagents', help: 'cli.cmd.subagents' },
+  { name: 'sandbox', args: '[on | diff | apply <n°…> | discard]', help: 'cli.cmd.sandbox' },
   { name: 'resources', args: '[add <dossier> | file <fichier> | reset]', help: 'cli.cmd.resources' },
   { name: 'rules', help: 'cli.cmd.rules' },
   { name: 'allow', args: '<outil> [ressource]', help: 'cli.cmd.allow' },

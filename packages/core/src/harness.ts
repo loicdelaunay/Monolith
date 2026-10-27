@@ -42,6 +42,8 @@ import { WorkspaceFiles } from './services/workspace.ts';
 import { MemoryService } from './services/memory.ts';
 import { RagService } from './services/rag.ts';
 import { McpService } from './mcp/service.ts';
+import { delegateTool, SubagentService } from './orchestration/subagents.ts';
+import { SandboxService } from './orchestration/sandbox.ts';
 import { memoryTools } from './tools/memory.ts';
 import { FILE_INDEX_TOOLS } from './tools/file-index.ts';
 import { WEB_TOOLS } from './tools/web.ts';
@@ -107,6 +109,8 @@ export class Harness {
   readonly memory: MemoryService;
   readonly rag: RagService;
   readonly mcp: McpService;
+  readonly subagents: SubagentService;
+  readonly sandbox: SandboxService;
   hostBridge: HostBridge | null;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
@@ -173,9 +177,11 @@ export class Harness {
       ...ragTools(() => this.rag),
       ...skillTools(this.layout.skills),
       ...PYTHON_TOOLS,
+      delegateTool(() => this.subagents, () => this.settings.get().subagents.presets),
     ]);
     this.memory = new MemoryService(this.db, this.events);
     this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get());
+    this.sandbox = new SandboxService(this.resources, join(this.layout.workspace, 'sandboxes'));
     this.mcp = new McpService(this.db, this.events, this.secrets, this.tools, this.logger, (_ctx, name, data) => this.attachments.storeImage(name, data).id);
     // Outils du navigateur et des captures : seulement si l'hôte les fournit réellement.
     this.tools.hostFilter = (t) => !(t.family === 'browser' || t.family === 'desktop') || this.hostBridge !== null;
@@ -206,6 +212,15 @@ export class Harness {
       memory: this.memory,
       mcp: this.mcp,
       customSkills: (roots, settings) => discoverSkills(this.layout.skills, roots, settings),
+    });
+    this.subagents = new SubagentService({
+      conversations: this.conversations,
+      messages: this.messages,
+      resources: this.resources,
+      settings: this.settings,
+      generation: () => this.generation,
+      worktreesDir: join(this.layout.workspace, 'worktrees'),
+      logger: this.logger,
     });
     this.history = new HistoryService({
       db: this.db,
@@ -549,6 +564,21 @@ export class Harness {
       'skills.custom': (p) => {
         const roots = p?.projectId ? this.projects.get(p.projectId).folders.map((f) => f.path) : [];
         return discoverSkills(this.layout.skills, roots, this.settings.get());
+      },
+
+      'subagents.list': (p) => this.conversations.children(p.conversationId),
+      'subagents.removeWorktree': (p) => this.subagents.removeWorktree(p.conversationId),
+
+      'sandbox.status': (p) => this.sandbox.status(p.conversationId),
+      'sandbox.enable': (p) => {
+        if (this.generation.isActive(p.conversationId)) throw new HarnessError('busy', 'Génération en cours : attendez la fin pour activer la sandbox');
+        return this.sandbox.enable(p.conversationId);
+      },
+      'sandbox.diff': (p) => this.sandbox.diff(p.conversationId),
+      'sandbox.apply': (p) => this.sandbox.apply(p.conversationId, Array.isArray(p.files) ? p.files : [], p.force === true),
+      'sandbox.discard': (p) => {
+        if (this.generation.isActive(p.conversationId)) throw new HarnessError('busy', 'Génération en cours : attendez la fin');
+        return this.sandbox.discard(p.conversationId);
       },
 
       'git.run': async (p) => {

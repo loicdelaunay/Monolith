@@ -102,6 +102,17 @@ export class ResourceService {
     });
   }
 
+  /** Ressources propres exactement égales aux listes données (sous-agent en worktree, sandbox). */
+  setCustom(conversationId: Id, folders: string[], files: string[] = []): void {
+    for (const p of [...folders, ...files]) if (!isAbsolute(p)) throw new HarnessError('invalid_argument', 'Chemin absolu attendu');
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM conversation_resources WHERE conversation_id = ?', conversationId);
+      for (const f of folders) this.db.run('INSERT OR IGNORE INTO conversation_resources (conversation_id, kind, path, created_at) VALUES (?, ?, ?, ?)', conversationId, 'folder', resolve(f), now());
+      for (const f of files) this.db.run('INSERT OR IGNORE INTO conversation_resources (conversation_id, kind, path, created_at) VALUES (?, ?, ?, ?)', conversationId, 'file', resolve(f), now());
+      this.db.run("UPDATE conversations SET resources_mode = 'custom' WHERE id = ?", conversationId);
+    });
+  }
+
   remove(conversationId: Id, resourceId: Id): void {
     const r = this.db.run('DELETE FROM conversation_resources WHERE id = ? AND conversation_id = ?', resourceId, conversationId);
     if (!r.changes) throw new HarnessError('not_found', 'Ressource introuvable');

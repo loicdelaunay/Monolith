@@ -64,7 +64,7 @@ export const activeConversation = computed(() => (store.activeId !== null ? (sto
 
 export function conversationsIn(projectId: Id | null, includeArchived: boolean): Conversation[] {
   return [...store.conversations.values()]
-    .filter((c) => c.projectId === projectId && (includeArchived || !c.archived))
+    .filter((c) => c.projectId === projectId && c.parentId === null && (includeArchived || !c.archived))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.sortOrder - b.sortOrder || b.id - a.id);
 }
 

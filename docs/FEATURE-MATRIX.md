@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T6 (3.0.0-alpha.6).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T7 (3.0.0-alpha.7).**
 
 ## 1. Fondations
 
@@ -133,9 +133,9 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | --- | --- | --- | --- | --- | --- | --- |
 | A-01 | Mode Chat vs Agent | ✅ | ✅ | ⬜ | T3 | Chat : outils conversationnels seulement ; Agent : outils selon le mode. |
 | A-02 | Agent Plan / Proposition / Exécution appliqués par le moteur | ✅ | ✅ | ⬜ | T3 | Filtrage à l’exposition ET à l’exécution (tests : écriture refusée en Plan, proposition en Proposition). |
-| A-03 | Sous-agents (auto/forcé/désactivé, budgets, profondeur, parallélisme, rôles, préréglages) | ⬜ | ⬜ | ⬜ | T7 | |
-| A-04 | Worktrees Git pour sous-agents | ⬜ | ⬜ | ⬜ | T7 | |
-| A-05 | Suivi, rapports, annulation propagée, statut terminé/interrompu/budget | ⬜ | ⬜ | ⬜ | T7 | |
+| A-03 | Sous-agents (auto/forcé/désactivé, budgets, profondeur, parallélisme, rôles, préréglages) | ✅ | 🟡 | ⬜ | T7 | delegate_tasks : conversations enfants exécutées par le moteur normal (outils, autorisations, boucles), mode jamais plus permissif que le parent, profondeur 1–3, parallélisme 1–8, budgets (tours, tokens, délai), rôles modifiables (tests). CLI : `/subagents` (suivi), délégation par le modèle. |
+| A-04 | Worktrees Git pour sous-agents | ✅ | ✅ | ⬜ | T7 | Branche `monolith/sub-…` et worktree dédiés, rapport des fichiers modifiés, suppression du worktree (branche conservée) (test). |
+| A-05 | Suivi, rapports, annulation propagée, statut terminé/interrompu/budget | ✅ | 🟡 | ⬜ | T7 | Suivi en direct dans la bulle, ouverture de la conversation du sous-agent, statuts Terminé / Interrompu / Budget épuisé / Erreur / Annulé, annulation du parent propagée (test). |
 | A-06 | Questions interactives (unique/multiple/libre/strict, accordéon, navigation) | ✅ | 🟡 | ⬜ | T3 | Desktop : tuiles, unique par défaut, multiple sur demande, texte, réponse libre, accordéon, navigation, annulation. CLI : réponses numérotées, sans retour arrière. |
 | A-07 | Propositions d'actions (4 types, clic unique, consigne consultable) | ✅ | 🟡 | ⬜ | T3 | Desktop : boutons, consigne consultable, usage unique (test). CLI : affichage seulement. |
 | A-08 | Détection de boucle configurable | ✅ | ✅ | ⬜ | T3 | Seuil, fenêtre, comparaison exacte/équivalente ; arrêter ou poursuivre une fois (test). |
@@ -174,7 +174,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | G-04 | Fenêtre d'autorisation (action, cible, paramètres, changements) | ✅ | ✅ | ⬜ | T3 | Action, cible, raison, paramètres et diff/commande attendus. |
 | G-05 | Bouclier par bulle d'outil + détails | ✅ | 🟡 | ⬜ | T3 | Bouclier coloré + détails (règle, origine, décision, portée). CLI : symbole par ligne d’outil. |
 | G-06 | `edit_source` Raw/Formatted, diff ligne/bloc coloré, hors thread UI | ✅ | 🟡 | ⬜ | T3 | Raw/Formatted, diff Myers ligne/bloc, couleurs, avant/après, numéros de ligne ; Web Worker au-delà de 40 000 caractères. CLI : résumé. |
-| G-07 | Sandbox (copie, diff, application sélective) | ⬜ | ⬜ | ⬜ | T7 | |
+| G-07 | Sandbox (copie, diff, application sélective) | ✅ | ✅ | ⬜ | T7 | Copies privées des ressources, diff par fichier, application sélective avec détection de conflit (forçage explicite), abandon qui rétablit les ressources (test). Isolation des fichiers seulement : pas de conteneur pour les commandes. |
 
 ## 11. Contrôle desktop sans curseur
 
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 90 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 94 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

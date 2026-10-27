@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.7 — 2026-10-27
+
+Tranche T7 : orchestration.
+
+- **Sous-agents** : l'agent confie des sous-tâches indépendantes à des sous-agents exécutés en parallèle, chacun dans sa propre conversation (consultable depuis la bulle), avec un rôle (Explorateur, Implémenteur, Relecteur ou les vôtres), un budget (tours, tokens, délai) et un mode jamais plus permissif que celui de la conversation. Suivi en direct, rapports, annulation propagée. Réglages › Agents : délégation automatique, encouragée ou désactivée, profondeur, parallélisme, budgets, rôles.
+- **Worktrees Git** : un sous-agent peut travailler sur une branche et un worktree dédiés ; suppression du worktree depuis la bulle (branche conservée).
+- **Sandbox** (menu de la conversation) : les ressources sont remplacées par des copies privées ; diff par fichier, application sélective aux originaux avec détection des conflits, abandon qui rétablit les ressources.
+- **Build de test** : un seul dossier `artifacts/GUI` avec `Monolith.exe`, remplacé à chaque build ; vos données de test (`data/`) sont conservées.
+- CLI : `/subagents`, `/sandbox`.
+
 ## 3.0.0-alpha.6 — 2026-10-27
 
 Tranche T6 : mémoire, index, RAG, skills, MCP et web. Nouvelle zone de saisie.

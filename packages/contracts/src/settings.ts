@@ -12,7 +12,7 @@ export interface ShortcutItem {
   agentMode: AgentMode | null;
   reasoningLevel: ReasoningLevel | null;
 }
-import type { PermissionPolicy } from './tools.ts';
+import type { PermissionPolicy, SubagentPreset } from './tools.ts';
 
 export type Language = 'system' | 'fr' | 'en';
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -108,6 +108,17 @@ export interface Settings {
     htmlPreview: boolean;
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
+  };
+  subagents: {
+    /** auto : outil disponible ; forced : délégation demandée au modèle ; off : désactivés. */
+    mode: 'auto' | 'forced' | 'off';
+    maxDepth: number;
+    maxParallel: number;
+    /** Budget par sous-agent. */
+    maxRounds: number;
+    maxOutputTokens: number;
+    timeoutSec: number;
+    presets: SubagentPreset[];
   };
   memory: {
     /** Lecture initiale forcée : mémoires pertinentes injectées en début de génération. */
@@ -230,6 +241,7 @@ export const DEFAULT_SETTINGS: Settings = {
       python: false,
       custom_skills: true,
       mcp: true,
+      subagents: true,
     },
     info: { date: true, system: true, conversation: true },
   },
@@ -238,6 +250,19 @@ export const DEFAULT_SETTINGS: Settings = {
     latex: true,
     htmlPreview: true,
     fileBadges: true,
+  },
+  subagents: {
+    mode: 'auto',
+    maxDepth: 1,
+    maxParallel: 3,
+    maxRounds: 25,
+    maxOutputTokens: 40_000,
+    timeoutSec: 900,
+    presets: [
+      { id: 'explorer', name: 'Explorateur', description: 'Recherche et synthèse dans les sources, sans modification', instructions: 'Explore les sources, cite les fichiers et lignes utiles, ne modifie rien.', agentMode: 'plan', providerId: null, model: null },
+      { id: 'implementer', name: 'Implémenteur', description: 'Réalise une modification bien délimitée', instructions: 'Réalise la modification demandée, vérifie-la (tests si possible) et décris précisément ce qui a changé.', agentMode: 'execute', providerId: null, model: null },
+      { id: 'reviewer', name: 'Relecteur', description: 'Relit un changement et signale les problèmes', instructions: 'Relis le travail indiqué, signale les erreurs, risques et oublis par ordre de gravité, sans modifier.', agentMode: 'plan', providerId: null, model: null },
+    ],
   },
   memory: {
     forcedRead: false,
@@ -292,6 +317,11 @@ export const SETTINGS_BOUNDS = {
   'loop.threshold': [2, 20],
   'loop.window': [3, 100],
   'memory.forcedReadCount': [1, 100],
+  'subagents.maxDepth': [1, 3],
+  'subagents.maxParallel': [1, 8],
+  'subagents.maxRounds': [1, 200],
+  'subagents.maxOutputTokens': [1000, 1_000_000],
+  'subagents.timeoutSec': [30, 7200],
   'web.maxPageChars': [2000, 200_000],
   'rag.chunkLines': [10, 400],
   'rag.topK': [1, 50],

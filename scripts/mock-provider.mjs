@@ -65,6 +65,14 @@ createServer((req, res) => {
     const system = String(request.messages?.[0]?.content ?? '');
     const lastContent = request.messages?.at(-1)?.content ?? '';
     const last = typeof lastContent === 'string' ? lastContent : JSON.stringify(lastContent);
+    // Sous-agent : rapport immédiat, sans outil.
+    if (system.includes('Tu es un sous-agent')) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(chunk({ content: 'Rapport du sous-agent : tâche terminée, 2 fichiers examinés.' }));
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
+      res.end('data: [DONE]\n\n');
+      return;
+    }
     // Requêtes auxiliaires du moteur : nommage et compactage.
     if (system.includes('titre court') || system.includes('Tu résumes')) {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -83,6 +91,7 @@ createServer((req, res) => {
         const q = last.toLowerCase();
         if (q.includes('écris') && names.includes('write_file')) call = { name: 'write_file', arguments: { path: 'NOTES.md', content: '# Notes\n\n- Créé par la démonstration.\n' } };
         else if (q.includes('liste') && names.includes('list_files')) call = { name: 'list_files', arguments: {} };
+        else if (q.includes('délègue') && names.includes('delegate_tasks')) call = { name: 'delegate_tasks', arguments: { tasks: [{ title: 'Inventaire', instructions: 'Liste les fichiers du projet', preset: 'explorer' }, { title: 'Relecture', instructions: 'Relis le README', preset: 'reviewer' }] } };
         else if (q.includes('capture') && names.includes('browser_screenshot')) call = { name: 'browser_screenshot', arguments: {} };
         else if (q.includes('question') && names.includes('ask_user')) call = { name: 'ask_user', arguments: { questions: [{ prompt: 'Quel style préférez-vous ?', options: ['Sobre', 'Coloré', 'Rétro'] }, { prompt: 'Un nom pour la page ?' }] } };
       }

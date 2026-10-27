@@ -22,6 +22,10 @@ export interface ToolContext {
   /** Questions interactives : attend la réponse (null = annulé). */
   ask(questions: import('@monolith/contracts').Question[]): Promise<import('@monolith/contracts').QuestionAnswer[] | null>;
   info: { conversationTitle: string; projectName: string | null; model: string; provider: string };
+  /** Profondeur de délégation de la conversation (0 : conversation de l'utilisateur). */
+  depth: number;
+  /** Mise à jour de l'affichage de l'appel pendant son exécution (sous-agents…). */
+  progress(display: ToolDisplay): void;
 }
 
 export interface ToolResult {

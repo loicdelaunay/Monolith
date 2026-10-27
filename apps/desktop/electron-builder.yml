@@ -1,10 +1,10 @@
 # Distribution desktop. Aucune publication automatique : `publish: never`.
 appId: com.monolithharness.desktop
 productName: Monolith Harness
-executableName: MonolithHarness
+executableName: Monolith
 copyright: Copyright © 2026 Loïc DELAUNAY
 directories:
-  output: ../../artifacts/GUI
+  output: ../../release
   buildResources: build
 files:
   - out/**

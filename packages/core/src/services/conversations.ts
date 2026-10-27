@@ -8,8 +8,7 @@ import {
   type ConversationPatch,
   type Id,
   type ReasoningLevel,
-  type SearchHit,
-} from '@monolith/contracts';
+  type SearchHit, type ConversationBudget } from '@monolith/contracts';
 import { bool, json, type Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import { now } from '../util.ts';
@@ -36,6 +35,10 @@ interface ConversationRow {
   draft_attachments_json: string;
   forked_from_conversation_id: number | null;
   forked_from_message_id: number | null;
+  parent_id: number | null;
+  depth: number;
+  role: string | null;
+  budget_json: string | null;
 }
 
 const REASONING: ReasoningLevel[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
@@ -60,6 +63,8 @@ export class ConversationService {
       params.push(query.projectId);
     }
     if (!query.includeArchived) where.push('archived = 0');
+    // Les sous-agents ne figurent pas dans les listes : ils s'ouvrent depuis leur conversation parente.
+    where.push('parent_id IS NULL');
     const sql = `SELECT * FROM conversations ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY pinned DESC, sort_order, id DESC`;
     return this.db.all<ConversationRow>(sql, ...params).map((r) => this.map(r));
   }
@@ -74,7 +79,7 @@ export class ConversationService {
     projectId: Id | null,
     title?: string,
     defaults?: { providerId: Id | null; model: string | null; reasoningLevel: ReasoningLevel },
-    extra?: { forkedFrom?: { conversationId: Id; messageId: Id | null }; archived?: boolean; source?: Conversation; titleSource?: Conversation['titleSource'] },
+    extra?: { forkedFrom?: { conversationId: Id; messageId: Id | null }; archived?: boolean; source?: Conversation; titleSource?: Conversation['titleSource']; parent?: { id: Id; depth: number; role: string; budget: ConversationBudget } },
   ): Conversation {
     if (projectId !== null && !this.db.get('SELECT 1 AS x FROM projects WHERE id = ?', projectId)) {
       throw new HarnessError('not_found', `Projet ${projectId} introuvable`);
@@ -106,7 +111,13 @@ export class ConversationService {
       t,
       src ? t : null,
     );
+    if (extra?.parent) this.db.run('UPDATE conversations SET parent_id = ?, depth = ?, role = ?, budget_json = ? WHERE id = ?', extra.parent.id, extra.parent.depth, extra.parent.role, JSON.stringify(extra.parent.budget), lastInsertRowid);
     return this.changed(lastInsertRowid);
+  }
+
+  /** Sous-agents d'une conversation, du plus récent au plus ancien. */
+  children(parentId: Id): Conversation[] {
+    return this.db.all<ConversationRow>('SELECT * FROM conversations WHERE parent_id = ? ORDER BY id DESC', parentId).map((r) => this.map(r));
   }
 
   update(id: Id, patch: ConversationPatch): Conversation {
@@ -256,6 +267,10 @@ export class ConversationService {
       draft: r.draft,
       draftAttachments: json<AttachmentRef[]>(r.draft_attachments_json, []),
       forkedFrom: r.forked_from_conversation_id !== null ? { conversationId: r.forked_from_conversation_id, messageId: r.forked_from_message_id } : null,
+      parentId: r.parent_id ?? null,
+      depth: r.depth ?? 0,
+      role: r.role ?? null,
+      budget: r.budget_json ? json<ConversationBudget | null>(r.budget_json, null) : null,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       lastMessageAt: r.last_message_at,

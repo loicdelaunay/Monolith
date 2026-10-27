@@ -84,7 +84,46 @@ export type ToolDisplay =
   | { kind: 'question'; questions: Question[]; answers: QuestionAnswer[] | null; cancelled: boolean }
   | { kind: 'actions'; actions: ActionProposal[] }
   | { kind: 'info'; entries: { label: string; value: string }[] }
-  | { kind: 'image'; attachmentId: Id; caption: string };
+  | { kind: 'image'; attachmentId: Id; caption: string }
+  | { kind: 'subagents'; items: SubagentItem[] };
+
+/** Suivi d'un sous-agent dans la bulle de l'outil de délégation. */
+export interface SubagentItem {
+  conversationId: Id;
+  title: string;
+  role: string;
+  status: 'running' | 'done' | 'interrupted' | 'budget' | 'error' | 'cancelled';
+  worktree: { path: string; branch: string } | null;
+  summary: string;
+}
+
+export interface SubagentPreset {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  agentMode: 'plan' | 'propose' | 'execute';
+  providerId: Id | null;
+  model: string | null;
+}
+
+export interface SandboxChange {
+  root: number;
+  path: string;
+  status: 'created' | 'modified' | 'deleted';
+  /** L'original a changé depuis la création de la sandbox. */
+  conflict: boolean;
+  before: string;
+  after: string;
+  binary: boolean;
+}
+
+export interface SandboxStatus {
+  enabled: boolean;
+  roots: { original: string; copy: string }[];
+  createdAt: string | null;
+  changes: number;
+}
 
 export interface ToolCallRecord {
   /** Identifiant fourni par le modèle (ou généré). */

@@ -140,6 +140,14 @@ export class GenerationRunner {
     return this.active.has(conversationId);
   }
 
+  /** Attend la fin de la génération d'une conversation ; null si aucune n'est en cours. */
+  async waitFor(conversationId: Id): Promise<MessageStatus | null> {
+    const job = this.active.get(conversationId);
+    if (!job) return null;
+    await job.done;
+    return job.final;
+  }
+
   /** Attend la fin de toutes les générations, y compris celles lancées depuis la file. */
   async idle(): Promise<void> {
     while (this.active.size) await Promise.allSettled([...this.active.values()].map((g) => g.done));
@@ -207,7 +215,11 @@ export class GenerationRunner {
     const { scope } = this.deps.resources.scope(conversationId);
     // Serveurs MCP actifs pour la conversation : connectés avant de figer la liste des outils.
     const mcpErrors = this.deps.mcp && conversation.mode === 'agent' && (s.skills.enabled.mcp ?? true) ? await this.deps.mcp.ensureConnected(conversationId, scope.roots[0] ?? process.cwd()) : [];
-    const tools = this.deps.tools.available(s, conversation.mode, conversation.agentMode, this.deps.host).filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId));
+    const tools = this.deps.tools
+      .available(s, conversation.mode, conversation.agentMode, this.deps.host)
+      .filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId))
+      // Délégation : désactivée par réglage ou au-delà de la profondeur maximale.
+      .filter((t) => t.name !== 'delegate_tasks' || (s.subagents.mode !== 'off' && conversation.depth < s.subagents.maxDepth));
     const instructionFiles = conversation.mode === 'agent' && s.agent.readInstructionFiles ? this.deps.resources.instructionFiles(scope.roots) : [];
     const snapshot: GenerationSnapshot = {
       providerId: provider.id,
@@ -401,6 +413,12 @@ export class GenerationRunner {
     const s = ctx.settings;
     if (this.deps.memory && s.memory.forcedRead && (s.skills.enabled.memory ?? true)) {
       out.push(this.deps.memory.promptBlock(this.deps.memory.visible(conversationId, ctx.conversation.projectId, null, s.memory.forcedReadCount)));
+    }
+    if (s.subagents.mode === 'forced' && ctx.tools.some((t) => t.name === 'delegate_tasks')) {
+      out.push('Délégation : découpe le travail en sous-tâches indépendantes et confie-les à des sous-agents avec delegate_tasks (en parallèle quand c’est possible), puis synthétise leurs rapports.');
+    }
+    if (ctx.conversation.parentId !== null) {
+      out.push(`Tu es un sous-agent (rôle : ${ctx.conversation.role ?? 'général'}). Travaille uniquement sur la tâche confiée, sans demander de précisions sauf blocage, puis termine par un rapport final concis : résultat, fichiers concernés, points incertains.`);
     }
     if (this.deps.customSkills && ctx.snapshot.mode === 'agent' && (s.skills.enabled.custom_skills ?? true) && ctx.tools.some((t) => t.name === 'load_skill')) {
       const skills = this.deps.customSkills(ctx.scope.roots, s).filter((k) => k.enabled);
@@ -720,6 +738,17 @@ export class GenerationRunner {
           break rounds;
         }
       }
+      const budget = ctx.conversation.budget;
+      if (budget?.maxOutputTokens && totals.output >= budget.maxOutputTokens) {
+        notice('warning', 'budget_tokens', `Budget du sous-agent épuisé (${budget.maxOutputTokens} tokens de sortie).`);
+        status = 'interrupted';
+        break;
+      }
+      if (budget?.maxRounds && round + 1 >= Math.min(budget.maxRounds, ctx.settings.agent.maxToolRounds)) {
+        notice('warning', 'budget_rounds', `Budget du sous-agent épuisé (${Math.min(budget.maxRounds, ctx.settings.agent.maxToolRounds)} tours d’outils).`);
+        status = 'interrupted';
+        break;
+      }
       if (round + 1 >= ctx.settings.agent.maxToolRounds) {
         notice('warning', 'max_tool_rounds', `Limite de ${ctx.settings.agent.maxToolRounds} tours d’outils atteinte : réponse arrêtée. Relancez pour poursuivre.`);
         break;
@@ -833,6 +862,11 @@ export class GenerationRunner {
         return questions.ask(job.conversationId, messageId, call.id, qs, signal);
       },
       info: { conversationTitle: ctx.conversation.title, projectName: ctx.project?.name ?? null, model: ctx.snapshot.model, provider: ctx.provider.name },
+      depth: ctx.conversation.depth,
+      progress: (display) => {
+        record.display = display;
+        update({ ...record });
+      },
     };
 
     let target: { label: string | null; resources: string[] };

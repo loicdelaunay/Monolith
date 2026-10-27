@@ -600,6 +600,31 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         const status = arg === 'index' ? await client.call('rag.index', { conversationId: conv.id }) : arg === 'clear' ? await client.call('rag.clear', { conversationId: conv.id }) : await client.call('rag.status', { conversationId: conv.id });
         return note(status.roots.map((r) => `  ${sanitize(r.root)} : ${r.files ? t('resources.ragStatus', { files: r.files, chunks: r.chunks }) : t('resources.ragNever')}${r.stale ? ` · ${t('resources.ragStale', { count: r.stale })}` : ''}`).join('\n') || t('resources.ragNever'));
       }
+      case 'subagents': {
+        const conv = needConversation();
+        const list = await client.call('subagents.list', { conversationId: conv.id });
+        if (!list.length) return note(t('subagents.noReport'));
+        return note(list.map((c) => `  #${c.id} ${sanitize(c.title)} — ${c.role ?? ''} · ${c.agentMode}${c.generating ? ` · ${t('subagents.status.running')}` : ''}`).join('\n') + '\n  /open <titre> pour consulter un sous-agent.');
+      }
+      case 'sandbox': {
+        const conv = needConversation();
+        const [sub, ...rest] = arg.split(/\s+/).filter(Boolean);
+        if (sub === 'on') await client.call('sandbox.enable', { conversationId: conv.id });
+        if (sub === 'discard') {
+          await client.call('sandbox.discard', { conversationId: conv.id });
+          return note(t('common.saved'), 'success');
+        }
+        const status = await client.call('sandbox.status', { conversationId: conv.id });
+        if (!status.enabled) return note(`${t('sandbox.intro')}\n  /sandbox on`);
+        const changes = await client.call('sandbox.diff', { conversationId: conv.id });
+        if (sub === 'apply') {
+          const picks = rest.map(Number).filter((n) => n >= 1 && n <= changes.length).map((n) => ({ root: changes[n - 1]!.root, path: changes[n - 1]!.path }));
+          const r = await client.call('sandbox.apply', { conversationId: conv.id, files: picks, force: rest.includes('--force') });
+          return note(`${t('sandbox.applied', { count: r.applied })}${r.conflicts.length ? `\n${t('sandbox.conflicts', { paths: r.conflicts.join(', ') })} (--force)` : ''}`, r.conflicts.length ? 'error' : 'success');
+        }
+        if (!changes.length) return note(t('sandbox.noChanges'));
+        return note([t('sandbox.changes', { count: changes.length }), ...changes.map((c, i) => `  ${i + 1}. ${t(`sandbox.status.${c.status}`)} ${sanitize(c.path)}${c.conflict ? ` [${t('sandbox.conflict')}]` : ''}`), '  /sandbox apply <n°…> [--force]'].join('\n'));
+      }
       case 'resources': {
         const conv = needConversation();
         const [sub, ...rest] = arg.split(/\s+/);

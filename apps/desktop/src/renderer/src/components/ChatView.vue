@@ -19,6 +19,7 @@ import Composer from './Composer.vue';
 import QueuePanel from './QueuePanel.vue';
 import ResourcesButton from './tools/ResourcesButton.vue';
 import ProposalsPanel from './tools/ProposalsPanel.vue';
+import SandboxDialog from './tools/SandboxDialog.vue';
 
 const emit = defineEmits<{ 'open-settings': [section?: SettingsSectionId] }>();
 const { t } = useI18n();
@@ -104,6 +105,7 @@ const menuItems = computed<MenuItem[]>(() => {
     { label: t('actions.exportWithReasoning'), icon: 'pi pi-download', command: () => actions.exportMarkdown(c.id, true) },
     { label: t('actions.duplicate'), icon: 'pi pi-clone', command: () => actions.fork(c.id) },
     { label: t('actions.compact'), icon: 'pi pi-compress', disabled: c.generating, command: () => actions.compact(c.id) },
+    { label: t('sandbox.menu'), icon: 'pi pi-box', command: () => (sandboxOpen.value = true) },
   ];
 });
 
@@ -117,6 +119,7 @@ function fork(m: Message) {
 }
 const generationStatus = computed(() => (activeConversation.value ? store.generations.get(activeConversation.value.id)?.status : undefined));
 const openSource = (id: Id) => openConversation(id);
+const sandboxOpen = ref(false);
 </script>
 
 <template>
@@ -126,6 +129,9 @@ const openSource = (id: Id) => openConversation(id);
         <h1 class="title">{{ activeConversation.title }}</h1>
         <button v-if="activeConversation.forkedFrom && store.conversations.has(activeConversation.forkedFrom.conversationId)" type="button" class="origin-link" @click="openSource(activeConversation.forkedFrom.conversationId)">
           <i class="pi pi-clone" /> {{ t('actions.forkedFrom', { title: store.conversations.get(activeConversation.forkedFrom.conversationId)!.title }) }}
+        </button>
+        <button v-if="activeConversation.parentId !== null && store.conversations.has(activeConversation.parentId)" type="button" class="origin-link" @click="openSource(activeConversation.parentId)">
+          <i class="pi pi-sitemap" /> {{ t('subagents.parentOf', { title: store.conversations.get(activeConversation.parentId)!.title }) }}
         </button>
         <ResourcesButton :key="activeConversation.id" :conversation="activeConversation" />
         <span ref="goalAnchor" class="goal-anchor">
@@ -137,6 +143,7 @@ const openSource = (id: Id) => openConversation(id);
         <button type="button" class="mh-icon-btn" :class="{ active: store.settings?.layout.panelOpen }" :aria-pressed="!!store.settings?.layout.panelOpen" :aria-label="`${t('panel.open')} (Ctrl+J)`" v-tooltip.bottom="`${t('panel.open')} (Ctrl+J)`" @click="api.call('settings.update', { layout: { panelOpen: !store.settings?.layout.panelOpen } })"><i class="pi pi-objects-column" /></button>
         <button type="button" class="mh-icon-btn" :aria-label="t('actions.menu')" v-tooltip.bottom="t('actions.menu')" @click="menu?.toggle($event)"><i class="pi pi-ellipsis-v" /></button>
         <Menu ref="menu" :model="menuItems" popup />
+        <SandboxDialog v-if="sandboxOpen" v-model:visible="sandboxOpen" :conversation-id="activeConversation.id" />
       </header>
 
       <div ref="scroller" class="scroller" tabindex="-1" @scroll.passive="onScroll">

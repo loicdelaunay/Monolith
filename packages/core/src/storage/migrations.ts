@@ -357,6 +357,18 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 5,
+    name: 'subagents',
+    sql: /* sql */ `
+      -- Sous-agents : conversations enfants (profondeur, rôle, budget).
+      ALTER TABLE conversations ADD COLUMN parent_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE;
+      ALTER TABLE conversations ADD COLUMN depth INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE conversations ADD COLUMN role TEXT;
+      ALTER TABLE conversations ADD COLUMN budget_json TEXT;
+      CREATE INDEX conversations_parent ON conversations(parent_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
