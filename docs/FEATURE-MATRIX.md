@@ -70,7 +70,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | U-06 | Saisie multiligne, Entrée/Maj+Entrée, collage, glisser-déposer | ✅ | 🟡 | ➖ | T1 | Pièces jointes par bouton, glisser-déposer et collage (vérifié dans la fenêtre réelle). CLI : `/attach`. |
 | U-07 | Autocomplétion commandes et skills | 🟡 | 🟡 | ➖ | T2 | Commandes « / » dans l’éditeur desktop et autocomplétion CLI ; skills en T6. |
 | U-08 | Agrandissement de la saisie au-delà de 10 lignes, retour sans perte | ✅ | ➖ | ➖ | T1 | |
-| U-09 | Débit et utilisation du contexte (optionnels) | ✅ | 🟡 | ➖ | T2 | Débit et utilisation du contexte (réglages). CLI : `/context`. |
+| U-09 | Débit et utilisation du contexte (optionnels) | ✅ | 🟡 | ➖ | T2 | Débit et utilisation du contexte (réglages) : jauge circulaire dans la zone de saisie, détail au survol ou au focus (utilisé, fenêtre, restant, sortie maximale, compactages, source des compteurs). Barre de saisie : réglages rapides (mode, politique d'autorisation, skills) à droite du « + », niveau de réflexion dans le sélecteur de modèle. CLI : `/context`. |
 | U-10 | Accessibilité : clavier, focus visible, libellés, texte agrandi, petites fenêtres | ✅ | ➖ | ⬜ | T1→T14 | Navigation clavier, focus visible, libellés ARIA, mise en page étroite. Audit axe-core WCAG 2.1 A/AA reproductible (`npm run quality`) : aucune violation sur l'accueil, une conversation de 300 messages, Réglages › Général, Skills et À propos (thème sombre par défaut). Corrigé en T14 : contraste des boutons PrimeVue (2,6:1 → ≥ 4,5:1), noms accessibles (version, projets, ressources, listes déroulantes). Lecteur d'écran réel non testé ; autres vues et thème clair non audités automatiquement. |
 
 ## 5. Chat, rendu et historique

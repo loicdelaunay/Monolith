@@ -11,9 +11,10 @@ import { api, errorCode, errorMessage } from '../api.ts';
 import { messagesOf, store } from '../stores/app.ts';
 import { uploadFiles, formatSize } from '../lib/attachments.ts';
 import { chatActions } from '../lib/chat-actions.ts';
-import { formatTokens, throughput } from '../lib/format.ts';
+import { throughput } from '../lib/format.ts';
 import ModelPicker from './ModelPicker.vue';
-import ModeSelect from './ModeSelect.vue';
+import QuickSettings from './QuickSettings.vue';
+import ContextRing from './ContextRing.vue';
 import AttachmentChip from './AttachmentChip.vue';
 import TemplatesDialog from './TemplatesDialog.vue';
 
@@ -239,7 +240,6 @@ async function refreshContext() {
 }
 // Mis à jour aux événements utiles (fin de génération, changement de conversation ou de modèle), jamais en boucle.
 watch(() => [props.conversation.id, props.conversation.generating, props.conversation.model, props.conversation.providerId, showContext.value, store.compactions.get(props.conversation.id)?.length], refreshContext, { immediate: true });
-const contextPercent = computed(() => (context.value?.contextWindow ? Math.min(100, Math.round((context.value.tokens / context.value.contextWindow) * 100)) : null));
 
 // ---------- Vitesse (réglage « Afficher le débit ») ----------
 // Pendant la génération : estimation en direct (≈ 4 caractères par token) ; ensuite : débit mesuré de la dernière réponse.
@@ -327,18 +327,16 @@ defineExpose({ focus: () => textarea.value?.focus() });
           </button>
           <Menu ref="plusMenu" :model="plusItems" popup />
           <input ref="fileInput" type="file" multiple hidden @change="onPick" />
-          <ModeSelect :conversation="conversation" />
+          <QuickSettings :conversation="conversation" />
         </div>
         <div class="right">
-          <span v-if="(showContext && context) || (showSpeed && speed)" class="stats">
-            <span v-if="showContext && context" class="stat" :class="{ warn: (contextPercent ?? 0) >= 80 }" v-tooltip.top="context.source === 'estimate' ? t('chat.estimatedHint') : t('chat.contextTitle')">
-              <i class="pi pi-chart-pie" />{{ formatTokens(context.tokens) }} / {{ context.contextWindow ? formatTokens(context.contextWindow) : '?' }}<template v-if="contextPercent !== null"> · {{ contextPercent }} %</template><template v-if="context.source === 'estimate'">*</template>
-            </span>
+          <span class="meta">
             <span v-if="showSpeed && speed" class="stat" v-tooltip.top="generating ? t('chat.speedLive') : t('chat.speedLast')">
               <i class="pi pi-gauge" />{{ t('chat.throughput', { value: speed.toFixed(speed < 10 ? 1 : 0) }) }}
             </span>
+            <ContextRing v-if="showContext && context" :usage="context" />
+            <ModelPicker :conversation="conversation" />
           </span>
-          <ModelPicker :conversation="conversation" />
           <template v-if="generating">
             <button type="button" class="round-btn" :disabled="!canSend" :aria-label="t('queue.steer')" v-tooltip.top="t('queue.steerHint')" @click="send('steer')"><i class="pi pi-bolt" /></button>
             <button type="button" class="round-btn" :disabled="!canSend" :aria-label="t('queue.enqueue')" v-tooltip.top="t('queue.enqueueHint')" @click="send('queue')"><i class="pi pi-list" /></button>
@@ -426,11 +424,21 @@ defineExpose({ focus: () => textarea.value?.focus() });
   flex-wrap: wrap;
 }
 .left,
-.right {
+.right,
+.meta {
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
+}
+.left,
+.meta {
+  position: relative;
+  top: 3px;
+}
+.meta {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .right {
   margin-left: auto;
@@ -485,26 +493,18 @@ defineExpose({ focus: () => textarea.value?.focus() });
   background: var(--mh-text);
   color: var(--mh-bg);
 }
-.stats {
+.stat {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-right: 6px;
+  gap: 5px;
+  margin-right: 4px;
   font-size: 12px;
   color: var(--mh-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
 .stat .pi {
   font-size: 11px;
-}
-.stat.warn {
-  color: var(--mh-warning);
 }
 .slash {
   position: absolute;

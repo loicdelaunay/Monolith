@@ -2,7 +2,6 @@
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Popover from 'primevue/popover';
-import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
 import type { Conversation, Id, ReasoningLevel } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
@@ -59,48 +58,27 @@ function manageModels() {
 }
 const label = computed(() => (provider.value ? `${provider.value.name} / ${model.value?.label ?? effectiveModel.value ?? t('chat.chooseModel')}` : t('chat.chooseProvider')));
 
-// ---------- Réflexion ----------
-const reasoningMenu = ref<InstanceType<typeof Menu> | null>(null);
+// ---------- Réflexion (dans le sélecteur, pour le modèle de la conversation) ----------
 /** Niveaux de réflexion : uniquement ceux déclarés pour le modèle ; Auto seul si inconnus. */
 const levels = computed<ReasoningLevel[]>(() => {
   const caps = model.value?.capabilities;
   return ['auto', ...(caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l))];
 });
 const reasoningUnknown = computed(() => levels.value.length === 1 && props.conversation.reasoningLevel === 'auto');
-const reasoningItems = computed(() => levels.value.map((l) => ({ key: l, label: t(`reasoningLevels.${l}`), command: () => update({ reasoningLevel: l }) })));
+const levelLabel = computed(() => t(`reasoningLevels.${props.conversation.reasoningLevel}`));
 </script>
 
 <template>
   <div class="picker">
-    <button type="button" class="ghost model-btn" :aria-label="`${t('chat.provider')} / ${t('chat.model')} : ${label}`" aria-haspopup="dialog" @click="open">
+    <button type="button" class="ghost model-btn" :aria-label="`${t('chat.provider')} / ${t('chat.model')} : ${label} — ${t('chat.reasoning')} : ${levelLabel}`" aria-haspopup="dialog" @click="open">
       <ProviderLogo v-if="provider" :preset="provider.preset" :size="15" />
       <span class="label">{{ label }}</span>
+      <span v-if="conversation.reasoningLevel !== 'auto'" class="lvl-badge"><i class="pi pi-sparkles" />{{ levelLabel }}</span>
       <i class="pi pi-angle-down caret" />
     </button>
-    <button
-      type="button"
-      class="ghost"
-      :class="{ off: reasoningUnknown }"
-      :aria-label="`${t('chat.reasoning')} : ${t(`reasoningLevels.${conversation.reasoningLevel}`)}`"
-      aria-haspopup="menu"
-      v-tooltip.top="reasoningUnknown ? t('chat.reasoningOnlyAuto') : `${t('chat.reasoning')} (Ctrl+Maj+R)`"
-      @click="!reasoningUnknown && reasoningMenu?.toggle($event)"
-    >
-      <i class="pi pi-sparkles" />
-      <span>{{ t(`reasoningLevels.${conversation.reasoningLevel}`) }}</span>
-      <i v-if="!reasoningUnknown" class="pi pi-angle-down caret" />
-    </button>
-    <Menu ref="reasoningMenu" :model="reasoningItems" popup>
-      <template #item="{ item, props: p }">
-        <a v-bind="p.action" class="lvl" :class="{ active: item.key === conversation.reasoningLevel }">
-          <span>{{ item.label }}</span>
-          <i v-if="item.key === conversation.reasoningLevel" class="pi pi-check" />
-        </a>
-      </template>
-    </Menu>
 
     <Popover ref="pop">
-      <div class="pm" role="dialog" :aria-label="`${t('chat.provider')} / ${t('chat.model')}`">
+      <div class="pm" role="group" :aria-label="`${t('chat.provider')} / ${t('chat.model')}`">
         <ul class="col providers" role="listbox" :aria-label="t('chat.provider')">
           <li v-for="p in providers" :key="p.id">
             <button type="button" class="row" :class="{ active: p.id === shown?.id }" :aria-selected="p.id === shown?.id" role="option" @click="(browsing = p.id), (query = '')">
@@ -125,6 +103,15 @@ const reasoningItems = computed(() => levels.value.map((l) => ({ key: l, label: 
           </ul>
           <button type="button" class="manage" @click="manageModels"><i class="pi pi-sliders-h" /> {{ t('chat.manageModels') }}</button>
         </div>
+      </div>
+      <div class="reasoning">
+        <span class="r-title"><i class="pi pi-sparkles" /> {{ t('chat.reasoning') }} <span class="mh-hint">(Ctrl+Maj+R)</span></span>
+        <div v-if="!reasoningUnknown" class="levels" role="radiogroup" :aria-label="t('chat.reasoning')">
+          <button v-for="l in levels" :key="l" type="button" role="radio" :aria-checked="l === conversation.reasoningLevel" :class="{ active: l === conversation.reasoningLevel }" @click="update({ reasoningLevel: l })">
+            {{ t(`reasoningLevels.${l}`) }}
+          </button>
+        </div>
+        <span v-else class="mh-hint">{{ t('chat.reasoningOnlyAuto') }}</span>
       </div>
     </Popover>
   </div>
@@ -156,13 +143,6 @@ const reasoningItems = computed(() => levels.value.map((l) => ({ key: l, label: 
 .ghost:hover {
   background: var(--mh-hover);
 }
-.ghost.off {
-  cursor: default;
-  color: var(--mh-muted);
-}
-.ghost.off:hover {
-  background: transparent;
-}
 .ghost .pi {
   color: var(--mh-muted);
 }
@@ -176,16 +156,61 @@ const reasoningItems = computed(() => levels.value.map((l) => ({ key: l, label: 
 .caret {
   font-size: 11px;
 }
-.lvl {
+.lvl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--mh-muted);
+}
+.lvl-badge .pi {
+  font-size: 11px;
+}
+.reasoning {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 7px 12px;
-  min-width: 140px;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 6px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--mh-border);
+  font-size: 13px;
+  width: min(560px, 86vw);
 }
-.lvl.active {
+.r-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.r-title .pi {
+  color: var(--mh-muted);
+  font-size: 12px;
+}
+.levels {
+  display: flex;
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius-sm);
+  overflow: hidden;
+  margin-left: auto;
+}
+.levels button {
+  border: 0;
+  border-right: 1px solid var(--mh-border);
+  background: transparent;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.levels button:last-child {
+  border-right: 0;
+}
+.levels button:hover {
+  background: var(--mh-hover);
+}
+.levels button.active {
+  background: color-mix(in srgb, var(--mh-accent) 18%, transparent);
   color: var(--mh-accent);
+  font-weight: 600;
 }
 .pm {
   display: flex;

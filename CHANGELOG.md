@@ -2,6 +2,15 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.13 — 2026-10-27
+
+Barre de saisie allégée.
+
+- **Utilisation du contexte** : une jauge circulaire remplace le texte ; le détail (utilisé, fenêtre du modèle, restant, sortie maximale, compactages, source des compteurs) s'ouvre au survol ou au focus clavier.
+- **Réglages rapides** : une icône à droite du « + » ouvre le choix du mode (Chat, Agent Plan / Proposition / Exécution), la politique d'autorisation et l'activation des skills.
+- **Réflexion** : le niveau se choisit dans le sélecteur de modèle (affiché à côté du modèle quand il n'est pas sur Auto).
+- Éléments de la barre légèrement abaissés ; le bouton d'envoi ne bouge pas.
+
 ## 3.0.0-alpha.12 — 2026-10-27
 
 Tranche T14 : distribution et validation.
