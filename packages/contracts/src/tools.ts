@@ -15,14 +15,20 @@ export type ToolCallStatus =
   /** Mode Proposition : changement préparé, non appliqué. */
   | 'proposed';
 
-export type PermissionPolicy = 'deny_all' | 'ask' | 'rules';
+/**
+ * Politique globale : refuser tout, demander, selon les règles (défaut), automatique (validateur
+ * pour chaque action non couverte par la lecture automatique) ou autoriser tout (sans analyse).
+ * Les règles Refuser et Demander s'appliquent toujours.
+ */
+export type PermissionPolicy = 'deny_all' | 'ask' | 'rules' | 'auto' | 'allow_all';
+export const PERMISSION_POLICIES: PermissionPolicy[] = ['deny_all', 'ask', 'rules', 'auto', 'allow_all'];
 export type PermissionScope = 'once' | 'conversation' | 'project' | 'global';
 
 /** Comment un appel d'outil a été autorisé ou refusé (bouclier de la bulle d'outil). */
 export interface PermissionRecord {
   decision: 'allow' | 'deny';
-  /** `rule` : règle enregistrée ; `user` : réponse à la demande ; `policy` : politique globale ; `mode` : restriction du mode ; `automatic` : lecture dans la portée autorisée. */
-  source: 'rule' | 'user' | 'policy' | 'mode' | 'automatic';
+  /** `rule` : règle enregistrée ; `user` : réponse à la demande ; `policy` : politique globale ; `mode` : restriction du mode ; `automatic` : lecture dans la portée autorisée ; `validator` : validateur du mode Automatique. */
+  source: 'rule' | 'user' | 'policy' | 'mode' | 'automatic' | 'validator';
   ruleId: Id | null;
   scope: PermissionScope | null;
   reason: string;

@@ -58,6 +58,8 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${re}$`, process.platform === 'win32' ? 'i' : '');
 }
 
+const POLICY_LABEL: Record<PermissionPolicy, string> = { deny_all: 'Refuser tout', ask: 'Demander', rules: 'Selon les règles', auto: 'Automatique', allow_all: 'Autoriser tout' };
+
 export interface PermissionQuery {
   conversationId: Id;
   projectId: Id | null;
@@ -71,7 +73,8 @@ export interface PermissionQuery {
 }
 
 export interface Evaluation {
-  decision: 'allow' | 'deny' | 'ask';
+  /** `validate` : politique Automatique, le validateur décide (autoriser ou demander). */
+  decision: 'allow' | 'deny' | 'ask' | 'validate';
   source: PermissionRecord['source'];
   ruleId: Id | null;
   scope: PermissionScope | null;
@@ -157,11 +160,14 @@ export class PermissionEngine {
     if (deny) return { decision: 'deny', source: 'rule', ruleId: deny.id, scope: scopeOf(deny), reason: `${describe(deny)} : refus explicite (prioritaire).` };
     const score = (r: RuleRow) => (r.resource ? 8 : 0) + (r.tool !== '*' ? 4 : 0) + (r.family !== '*' ? 2 : 0) + (r.scope === 'conversation' ? 1 : r.scope === 'project' ? 0.5 : 0);
     const best = matching.sort((a, b) => score(b) - score(a))[0];
-    if (best) return { decision: best.decision === 'allow' ? 'allow' : 'ask', source: 'rule', ruleId: best.id, scope: scopeOf(best), reason: describe(best) };
+    // Mode Automatique : un accord enregistré ne dispense pas de l'analyse ; une règle Demander s'applique.
+    if (best && !(policy === 'auto' && best.decision === 'allow')) return { decision: best.decision === 'allow' ? 'allow' : 'ask', source: 'rule', ruleId: best.id, scope: scopeOf(best), reason: describe(best) };
 
-    if (policy === 'rules' && q.effects.every((e) => e === 'read' || e === 'interact')) {
-      return { decision: 'allow', source: 'automatic', ruleId: null, scope: null, reason: 'Lecture dans la portée de la conversation (politique « Selon les règles »).' };
+    if (policy !== 'ask' && q.effects.every((e) => e === 'read' || e === 'interact')) {
+      return { decision: 'allow', source: 'automatic', ruleId: null, scope: null, reason: `Lecture dans la portée de la conversation (politique « ${POLICY_LABEL[policy]} »).` };
     }
+    if (policy === 'allow_all') return { decision: 'allow', source: 'policy', ruleId: null, scope: null, reason: 'Politique « Autoriser tout » : accepté sans analyse.' };
+    if (policy === 'auto') return { decision: 'validate', source: 'policy', ruleId: null, scope: null, reason: 'Politique « Automatique » : analyse par le validateur.' };
     return { decision: 'ask', source: 'policy', ruleId: null, scope: null, reason: policy === 'ask' ? 'Politique « Demander ».' : 'Aucune règle ne couvre cet effet.' };
   }
 

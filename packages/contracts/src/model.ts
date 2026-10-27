@@ -308,7 +308,7 @@ export interface CatalogModel {
 
 export interface UsageRecord {
   id: Id;
-  kind: 'chat' | 'naming' | 'compaction' | 'memory' | 'vision' | 'subagent' | 'benchmark' | 'tool' | 'test' | 'other';
+  kind: 'chat' | 'naming' | 'compaction' | 'memory' | 'vision' | 'subagent' | 'benchmark' | 'tool' | 'validation' | 'test' | 'other';
   conversationId: Id | null;
   projectId: Id | null;
   providerId: Id | null;

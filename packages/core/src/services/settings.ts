@@ -1,5 +1,5 @@
 import { checkProxy } from '../tools/web-http.ts';
-import { DEFAULT_SETTINGS, HarnessError, SETTINGS_BOUNDS, type Settings, type SettingsPatch, type SettingsSection, sanitizeShortcuts, type SubagentPreset } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, HarnessError, PERMISSION_POLICIES, type PermissionPolicy, SETTINGS_BOUNDS, type Settings, type SettingsPatch, type SettingsSection, sanitizeShortcuts, type SubagentPreset } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 
@@ -94,6 +94,7 @@ export class SettingsService {
       if (section === 'appearance' && key === 'backgroundAnimation' && !['none', 'gradient', 'aurora', 'particles'].includes(String(value))) continue;
       if (section === 'desktop' && (key === 'keyboardMode' || key === 'mouseMode') && !['auto', 'uia', 'legacy'].includes(String(value))) continue;
       if (section === 'subagents' && key === 'mode' && !['auto', 'forced', 'off'].includes(String(value))) continue;
+      if (section === 'permissions' && key === 'policy' && !PERMISSION_POLICIES.includes(value as PermissionPolicy)) continue;
       if (section === 'updates' && key === 'mode' && !['off', 'notify', 'auto'].includes(String(value))) continue;
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));

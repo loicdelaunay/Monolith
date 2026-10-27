@@ -95,6 +95,9 @@ export interface Settings {
   };
   permissions: {
     policy: PermissionPolicy;
+    /** Validateur du mode Automatique (connexion et modèle) ; non configuré : chaque action est demandée. */
+    validatorProviderId: Id | null;
+    validatorModel: string | null;
   };
   loop: {
     enabled: boolean;
@@ -286,6 +289,8 @@ export const DEFAULT_SETTINGS: Settings = {
   permissions: {
     // Lecture dans la portée : automatique ; écriture, commandes, réseau : demande (sauf règle).
     policy: 'rules',
+    validatorProviderId: null,
+    validatorModel: null,
   },
   loop: {
     enabled: true,

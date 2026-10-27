@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import RadioButton from 'primevue/radiobutton';
 import Select from 'primevue/select';
@@ -7,11 +7,11 @@ import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import { useToast } from 'primevue/usetoast';
-import type { PermissionDecisionLog, PermissionRule, Settings } from '@monolith/contracts';
+import { PERMISSION_POLICIES, type PermissionDecisionLog, type PermissionRule, type Settings } from '@monolith/contracts';
 import { api, errorMessage } from '../../api.ts';
 import { store } from '../../stores/app.ts';
 
-defineProps<{ draft: Settings }>();
+const props = defineProps<{ draft: Settings }>();
 const { t } = useI18n();
 const toast = useToast();
 const rules = ref<PermissionRule[]>([]);
@@ -39,19 +39,42 @@ async function removeRule(id: number) {
 }
 const projectName = (id: number | null) => store.projects.find((p) => p.id === id)?.name ?? '?';
 const severity = (d: string) => (d === 'allow' ? 'success' : d === 'deny' ? 'danger' : 'warn');
+
+// Validateur du mode Automatique : connexion compatible (pas d'agent externe) et modèle activé.
+const validatorProviders = computed(() => [{ label: t('permissionsSettings.validatorNone'), value: null }, ...store.providers.filter((p) => p.enabled && p.kind !== 'acp').map((p) => ({ label: p.name, value: p.id }))]);
+const validatorModels = computed(() => (store.providers.find((p) => p.id === props.draft.permissions.validatorProviderId)?.models ?? []).filter((m) => m.enabled).map((m) => ({ label: m.label, value: m.id })));
+function setValidatorProvider(id: number | null) {
+  props.draft.permissions.validatorProviderId = id;
+  props.draft.permissions.validatorModel = id === null ? null : (validatorModels.value[0]?.value ?? null);
+}
 </script>
 
 <template>
   <fieldset class="mh-field plain">
     <legend class="mh-label">{{ t('permissionsSettings.policy') }}</legend>
-    <div v-for="p in ['deny_all', 'ask', 'rules'] as const" :key="p" class="radio">
+    <div v-for="p in PERMISSION_POLICIES" :key="p" class="radio">
       <RadioButton v-model="draft.permissions.policy" :input-id="`pol-${p}`" :value="p" />
       <label :for="`pol-${p}`">
-        <strong>{{ t(`permissionsSettings.policies.${p}`) }}</strong>
+        <strong :class="{ danger: p === 'allow_all' }">{{ t(`permissionsSettings.policies.${p}`) }}</strong>
         <span class="mh-hint"> — {{ t(`permissionsSettings.policyHints.${p}`) }}</span>
       </label>
     </div>
+    <p v-if="draft.permissions.policy === 'allow_all'" class="warn-box" role="alert">{{ t('permissionsSettings.allowAllWarning') }}</p>
   </fieldset>
+
+  <h3 class="mh-section-title">{{ t('permissionsSettings.validator') }}</h3>
+  <p class="mh-hint">{{ t('permissionsSettings.validatorHint') }}</p>
+  <div class="mh-row wrap">
+    <div class="mh-field">
+      <label for="val-prov">{{ t('permissionsSettings.validatorProvider') }}</label>
+      <Select input-id="val-prov" :aria-label="t('permissionsSettings.validatorProvider')" :model-value="draft.permissions.validatorProviderId" :options="validatorProviders" option-label="label" option-value="value" :placeholder="t('permissionsSettings.validatorNone')" class="pick" @update:model-value="setValidatorProvider" />
+    </div>
+    <div v-if="draft.permissions.validatorProviderId !== null" class="mh-field">
+      <label for="val-model">{{ t('permissionsSettings.validatorModel') }}</label>
+      <Select input-id="val-model" :aria-label="t('permissionsSettings.validatorModel')" v-model="draft.permissions.validatorModel" :options="validatorModels" option-label="label" option-value="value" class="pick" />
+    </div>
+  </div>
+  <p v-if="draft.permissions.policy === 'auto' && (!draft.permissions.validatorProviderId || !draft.permissions.validatorModel)" class="mh-hint warn">{{ t('permissionsSettings.validatorMissing') }}</p>
 
   <div class="mh-row between">
     <h3 class="mh-section-title">{{ t('permissionsSettings.rules') }}</h3>
@@ -100,6 +123,27 @@ const severity = (d: string) => (d === 'allow' ? 'success' : d === 'deny' ? 'dan
 </template>
 
 <style scoped>
+.danger {
+  color: var(--mh-warning);
+}
+.warn-box {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--mh-warning) 50%, transparent);
+  border-radius: var(--mh-radius-sm);
+  background: color-mix(in srgb, var(--mh-warning) 12%, transparent);
+  color: var(--mh-warning);
+}
+.warn {
+  color: var(--mh-warning);
+}
+.wrap {
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.pick {
+  min-width: 240px;
+}
 .plain {
   border: 0;
   padding: 0;

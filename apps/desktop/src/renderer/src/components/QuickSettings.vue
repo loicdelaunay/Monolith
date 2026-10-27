@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Popover from 'primevue/popover';
 import ToggleSwitch from 'primevue/toggleswitch';
 import { useToast } from 'primevue/usetoast';
-import { DEFAULT_SETTINGS, type Conversation, type PermissionPolicy, type SettingsPatch, type SkillInfo } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, PERMISSION_POLICIES, type Conversation, type SettingsPatch, type SkillInfo } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
 import { store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
@@ -39,8 +39,14 @@ async function save(patch: SettingsPatch) {
     fail(e);
   }
 }
-const POLICIES: PermissionPolicy[] = ['rules', 'ask', 'deny_all'];
+const POLICY_ICONS = { deny_all: 'pi-ban', ask: 'pi-question-circle', rules: 'pi-list-check', auto: 'pi-shield', allow_all: 'pi-unlock' } as const;
 const policy = computed(() => store.settings?.permissions.policy ?? 'rules');
+const validatorMissing = computed(() => policy.value === 'auto' && (!store.settings?.permissions.validatorProviderId || !store.settings?.permissions.validatorModel));
+function permissionSettings() {
+  pop.value?.hide();
+  uiState.settingsSection = 'permissions';
+  uiState.settingsOpen = true;
+}
 
 const skills = ref<SkillInfo[]>([]);
 const skillName = (id: string) => (te(`skills.names.${id}`) ? t(`skills.names.${id}`) : id);
@@ -64,8 +70,9 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
 </script>
 
 <template>
-  <button type="button" class="round-btn" :aria-label="summary" aria-haspopup="dialog" v-tooltip.top="summary" @click="open">
+  <button type="button" class="round-btn" :class="{ risky: policy === 'allow_all' }" :aria-label="summary" aria-haspopup="dialog" v-tooltip.top="summary" @click="open">
     <i class="pi pi-sliders-h" />
+    <span v-if="policy === 'allow_all'" class="badge" aria-hidden="true" />
   </button>
   <Popover ref="pop">
     <div class="qs" role="dialog" :aria-label="t('composer.quick.title')">
@@ -85,12 +92,18 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
         </section>
         <section>
           <h4>{{ t('composer.quick.permissions') }} <span class="mh-hint">{{ t('composer.quick.global') }}</span></h4>
-          <div class="segmented" role="radiogroup" :aria-label="t('composer.quick.permissions')">
-            <button v-for="p in POLICIES" :key="p" type="button" role="radio" :aria-checked="p === policy" :class="{ active: p === policy }" :title="t(`permissionsSettings.policyHints.${p}`)" @click="save({ permissions: { policy: p } })">
-              {{ t(`permissionsSettings.policies.${p}`) }}
+          <div class="options compact" role="radiogroup" :aria-label="t('composer.quick.permissions')">
+            <button v-for="p in PERMISSION_POLICIES" :key="p" type="button" class="opt" role="radio" :aria-checked="p === policy" :class="{ active: p === policy, danger: p === 'allow_all' }" :title="t(`permissionsSettings.policyHints.${p}`)" @click="save({ permissions: { policy: p } })">
+              <i class="pi" :class="POLICY_ICONS[p]" />
+              <span>{{ t(`permissionsSettings.policies.${p}`) }}</span>
+              <i v-if="p === policy" class="pi pi-check check" />
             </button>
           </div>
-          <p class="mh-hint hint">{{ t(`permissionsSettings.policyHints.${policy}`) }}</p>
+          <p class="mh-hint hint" :class="{ warn: policy === 'allow_all' }">{{ policy === 'allow_all' ? t('permissionsSettings.allowAllWarning') : t(`permissionsSettings.policyHints.${policy}`) }}</p>
+          <p v-if="validatorMissing" class="hint warn">
+            {{ t('permissionsSettings.validatorMissing') }}
+            <button type="button" class="link" @click="permissionSettings">{{ t('permissionsSettings.validatorSettings') }}</button>
+          </p>
         </section>
       </div>
       <section class="col skills">
@@ -124,6 +137,45 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
 }
 .round-btn:hover {
   background: var(--mh-hover);
+}
+.round-btn {
+  position: relative;
+}
+/* Autoriser tout : signalé en orange, comme dans la v1. */
+.round-btn.risky {
+  color: var(--mh-warning);
+}
+.badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mh-warning);
+}
+.options.compact .opt {
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.opt.danger,
+.opt.danger .pi {
+  color: var(--mh-warning);
+}
+.opt.danger.active {
+  background: color-mix(in srgb, var(--mh-warning) 16%, transparent);
+}
+.warn {
+  color: var(--mh-warning);
+}
+.link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--mh-accent);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
 }
 .qs {
   display: grid;

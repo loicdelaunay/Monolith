@@ -2,6 +2,15 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.14 — 2026-10-28
+
+Autorisations : modes Automatique et Autoriser tout (comme la v1).
+
+- **Automatique** : chaque action qui n'est pas une simple lecture est analysée par un modèle validateur choisi dans Réglages › Autorisations. Un risque faible est accepté ; un risque moyen ou élevé, une réponse invalide, un délai dépassé ou l'absence de validateur demandent votre accord. Les accords enregistrés ne dispensent pas de l'analyse ; la consommation du validateur apparaît dans les statistiques.
+- **⚠ Autoriser tout** : les actions sont acceptées sans analyse ; ce choix est signalé en orange sur l'icône des réglages rapides.
+- Dans les deux modes, les règles Refuser et Demander s'appliquent toujours.
+- Les cinq politiques sont proposées dans Réglages › Autorisations et dans les réglages rapides de la zone de saisie.
+
 ## 3.0.0-alpha.13 — 2026-10-27
 
 Barre de saisie allégée.
