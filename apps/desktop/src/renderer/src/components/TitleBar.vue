@@ -5,6 +5,7 @@ import { APP_VERSION } from '@monolith/contracts';
 import { activeConversation, store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
 import logo from '../assets/logo.png';
+import { brand } from '../lib/brand.ts';
 
 defineEmits<{ 'open-settings': [] }>();
 const { t } = useI18n();
@@ -14,6 +15,8 @@ const projectName = computed(() => {
   if (!c) return null;
   return c.projectId === null ? t('sidebar.personal') : (store.projects.find((p) => p.id === c.projectId)?.name ?? null);
 });
+const brandName = computed(() => brand.value.name);
+const brandLogo = computed(() => brand.value.logo ?? logo);
 </script>
 
 <template>
@@ -23,8 +26,8 @@ const projectName = computed(() => {
   -->
   <header class="mh-titlebar">
     <div class="identity">
-      <img :src="logo" alt="" width="18" height="18" />
-      <span class="name">Monolith Harness</span>
+      <img :src="brandLogo" alt="" height="18" class="logo" />
+      <span class="name">{{ brandName }}</span>
     </div>
     <div class="context" aria-live="polite">
       <template v-if="activeConversation">

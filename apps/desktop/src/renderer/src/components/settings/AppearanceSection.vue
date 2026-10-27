@@ -5,9 +5,26 @@ import SelectButton from 'primevue/selectbutton';
 import Slider from 'primevue/slider';
 import Tag from 'primevue/tag';
 import type { Settings } from '@monolith/contracts';
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+import { useToast } from 'primevue/usetoast';
 import { FONT_CHOICES, MONO_CHOICES, THEMES, findTheme } from '../../theme/themes.ts';
 
 const props = defineProps<{ draft: Settings }>();
+const toast = useToast();
+const backgrounds = ['none', 'gradient', 'aurora', 'particles'] as const;
+function pickLogo(key: 'logoLight' | 'logoDark', e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
+  if (!file) return;
+  if (file.size > 256 * 1024 || !/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) {
+    toast.add({ severity: 'warn', summary: t('settings.appearanceExtra.logoHint'), life: 4000 });
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => (props.draft.appearance[key] = String(reader.result));
+  reader.readAsDataURL(file);
+}
 const { t, locale } = useI18n();
 
 const modes = ['system', 'light', 'dark'] as const;
@@ -112,9 +129,60 @@ function setColor(key: 'accent' | BubbleKey, e: Event) {
     <SelectButton v-model="draft.appearance.titleBar" :options="[...titleBars]" :option-label="(m: string) => t(`settings.appearance.titleBars.${m}`)" :allow-empty="false" :aria-label="t('settings.appearance.titleBar')" />
     <Tag severity="secondary" icon="pi pi-replay" :value="t('settings.appearance.restartRequired')" />
   </div>
+
+  <h3 class="mh-section-title">{{ t('settings.appearanceExtra.branding') }}</h3>
+  <div class="mh-field">
+    <label for="app-name">{{ t('settings.appearanceExtra.appName') }}</label>
+    <InputText id="app-name" v-model="draft.appearance.appName" maxlength="40" placeholder="Monolith Harness" />
+  </div>
+  <div class="mh-row wrap logos">
+    <div v-for="k in (['logoLight', 'logoDark'] as const)" :key="k" class="logo-box" :class="k">
+      <span class="mh-label">{{ t(`settings.appearanceExtra.${k}`) }}</span>
+      <img v-if="draft.appearance[k]" :src="draft.appearance[k]!" alt="" />
+      <div class="mh-row">
+        <label class="p-button p-button-sm p-button-secondary p-button-outlined pick">{{ t('settings.appearanceExtra.chooseLogo') }}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden @change="pickLogo(k, $event)" /></label>
+        <Button v-if="draft.appearance[k]" :label="t('settings.appearanceExtra.removeLogo')" size="small" text @click="draft.appearance[k] = null" />
+      </div>
+    </div>
+  </div>
+  <p class="mh-hint">{{ t('settings.appearanceExtra.logoHint') }}</p>
+  <div class="mh-field">
+    <label for="app-bg">{{ t('settings.appearanceExtra.background') }}</label>
+    <Select input-id="app-bg" v-model="draft.appearance.backgroundAnimation" :options="backgrounds.map((v) => ({ value: v, label: t(`settings.appearanceExtra.backgrounds.${v}`) }))" option-label="label" option-value="value" />
+    <p class="mh-hint">{{ t('settings.appearanceExtra.backgroundHint') }}</p>
+  </div>
 </template>
 
 <style scoped>
+.logos {
+  gap: 16px;
+}
+.logo-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius);
+  min-width: 220px;
+}
+.logo-box.logoLight {
+  background: #f7f7f8;
+  color: #1b1b1f;
+}
+.logo-box.logoDark {
+  background: #111214;
+  color: #e6e6e8;
+}
+.logo-box img {
+  max-height: 48px;
+  max-width: 160px;
+  object-fit: contain;
+}
+.pick {
+  cursor: pointer;
+}
+
 .preview {
   display: flex;
   align-items: center;

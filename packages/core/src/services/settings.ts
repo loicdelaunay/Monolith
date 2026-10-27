@@ -1,3 +1,4 @@
+import { checkProxy } from '../tools/web-http.ts';
 import { DEFAULT_SETTINGS, HarnessError, SETTINGS_BOUNDS, type Settings, type SettingsPatch, type SettingsSection, sanitizeShortcuts, type SubagentPreset } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
@@ -84,6 +85,13 @@ export class SettingsService {
       // Listes structurées : validées élément par élément.
       if (section === 'shortcuts' && key === 'items') v = sanitizeShortcuts(value);
       if (section === 'subagents' && key === 'presets') v = sanitizePresets(value);
+      if (section === 'appearance' && (key === 'logoLight' || key === 'logoDark') && value !== null && !(typeof value === 'string' && /^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(value) && value.length <= 360_000)) continue;
+      if (section === 'appearance' && key === 'appName' && typeof value === 'string') v = value.trim().slice(0, 40);
+      if (section === 'web' && key === 'searchProvider' && !['duckduckgo', 'searxng', 'none'].includes(String(value))) continue;
+      if (section === 'web' && key === 'httpResponseMode' && !['smart', 'legacy'].includes(String(value))) continue;
+      if (section === 'web' && key === 'httpProxyUrl' && typeof value === 'string') v = checkProxy(value);
+      if (section === 'web' && key === 'httpUserAgent' && typeof value === 'string') v = value.replace(/[\r\n]/g, '').slice(0, 300);
+      if (section === 'appearance' && key === 'backgroundAnimation' && !['none', 'gradient', 'aurora', 'particles'].includes(String(value))) continue;
       if (section === 'subagents' && key === 'mode' && !['auto', 'forced', 'off'].includes(String(value))) continue;
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));

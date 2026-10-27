@@ -16,6 +16,7 @@ import type { Conversation, Id, Project, SearchHit } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
 import { activeConversation, conversationsIn, openConversation, store } from '../stores/app.ts';
 import { chatActions } from '../lib/chat-actions.ts';
+import NotificationsBell from './NotificationsBell.vue';
 import { uiState, type SettingsSectionId } from '../ui-state.ts';
 
 const emit = defineEmits<{ 'open-settings': [section?: SettingsSectionId] }>();
@@ -245,6 +246,7 @@ const STUDIO_TOOLS = [
   { id: 'assets', icon: 'pi-palette' },
   { id: 'benchmark', icon: 'pi-gauge' },
   { id: 'detect', icon: 'pi-search' },
+  { id: 'dashboard', icon: 'pi-chart-bar' },
 ] as const;
 function openStudio(tab: (typeof STUDIO_TOOLS)[number]['id']) {
   tools.value?.hide();
@@ -368,6 +370,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
         <i class="pi pi-cog" />
         <span>{{ t('sidebar.settings') }}</span>
       </button>
+      <NotificationsBell />
       <button type="button" class="mh-icon-btn" :aria-label="t('sidebar.tools')" v-tooltip.top="t('sidebar.tools')" @click="tools?.toggle($event)"><i class="pi pi-th-large" /></button>
       <button type="button" class="mh-icon-btn" :class="{ active: showArchived }" :aria-pressed="showArchived" :aria-label="showArchived ? t('sidebar.hideArchived') : t('sidebar.showArchived')" v-tooltip.top="showArchived ? t('sidebar.hideArchived') : t('sidebar.showArchived')" @click="api.call('settings.update', { layout: { showArchived: !showArchived } })"><i class="pi pi-inbox" /></button>
     </div>

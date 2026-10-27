@@ -11,3 +11,4 @@ export * from './rpc-client.ts';
 export * from './shortcuts.ts';
 export * from './knowledge.ts';
 export * from './studio.ts';
+export * from './ops.ts';

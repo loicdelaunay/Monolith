@@ -13,6 +13,7 @@ export type SettingsSectionId =
   | 'permissions'
   | 'loop'
   | 'shortcuts'
+  | 'scheduler'
   | 'notifications'
   | 'server'
   | 'advanced'
@@ -30,7 +31,7 @@ export const uiState = reactive({
   changelogOpen: false,
   projectDialog: { open: false, projectId: null as Id | null, focus: 'general' as 'general' | 'instructions' },
   /** Atelier des outils dédiés. */
-  studio: { open: false, tab: 'text' as 'text' | 'images' | 'assets' | 'benchmark' | 'detect' },
+  studio: { open: false, tab: 'text' as 'text' | 'images' | 'assets' | 'benchmark' | 'detect' | 'dashboard' },
   /** Fichier affiché dans l'onglet Aperçu du panneau de travail. */
   preview: null as { conversationId: Id; path: string; line: number | null } | null,
 });

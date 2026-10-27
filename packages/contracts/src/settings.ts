@@ -64,6 +64,12 @@ export interface Settings {
     toolBubble: string | null;
     /** Barre de titre personnalisée ; `system` force le cadre natif. */
     titleBar: 'custom' | 'system';
+    /** Nom et logos affichés (vides : Monolith Harness). Logos : images data: ≤ 256 Ko. */
+    appName: string;
+    logoLight: string | null;
+    logoDark: string | null;
+    /** Animation de fond (désactivée par défaut ; respecte la réduction des animations du système). */
+    backgroundAnimation: 'none' | 'gradient' | 'aurora' | 'particles';
   };
   network: {
     retryMaxAttempts: number;
@@ -109,6 +115,23 @@ export interface Settings {
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
   };
+  notifications: {
+    /** Notifications système (centre de notifications du système). */
+    system: boolean;
+    sound: boolean;
+    /** Fin de génération dans une conversation qui n'est pas affichée (ou fenêtre inactive). */
+    onGeneration: boolean;
+    onScheduled: boolean;
+    onError: boolean;
+  };
+  maintenance: {
+    /** Archiver les conversations inactives depuis N jours (0 : jamais). */
+    autoArchiveDays: number;
+    /** Supprimer les conversations archivées depuis N jours (0 : jamais). */
+    autoDeleteArchivedDays: number;
+    /** Supprimer les pièces jointes qui ne sont plus référencées. */
+    cleanAttachments: boolean;
+  };
   studio: {
     /** Connexion et modèle des outils dédiés (null : modèle par défaut du chat). */
     providerId: Id | null;
@@ -140,9 +163,18 @@ export interface Settings {
     forcedWrite: boolean;
   };
   web: {
-    searchProvider: 'duckduckgo' | 'searxng';
+    /** none : pas de moteur, l'agent n'utilise que le client HTTP intégré (comme la v1). */
+    searchProvider: 'duckduckgo' | 'searxng' | 'none';
     searxngUrl: string;
     maxPageChars: number;
+    /** Client HTTP intégré : réglages par défaut (modifiables par conversation avec web_http_configure). */
+    httpUserAgent: string;
+    httpProxyUrl: string;
+    httpUseCookies: boolean;
+    httpFollowRedirects: boolean;
+    httpTimeoutSec: number;
+    httpResponseMode: 'smart' | 'legacy';
+    httpMaxResponseKb: number;
   };
   rag: {
     /** Connexion et modèle d'embeddings (compatibles OpenAI) ; null : recherche lexicale seule. */
@@ -205,6 +237,10 @@ export const DEFAULT_SETTINGS: Settings = {
     assistantBubble: null,
     toolBubble: null,
     titleBar: 'custom',
+    appName: '',
+    logoLight: null,
+    logoDark: null,
+    backgroundAnimation: 'none',
   },
   network: {
     retryMaxAttempts: 3,
@@ -266,6 +302,18 @@ export const DEFAULT_SETTINGS: Settings = {
     htmlPreview: true,
     fileBadges: true,
   },
+  notifications: {
+    system: false,
+    sound: false,
+    onGeneration: true,
+    onScheduled: true,
+    onError: true,
+  },
+  maintenance: {
+    autoArchiveDays: 0,
+    autoDeleteArchivedDays: 0,
+    cleanAttachments: true,
+  },
   studio: {
     providerId: null,
     model: null,
@@ -298,6 +346,13 @@ export const DEFAULT_SETTINGS: Settings = {
     searchProvider: 'duckduckgo',
     searxngUrl: '',
     maxPageChars: 40_000,
+    httpUserAgent: 'Mozilla/5.0 (compatible; MonolithHarness/3)',
+    httpProxyUrl: '',
+    httpUseCookies: false,
+    httpFollowRedirects: true,
+    httpTimeoutSec: 30,
+    httpResponseMode: 'smart',
+    httpMaxResponseKb: 1024,
   },
   rag: {
     embeddingProviderId: null,
@@ -342,12 +397,16 @@ export const SETTINGS_BOUNDS = {
   'loop.threshold': [2, 20],
   'loop.window': [3, 100],
   'memory.forcedReadCount': [1, 100],
+  'maintenance.autoArchiveDays': [0, 3650],
+  'maintenance.autoDeleteArchivedDays': [0, 3650],
   'subagents.maxDepth': [1, 3],
   'subagents.maxParallel': [1, 8],
   'subagents.maxRounds': [1, 200],
   'subagents.maxOutputTokens': [1000, 1_000_000],
   'subagents.timeoutSec': [30, 7200],
   'web.maxPageChars': [2000, 200_000],
+  'web.httpTimeoutSec': [5, 300],
+  'web.httpMaxResponseKb': [16, 4096],
   'rag.chunkLines': [10, 400],
   'rag.topK': [1, 50],
 } as const satisfies Record<string, readonly [number, number]>;

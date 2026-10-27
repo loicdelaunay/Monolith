@@ -11,6 +11,7 @@ import { activeConversation, initStore, store } from './stores/app.ts';
 import { applyAppearance } from './theme/themes.ts';
 import { setCodeTheme, setRenderOptions } from './lib/markdown.ts';
 import WorkPanel from './components/panel/WorkPanel.vue';
+import { brand } from './lib/brand.ts';
 import StudioDialog from './components/studio/StudioDialog.vue';
 import { uiState, type SettingsSectionId } from './ui-state.ts';
 import TitleBar from './components/TitleBar.vue';
@@ -52,6 +53,7 @@ watch(
 );
 
 const customTitleBar = computed(() => store.renderer?.customTitleBar ?? false);
+watch(() => brand.value.name, (name) => (document.title = name), { immediate: true });
 const layout = computed(() => store.settings?.layout);
 watch(() => store.settings?.render, (r) => r && setRenderOptions({ ...r }), { deep: true, immediate: true });
 
@@ -124,6 +126,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="mh-app" :class="{ 'custom-titlebar': customTitleBar }">
+    <div v-if="appearance && appearance.backgroundAnimation !== 'none'" class="mh-bg-anim" :class="`anim-${appearance.backgroundAnimation}`" aria-hidden="true">
+      <span v-for="i in appearance.backgroundAnimation === 'particles' ? 18 : 0" :key="i" class="dot" :style="{ left: `${(i * 53) % 100}%`, animationDelay: `${-(i * 1.7) % 14}s`, animationDuration: `${12 + (i % 5) * 3}s` }" />
+    </div>
     <TitleBar v-if="customTitleBar" @open-settings="openSettings()" />
     <div v-if="!store.ready" class="mh-boot" role="status" aria-live="polite">
       <template v-if="store.fatal">
@@ -154,6 +159,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .mh-app {
+  position: relative;
+  isolation: isolate;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -177,5 +184,79 @@ onBeforeUnmount(() => {
 .mh-boot .pi {
   font-size: 28px;
   color: var(--mh-danger);
+}
+.mh-bg-anim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.anim-gradient {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--mh-accent) 10%, var(--mh-bg)), var(--mh-bg), color-mix(in srgb, var(--mh-accent) 6%, var(--mh-bg)));
+  background-size: 300% 300%;
+  animation: mh-gradient 30s ease-in-out infinite;
+}
+.anim-aurora::before,
+.anim-aurora::after {
+  content: '';
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.14;
+  background: var(--mh-accent);
+  animation: mh-drift 40s ease-in-out infinite alternate;
+}
+.anim-aurora::after {
+  background: #2fb3a0;
+  right: -20vmax;
+  bottom: -20vmax;
+  animation-duration: 55s;
+}
+.dot {
+  position: absolute;
+  bottom: -10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mh-accent) 50%, transparent);
+  animation: mh-rise linear infinite;
+}
+@keyframes mh-gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes mh-drift {
+  from {
+    transform: translate(-10vmax, -10vmax);
+  }
+  to {
+    transform: translate(30vmax, 20vmax);
+  }
+}
+@keyframes mh-rise {
+  from {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(-105vh);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mh-bg-anim {
+    display: none;
+  }
 }
 </style>

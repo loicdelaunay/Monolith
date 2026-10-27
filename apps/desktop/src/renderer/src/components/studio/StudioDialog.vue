@@ -20,11 +20,12 @@ import { previewUrl } from '../../lib/attachments.ts';
 import DiffView from '../tools/DiffView.vue';
 import TargetPicker from './TargetPicker.vue';
 import AssetsView from './AssetsView.vue';
+import DashboardView from './DashboardView.vue';
 
 const { t } = useI18n();
 const toast = useToast();
 const fail = (e: unknown) => toast.add({ severity: 'error', summary: errorMessage(e), life: 8000 });
-const TABS = ['text', 'images', 'assets', 'benchmark', 'detect'] as const;
+const TABS = ['text', 'images', 'assets', 'benchmark', 'detect', 'dashboard'] as const;
 const studio = computed(() => store.settings!.studio);
 const saveStudio = (patch: Partial<typeof studio.value>) => api.call('settings.update', { studio: patch }).catch(fail);
 
@@ -173,6 +174,7 @@ const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${Math.round
       </template>
 
       <AssetsView v-else-if="uiState.studio.tab === 'assets'" />
+      <DashboardView v-else-if="uiState.studio.tab === 'dashboard'" />
 
       <!-- Benchmark -->
       <template v-else-if="uiState.studio.tab === 'benchmark'">

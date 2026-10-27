@@ -382,6 +382,48 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 7,
+    name: 'scheduler-notifications',
+    sql: /* sql */ `
+      CREATE TABLE scheduled_tasks (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        cron TEXT NOT NULL,
+        timezone TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+        conversation_id INTEGER REFERENCES conversations(id) ON DELETE SET NULL,
+        mode TEXT NOT NULL DEFAULT 'chat',
+        agent_mode TEXT NOT NULL DEFAULT 'plan',
+        provider_id INTEGER REFERENCES providers(id) ON DELETE SET NULL,
+        model TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_run_at TEXT,
+        next_run_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE scheduled_runs (
+        id INTEGER PRIMARY KEY,
+        task_id INTEGER NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        status TEXT NOT NULL,
+        conversation_id INTEGER,
+        error TEXT
+      );
+      CREATE INDEX scheduled_runs_task ON scheduled_runs(task_id, id);
+      CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY,
+        time TEXT NOT NULL,
+        level TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        conversation_id INTEGER,
+        read INTEGER NOT NULL DEFAULT 0
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

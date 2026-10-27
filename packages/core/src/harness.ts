@@ -47,9 +47,14 @@ import { SandboxService } from './orchestration/sandbox.ts';
 import { StudioService } from './services/studio.ts';
 import { AssetService } from './services/assets.ts';
 import { studioTools } from './tools/studio.ts';
+import { applyPendingRestore, BackupService, DashboardService, MaintenanceService, NotificationService } from './services/ops.ts';
+import { SchedulerService } from './services/scheduler.ts';
+import { redactValue } from './security/redact.ts';
+import { readdirSync as readDir, statSync as statOf } from 'node:fs';
 import { memoryTools } from './tools/memory.ts';
 import { FILE_INDEX_TOOLS } from './tools/file-index.ts';
-import { WEB_TOOLS } from './tools/web.ts';
+import { webSearchTool } from './tools/web.ts';
+import { WebHttpClient, webHttpTools } from './tools/web-http.ts';
 import { discoverSkills, PYTHON_TOOLS, ragTools, skillTools } from './tools/knowledge.ts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
@@ -115,6 +120,14 @@ export class Harness {
   readonly subagents: SubagentService;
   readonly sandbox: SandboxService;
   readonly studio: StudioService;
+  readonly webHttp: WebHttpClient;
+  readonly backups: BackupService;
+  readonly dashboard: DashboardService;
+  readonly notifications: NotificationService;
+  readonly scheduler: SchedulerService;
+  readonly maintenance: MaintenanceService;
+  private maintenanceTimer: NodeJS.Timeout | null = null;
+  private cpuSample = { at: Date.now(), usage: process.cpuUsage() };
   readonly assets: AssetService;
   hostBridge: HostBridge | null;
   readonly generation: GenerationRunner;
@@ -129,7 +142,10 @@ export class Harness {
     this.logger = options.logger ?? new FileLogger({ dir: this.layout.logs, console: options.logToConsole ?? false });
     this.logger.info('app', 'Démarrage du moteur', { host: options.host, version: APP_VERSION, dataDir: this.dataDir.dir, source: this.dataDir.source });
 
+    // Restauration demandée lors de la session précédente : appliquée avant l'ouverture de la base.
+    const restored = applyPendingRestore(this.layout.database, this.layout.backups);
     this.db = Database.open({ path: this.layout.database, backupDir: this.layout.backups, logger: this.logger });
+    if (restored) this.logger.info('app', 'Sauvegarde restaurée', { name: restored });
     this.secrets = new SecretStore({
       db: this.db,
       keysDir: this.layout.keys,
@@ -178,13 +194,15 @@ export class Harness {
       ),
       ...memoryTools(() => this.memory),
       ...FILE_INDEX_TOOLS,
-      ...WEB_TOOLS,
+      webSearchTool(() => this.webHttp),
+      ...webHttpTools(() => this.webHttp),
       ...ragTools(() => this.rag),
       ...skillTools(this.layout.skills),
       ...PYTHON_TOOLS,
       delegateTool(() => this.subagents, () => this.settings.get().subagents.presets),
       ...studioTools(() => this.studio, () => this.assets, () => this.attachments),
     ]);
+    this.webHttp = new WebHttpClient(join(this.layout.workspace, 'web'));
     this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
     this.assets = new AssetService(join(this.layout.workspace, 'assets'), this.events);
     this.memory = new MemoryService(this.db, this.events);
@@ -231,6 +249,34 @@ export class Harness {
       worktreesDir: join(this.layout.workspace, 'worktrees'),
       logger: this.logger,
     });
+    this.backups = new BackupService(this.db, this.layout.backups);
+    this.dashboard = new DashboardService(this.db);
+    this.notifications = new NotificationService(this.db, this.events);
+    this.scheduler = new SchedulerService({ db: this.db, events: this.events, conversations: this.conversations, generation: () => this.generation, notifications: this.notifications, notify: () => this.settings.get().notifications.onScheduled, logger: this.logger });
+    this.maintenance = new MaintenanceService({
+      db: this.db,
+      settings: () => this.settings.get(),
+      attachmentsDir: this.layout.attachments,
+      isGenerating: (id) => this.generation.isActive(id),
+      deleteConversation: (id) => this.conversations.delete(id),
+      archiveConversation: (id) => this.conversations.update(id, { archived: true }),
+    });
+    if (!this.db.info.readOnly) {
+      this.scheduler.start();
+      // Maintenance : peu après le démarrage, puis une fois par jour.
+      const runMaintenance = () => {
+        try {
+          const r = this.maintenance.run();
+          if (r.archived || r.deleted || r.attachments) this.logger.info('maintenance', 'Maintenance automatique', r);
+        } catch (e) {
+          this.logger.warn('maintenance', 'Maintenance en échec', { error: (e as Error).message });
+        }
+      };
+      const first = setTimeout(runMaintenance, 60_000);
+      first.unref?.();
+      this.maintenanceTimer = setInterval(runMaintenance, 86_400_000);
+      this.maintenanceTimer.unref?.();
+    }
     this.history = new HistoryService({
       db: this.db,
       events: this.events,
@@ -288,6 +334,8 @@ export class Harness {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.scheduler.stop();
+    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
     this.generation.cancelAll();
     this.terminals.killAll();
     for (const c of this.testControllers) c.abort();
@@ -295,6 +343,7 @@ export class Harness {
     // Processus d'agents externes (ACP) et serveurs MCP arrêtés avec le moteur.
     for (const a of this.adapters.values()) await a.dispose?.();
     await this.mcp.dispose();
+    await this.webHttp.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
   }
@@ -335,6 +384,37 @@ export class Harness {
     }
     await this.generation.send(target, { text: action.instructions, mode: 'queue' });
     return { conversationId: target };
+  }
+
+  /** Diagnostics : moteur (mémoire, CPU), stockage, protection des secrets, journaux récents (expurgés). */
+  private async diagnostics() {
+    const dirSize = (dir: string, depth = 0): number => {
+      let total = 0;
+      try {
+        for (const name of readDir(dir)) {
+          const st = statOf(`${dir}/${name}`, { throwIfNoEntry: false });
+          if (!st) continue;
+          total += st.isDirectory() ? (depth < 6 ? dirSize(`${dir}/${name}`, depth + 1) : 0) : st.size;
+        }
+      } catch {
+        /* dossier absent */
+      }
+      return total;
+    };
+    const mb = (n: number) => Math.round((n / 1048576) * 10) / 10;
+    const fileSize = (p: string) => statOf(p, { throwIfNoEntry: false })?.size ?? 0;
+    const usage = process.cpuUsage(this.cpuSample.usage);
+    const elapsed = Math.max(1, Date.now() - this.cpuSample.at);
+    this.cpuSample = { at: Date.now(), usage: process.cpuUsage() };
+    const mem = process.memoryUsage();
+    const secrets = await this.secrets.info();
+    return {
+      app: { version: APP_VERSION, platform: process.platform, arch: process.arch, node: process.versions.node, dataDir: this.dataDir.dir, portable: this.dataDir.portable, schemaVersion: this.db.info.schemaVersion, readOnly: this.db.info.readOnly },
+      engine: { rssMb: mb(mem.rss), heapUsedMb: mb(mem.heapUsed), cpuPercent: Math.round(((usage.user + usage.system) / 1000 / elapsed) * 1000) / 10, uptimeSec: Math.round(process.uptime()) },
+      storage: { databaseMb: mb(fileSize(this.layout.database) + fileSize(`${this.layout.database}-wal`)), attachmentsMb: mb(dirSize(this.layout.attachments)), workspaceMb: mb(dirSize(this.layout.workspace)), logsMb: mb(dirSize(this.layout.logs)), backupsMb: mb(dirSize(this.layout.backups)) },
+      secrets: JSON.stringify(secrets),
+      logs: this.logger instanceof FileLogger ? this.logger.recent(200).map((e) => ({ time: e.time, level: e.level, category: e.category, message: e.message })) : [],
+    };
   }
 
   /** Premier dépôt Git parmi les racines de la conversation. */
@@ -605,6 +685,35 @@ export class Harness {
         const r = this.assets.png(String(p.name), p.scale ?? 8, p.frame ?? 0);
         return { dataBase64: r.png.toString('base64'), width: r.width, height: r.height };
       },
+
+      'backup.list': () => this.backups.list(),
+      'backup.create': () => this.backups.create(),
+      'backup.restore': (p) => this.backups.restore(String(p.name)),
+      'backup.delete': (p) => this.backups.delete(String(p.name)),
+      'backup.path': (p) => this.backups.path(String(p.name)),
+
+      'dashboard.data': (p) => this.dashboard.data(p ?? {}),
+      'dashboard.csv': (p) => this.dashboard.csv(p ?? {}),
+
+      'diagnostics.info': () => this.diagnostics(),
+      'diagnostics.export': async (p) => {
+        const info = await this.diagnostics();
+        return JSON.stringify(redactValue({ generatedAt: new Date().toISOString(), ...info, host: p?.extra ?? null }), null, 2);
+      },
+
+      'scheduler.list': () => this.scheduler.list(),
+      'scheduler.save': (p) => this.scheduler.save(p),
+      'scheduler.delete': (p) => this.scheduler.delete(p.id),
+      'scheduler.runNow': (p) => this.scheduler.run(p.id),
+      'scheduler.history': (p) => this.scheduler.history(p?.taskId, p?.limit),
+      'scheduler.preview': (p) => this.scheduler.preview(String(p.cron ?? ''), String(p.timezone ?? 'UTC'), p.count),
+
+      'notifications.list': (p) => this.notifications.list(p?.limit),
+      'notifications.markRead': (p) => this.notifications.markRead(p?.ids),
+      'notifications.clear': () => this.notifications.clear(),
+      'notifications.add': (p) => this.notifications.add(['info', 'success', 'warning', 'error'].includes(p.level) ? p.level : 'info', String(p.title ?? ''), String(p.body ?? ''), p.conversationId ?? null),
+
+      'maintenance.run': () => this.maintenance.run(),
 
       'git.run': async (p) => {
         const root = await this.requireGitRoot(p.conversationId);

@@ -32,6 +32,24 @@ export interface BrowserStateInfo {
 
 export type BrowserCommand = 'new' | 'navigate' | 'back' | 'forward' | 'reload' | 'stop' | 'select' | 'close' | 'mobile' | 'devtools' | 'external' | 'clearData';
 
+export interface LaunchSettingsInfo {
+  hardwareAcceleration: boolean;
+  angle: 'default' | 'd3d11' | 'd3d9' | 'gl' | 'vulkan' | 'swiftshader';
+  vsync: boolean;
+}
+
+export interface GpuInfo {
+  hardwareAcceleration: boolean;
+  angle: string;
+  vsyncDisabled: boolean;
+  featureStatus: Record<string, string>;
+  devices: { vendorId?: number; deviceId?: number; active?: boolean }[];
+  glRenderer: string | null;
+  displayHz: number;
+  scaleFactor: number;
+  versions: { electron: string; chrome: string; node: string };
+}
+
 export interface HostApi {
   info(): Promise<RendererInfo>;
   pickDirectory(title?: string): Promise<string | null>;
@@ -45,6 +63,12 @@ export interface HostApi {
   setTitleBarColors(colors: { background: string; symbols: string }): Promise<void>;
   setZoom(factor: number): void;
   relaunch(): Promise<void>;
+  /** Notification du système (centre de notifications). */
+  notify(title: string, body: string, silent?: boolean): Promise<boolean>;
+  /** Réglages de rendu (lus au prochain démarrage) et valeurs appliquées au démarrage courant. */
+  launch(value?: LaunchSettingsInfo): Promise<{ saved: LaunchSettingsInfo; applied: LaunchSettingsInfo } | null>;
+  gpuInfo(): Promise<GpuInfo | null>;
+  metrics(): Promise<{ pid: number; type: string; name: string; cpu: number; memoryMb: number }[]>;
   browser: {
     /** Position du panneau en pixels de fenêtre ; null masque la vue. */
     setBounds(bounds: { x: number; y: number; width: number; height: number } | null): void;

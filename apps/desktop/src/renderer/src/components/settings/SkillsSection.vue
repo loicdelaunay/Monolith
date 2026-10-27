@@ -20,7 +20,8 @@ onMounted(async () => {
 });
 const isOn = (id: string) => props.draft.skills.enabled[id] ?? DEFAULT_SETTINGS.skills.enabled[id] ?? false;
 const providerOptions = computed(() => [{ label: t('skills.config.embeddingNone'), value: null }, ...store.providers.filter((p) => p.kind === 'openai-compatible').map((p) => ({ label: p.name, value: p.id }))]);
-const searchOptions = computed(() => (['duckduckgo', 'searxng'] as const).map((v) => ({ label: t(`skills.config.providers.${v}`), value: v })));
+const searchOptions = computed(() => (['duckduckgo', 'searxng', 'none'] as const).map((v) => ({ label: t(`skills.config.providers.${v}`), value: v })));
+const modeOptions = computed(() => (['smart', 'legacy'] as const).map((v) => ({ label: t(`skills.config.httpModes.${v}`), value: v })));
 
 function setEnabled(id: string, value: boolean) {
   props.draft.skills.enabled = { ...props.draft.skills.enabled, [id]: value };
@@ -55,6 +56,41 @@ function setEnabled(id: string, value: boolean) {
       <label for="web-max">{{ t('skills.config.maxPageChars') }}</label>
       <InputNumber input-id="web-max" v-model="draft.web.maxPageChars" :min="2000" :max="200000" :step="1000" :allow-empty="false" />
     </div>
+  </div>
+
+  <h3 class="mh-section-title">{{ t('skills.config.http') }}</h3>
+  <p class="mh-hint">{{ t('skills.config.httpHint') }}</p>
+  <div class="mh-row wrap">
+    <div class="mh-field grow">
+      <label for="http-ua">{{ t('skills.config.httpUserAgent') }}</label>
+      <InputText id="http-ua" v-model="draft.web.httpUserAgent" fluid />
+    </div>
+    <div class="mh-field grow">
+      <label for="http-proxy">{{ t('skills.config.httpProxyUrl') }}</label>
+      <InputText id="http-proxy" v-model="draft.web.httpProxyUrl" placeholder="http://127.0.0.1:3128" fluid />
+    </div>
+  </div>
+  <div class="mh-row wrap">
+    <div class="mh-field">
+      <label for="http-mode">{{ t('skills.config.httpResponseMode') }}</label>
+      <Select input-id="http-mode" v-model="draft.web.httpResponseMode" :options="modeOptions" option-label="label" option-value="value" />
+    </div>
+    <div class="mh-field">
+      <label for="http-to">{{ t('skills.config.httpTimeoutSec') }}</label>
+      <InputNumber input-id="http-to" v-model="draft.web.httpTimeoutSec" :min="5" :max="300" :allow-empty="false" />
+    </div>
+    <div class="mh-field">
+      <label for="http-max">{{ t('skills.config.httpMaxResponseKb') }}</label>
+      <InputNumber input-id="http-max" v-model="draft.web.httpMaxResponseKb" :min="16" :max="4096" :step="64" :allow-empty="false" />
+    </div>
+  </div>
+  <div class="mh-switch-row">
+    <label for="http-cookies">{{ t('skills.config.httpUseCookies') }}</label>
+    <ToggleSwitch input-id="http-cookies" v-model="draft.web.httpUseCookies" />
+  </div>
+  <div class="mh-switch-row">
+    <label for="http-redir">{{ t('skills.config.httpFollowRedirects') }}</label>
+    <ToggleSwitch input-id="http-redir" v-model="draft.web.httpFollowRedirects" />
   </div>
 
   <h3 class="mh-section-title">{{ t('skills.config.rag') }}</h3>

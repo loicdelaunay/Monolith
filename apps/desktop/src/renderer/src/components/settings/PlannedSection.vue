@@ -9,8 +9,8 @@ const { t } = useI18n();
   <div class="mh-card planned" role="note">
     <i class="pi pi-hourglass" />
     <div>
-      <strong>{{ t('settings.planned', { tranche }) }}</strong>
-      <p class="mh-hint">{{ t('settings.plannedHint') }}</p>
+      <strong>{{ tranche === 'later' ? t('settings.plannedLater') : t('settings.planned', { tranche }) }}</strong>
+      <p class="mh-hint">{{ tranche === 'later' ? t('settings.plannedLaterHint') : t('settings.plannedHint') }}</p>
     </div>
   </div>
 </template>

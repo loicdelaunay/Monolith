@@ -2,6 +2,18 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.9 — 2026-10-27
+
+Tranche T9 : suivi, maintenance et confort. Client HTTP intégré.
+
+- **Client HTTP intégré (comme la v1)** pour la recherche web : requêtes sans navigateur, mode Smart (réponse enregistrée, plan et aperçu, puis recherche et lecture ciblées), mode Legacy, cookies, user-agent, proxy, redirections et délai réglables (Réglages › Skills › Web, et par conversation par l'agent). La recherche DuckDuckGo passe par ce client ; un réglage « aucun moteur » réserve le web au client HTTP.
+- **Tableau de bord** (menu Outils) : consommation par jour, modèle et usage, filtres, export CSV.
+- **Tâches planifiées** (Réglages) : CRON avec fuseau horaire, aperçu des prochaines échéances, exécution immédiate, historique, notification ; exécutées tant que l'application est ouverte.
+- **Notifications** : cloche (non lues, ouverture de la conversation), notifications système et son, au choix ; fin de réponse en arrière-plan, tâches planifiées, erreurs.
+- **Avancé** : accélération matérielle, moteur de rendu, synchronisation verticale (au prochain démarrage) et valeurs réellement utilisées ; diagnostics (processus, mémoire, CPU, stockage, journaux) et export expurgé ; sauvegardes et restauration ; maintenance automatique (archivage, suppression, pièces jointes orphelines).
+- **Apparence** : nom et logos personnalisés (clair/sombre), animations de fond facultatives.
+- **Serveur** : développement reporté (voir `server-todo.md`).
+
 ## 3.0.0-alpha.8 — 2026-10-27
 
 Tranche T8 : outils dédiés.

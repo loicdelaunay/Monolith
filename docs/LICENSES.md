@@ -1,6 +1,6 @@
 # Licences des dépendances
 
-Généré par `npm run licenses`. 244 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
+Généré par `npm run licenses`. 245 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
 
 | Paquet | Version | Licence | Utilisé par |
 | --- | --- | --- | --- |
@@ -234,6 +234,7 @@ Généré par `npm run licenses`. 244 paquets regroupés dans les bundles. Texte
 | ts-dedent | 2.3.0 | MIT | desktop |
 | type-fest | 5.10.0 | (MIT OR CC0-1.0) | cli |
 | uc.micro | 3.0.0 | MIT | desktop |
+| undici | 7.30.1 | MIT | desktop, cli |
 | unist-util-is | 6.0.1 | MIT | desktop |
 | unist-util-position | 5.0.0 | MIT | desktop |
 | unist-util-stringify-position | 4.0.0 | MIT | desktop |

@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T8 (3.0.0-alpha.8).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T9 (3.0.0-alpha.9).**
 
 ## 1. Fondations
 
@@ -15,7 +15,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | F-02 | Données portables à côté de l'exécutable si inscriptible | ✅ | ✅ | ⬜ | T0 | Vérifié sur le build Windows empaqueté (dossier `data/` créé à côté de l’exe). Installation NSIS → dossier utilisateur. |
 | F-03 | Emplacement de données alternatif configurable | ✅ | 🟡 | ⬜ | T0 | Desktop : Réglages › Général (effet au redémarrage, rien n’est déplacé). CLI : `--data-dir` seulement. |
 | F-04 | SQLite versionnée, migrations vérifiées (SHA-256), sauvegarde avant migration | ✅ | ✅ | ⬜ | T0 | Sommes SHA-256 vérifiées, `VACUUM INTO` avant migration, base plus récente en lecture seule (tests). |
-| F-05 | Sauvegarde / restauration manuelles | ⬜ | ⬜ | ⬜ | T9 | |
+| F-05 | Sauvegarde / restauration manuelles | ✅ | ⬜ | ⬜ | T9 | Copie cohérente (VACUUM INTO), liste, restauration appliquée au démarrage suivant avec copie de sécurité de la base remplacée (test). Pièces jointes non incluses. |
 | F-06 | Secrets chiffrés (clé maître protégée DPAPI / Trousseau / libsecret) | ✅ | ✅ | ⬜ | T0 | DPAPI vérifié réellement (aller-retour) ; libsecret implémenté, non testé sur Linux ; Trousseau macOS non vérifié. |
 | F-07 | Logs expurgés des secrets, niveaux, rétention | 🟡 | 🟡 | ⬜ | T0 | Journal JSONL expurgé, rétention 14 j ; réglage du niveau et de la durée : T9. |
 | F-08 | Journal des appels réseau identifiables | 🟡 | 🟡 | ⬜ | T1 | Chaque appel journalisé (hôte, chemin, statut, durée) ; consultation dans Diagnostics : T9. |
@@ -153,7 +153,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | K-07 | RAG local/distant | ✅ | ✅ | ⬜ | T6 | Index des ressources (FTS5) + embeddings facultatifs via une connexion compatible OpenAI, fusion des classements, indexation incrémentale annulable (test avec embeddings simulés). |
 | K-08 | Terminaux asynchrones | ✅ | 🟡 | ⬜ | T3–T4 | Outils run_command / read_terminal / kill_terminal ; panneau Terminal (sortie en direct, arrêt, commandes lancées par l'utilisateur). CLI : outils de l'agent. |
 | K-09 | Scripts Python | 🟡 | 🟡 | ⬜ | T6 | python_info / python_run (Python 3 du poste détecté : py, python3, python ; délai, sortie, code de retour). Aucun Python embarqué ; non testé automatiquement (dépend du poste). |
-| K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ✅ | ✅ | ⬜ | T6 | web_search (DuckDuckGo sans clé ou SearXNG), web_fetch (HTML → texte, JSON, texte), http_request ; adresses privées refusées à chaque redirection, 5 Mo max, contenu marqué non fiable (tests d'extraction et de garde ; pas d'appel Internet dans les tests). |
+| K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ✅ | ✅ | ⬜ | T6–T9 | Client HTTP intégré comme la v1 : web_http_request (Smart : réponse enregistrée + aperçu + plan ; Legacy), web_http_search / web_http_read (lecture ciblée), web_http_configure (user-agent, proxy, cookies, redirections, délai, par conversation) ; web_search (DuckDuckGo via ce client, SearXNG, ou aucun moteur) ; adresses privées refusées à chaque saut (tests). |
 | K-11 | Navigateur intégré et DOM | ✅ | ➖ | ➖ | T4 | browser_open/read/dom/click/type : monde JS isolé, refus des champs mot de passe, adresses privées refusées à l'agent (SSRF). Parcours visuel. CLI/serveur : via MCP si configuré (T6). |
 | K-12 | Captures d'écran | ✅ | ➖ | ➖ | T4 | Capture du navigateur intégré, de l'écran ou d'une fenêtre, jointe à la conversation et transmise aux modèles avec vision. Skill désactivé par défaut. |
 | K-13 | Contrôle applications/souris/clavier | ⬜ | ➖ | ➖ | T11 | |
@@ -213,9 +213,9 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Z-01 | Registre de consommation (tous types d'appels, exact/estimé/incomplet) | 🟡 | 🟡 | ⬜ | T2 | Chat, nommage et compactage enregistrés (exact/estimé/incomplet) ; `usage.list` ; mémoire, vision et sous-agents à venir. |
-| Z-02 | Dashboard (courbes, filtres, export CSV) | ⬜ | ⬜ | ⬜ | T9 | |
-| Z-03 | Diagnostics (logs, CPU/RAM/GPU, backend de rendu, stockage, export expurgé) | ⬜ | ⬜ | ⬜ | T9 | |
-| Z-04 | Tâches planifiées CRON (fuseau, prochaine échéance, historique) | ⬜ | ⬜ | ⬜ | T9 | |
+| Z-02 | Dashboard (courbes, filtres, export CSV) | ✅ | ⬜ | ⬜ | T9 | Outils › Tableau de bord : période, connexion, usage ; totaux, histogramme par jour, tableaux par modèle et par usage, export CSV (test des agrégats). |
+| Z-03 | Diagnostics (logs, CPU/RAM/GPU, backend de rendu, stockage, export expurgé) | ✅ | ⬜ | ⬜ | T9 | Réglages › Avancé : moteur (mémoire, CPU), processus Electron, GPU et moteur de rendu réellement utilisés, stockage, journaux récents, export JSON expurgé (test). |
+| Z-04 | Tâches planifiées CRON (fuseau, prochaine échéance, historique) | ✅ | ⬜ | ⬜ | T9 | CRON 5 champs, macros, noms, fuseau IANA (changements d'heure gérés), aperçu des échéances, exécution immédiate, historique, notification ; pendant que l'application est ouverte, sans rattrapage (test). |
 
 ## 15. Apparence et réglages
 
@@ -224,11 +224,11 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | S-01 | Navigation recherchable, ordre imposé (Avancé avant Réinitialisation) | ✅ | ⬜ | ⬜ | T1 | Sections non implémentées affichées avec leur tranche, sans réglage factice. |
 | S-02 | Clair / sombre / système, thèmes intégrés, Fluent sombre V2 (#1D6FC8) | ✅ | 🟡 | ⬜ | T1 | CLI : thèmes monolith, fluent, crt-green, crt-amber, neon. |
 | S-03 | Palettes personnalisées, couleurs messages, polices, densité, zoom | 🟡 | ➖ | ⬜ | T1 | Couleurs des messages, polices, taille, densité, zoom ; palettes personnalisées en T9. |
-| S-04 | Nom et logo personnalisables (clair/sombre) | ⬜ | ➖ | ⬜ | T9 | |
-| S-05 | Animations de fond (désactivées par défaut) | ⬜ | ➖ | ➖ | T9 | |
-| S-06 | Avancé : backend GPU, accélération, rafraîchissement, valeurs réellement utilisées | ⬜ | ➖ | ➖ | T9 | |
-| S-07 | Notifications (cloche, système, son) | ⬜ | ⬜ | ⬜ | T9 | |
-| S-08 | Archivage/suppression/nettoyage automatiques, réinitialisations ciblées | ⬜ | ⬜ | ⬜ | T9 | |
+| S-04 | Nom et logo personnalisables (clair/sombre) | ✅ | ➖ | ⬜ | T9 | Réglages › Apparence : nom affiché, logos clair et sombre (data: ≤ 256 Ko, validés par le moteur), barre de titre et titre de fenêtre. |
+| S-05 | Animations de fond (désactivées par défaut) | ✅ | ➖ | ➖ | T9 | Dégradé, aurore, particules ; désactivées si le système demande de réduire les animations. |
+| S-06 | Avancé : backend GPU, accélération, rafraîchissement, valeurs réellement utilisées | ✅ | ➖ | ➖ | T9 | Accélération, moteur ANGLE, synchronisation verticale (au prochain démarrage) ; valeurs appliquées, statut des fonctions GPU, fréquence de l'écran. |
+| S-07 | Notifications (cloche, système, son) | ✅ | ⬜ | ⬜ | T9 | Cloche (non lues, marquer lu, effacer, ouvrir la conversation), notifications système, son synthétisé ; fin de réponse en arrière-plan, tâches planifiées, erreurs (test du service). |
+| S-08 | Archivage/suppression/nettoyage automatiques, réinitialisations ciblées | ✅ | ⬜ | ⬜ | T9 | Archivage des conversations inactives, suppression des archivées, nettoyage des pièces jointes orphelines, au démarrage puis chaque jour ou à la demande (test) ; réinitialisations ciblées (T1). |
 | S-09 | Annuler restaure l'état initial ; enregistrements immédiats signalés | ✅ | ⬜ | ➖ | T1 | Aperçu en direct, Annuler restaure ; connexions et réinitialisations marquées « enregistré immédiatement ». |
 
 ## 16. Plateformes
@@ -246,15 +246,15 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | S | T | Notes |
 | --- | --- | --- | --- | --- |
-| V-01 | Admin web, API documentée, temps réel | ⬜ | T13 | |
-| V-02 | Comptes, rôles, permissions, projets par utilisateur/rôle | ⬜ | T13 | |
-| V-03 | Fournisseurs partagés, clés côté serveur | ⬜ | T13 | |
-| V-04 | Exécution cloud, files, simultanéité | ⬜ | T13 | |
-| V-05 | Tâches planifiées sans client | ⬜ | T13 | |
-| V-06 | Partage en direct local, commentaires, révocation | ⬜ | T13 | |
-| V-07 | Synchronisation cloud → clients | ⬜ | T13 | |
-| V-08 | Statistiques partagées sur consentement, audit, message admin | ⬜ | T13 | |
-| V-09 | Service système, redémarrage après panne, mise à jour et sauvegarde documentées | ⬜ | T13 | |
+| V-01 | Admin web, API documentée, temps réel | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-02 | Comptes, rôles, permissions, projets par utilisateur/rôle | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-03 | Fournisseurs partagés, clés côté serveur | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-04 | Exécution cloud, files, simultanéité | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-05 | Tâches planifiées sans client | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-06 | Partage en direct local, commentaires, révocation | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-07 | Synchronisation cloud → clients | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-08 | Statistiques partagées sur consentement, audit, message admin | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
+| V-09 | Service système, redémarrage après panne, mise à jour et sauvegarde documentées | ⛔ | reporté | Développement du serveur reporté à la demande de l'utilisateur : voir `server-todo.md`. |
 
 ## 18. Distribution et validation
 
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 99 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 106 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

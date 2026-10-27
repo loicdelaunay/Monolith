@@ -221,7 +221,9 @@ export class GenerationRunner {
       .available(s, conversation.mode, conversation.agentMode, this.deps.host)
       .filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId))
       // Délégation : désactivée par réglage ou au-delà de la profondeur maximale.
-      .filter((t) => t.name !== 'delegate_tasks' || (s.subagents.mode !== 'off' && conversation.depth < s.subagents.maxDepth));
+      .filter((t) => t.name !== 'delegate_tasks' || (s.subagents.mode !== 'off' && conversation.depth < s.subagents.maxDepth))
+      // Sans moteur de recherche : client HTTP intégré seulement (comme la v1).
+      .filter((t) => t.name !== 'web_search' || s.web.searchProvider !== 'none');
     const instructionFiles = conversation.mode === 'agent' && s.agent.readInstructionFiles ? this.deps.resources.instructionFiles(scope.roots) : [];
     const snapshot: GenerationSnapshot = {
       providerId: provider.id,

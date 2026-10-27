@@ -26,6 +26,9 @@ import LoopSection from './LoopSection.vue';
 import ShortcutsSection from './ShortcutsSection.vue';
 import McpSection from './McpSection.vue';
 import MemorySection from './MemorySection.vue';
+import NotificationsSection from './NotificationsSection.vue';
+import SchedulerSection from './SchedulerSection.vue';
+import AdvancedSection from './AdvancedSection.vue';
 
 const { t, tm } = useI18n();
 const confirm = useConfirm();
@@ -44,9 +47,10 @@ const SECTIONS: { id: SettingsSectionId; icon: string; tranche?: string }[] = [
   { id: 'permissions', icon: 'pi-shield' },
   { id: 'loop', icon: 'pi-replay' },
   { id: 'shortcuts', icon: 'pi-key' },
-  { id: 'notifications', icon: 'pi-bell', tranche: 'T9' },
-  { id: 'server', icon: 'pi-cloud', tranche: 'T13' },
-  { id: 'advanced', icon: 'pi-microchip', tranche: 'T9' },
+  { id: 'scheduler', icon: 'pi-clock' },
+  { id: 'notifications', icon: 'pi-bell' },
+  { id: 'server', icon: 'pi-cloud', tranche: 'later' },
+  { id: 'advanced', icon: 'pi-microchip' },
   { id: 'reset', icon: 'pi-refresh' },
   { id: 'about', icon: 'pi-info-circle' },
 ];
@@ -184,7 +188,7 @@ function onVisible(v: boolean) {
             <button type="button" class="nav-item" :class="{ active: s.id === current.id }" :aria-current="s.id === current.id ? 'page' : undefined" @click="uiState.settingsSection = s.id">
               <i class="pi" :class="s.icon" />
               <span>{{ t(`settings.sections.${s.id}`) }}</span>
-              <span v-if="s.tranche" class="soon">{{ s.tranche }}</span>
+              <span v-if="s.tranche" class="soon">{{ s.tranche === 'later' ? t('settings.laterBadge') : s.tranche }}</span>
             </button>
           </li>
           <li v-if="visibleSections.length === 0" class="mh-hint">{{ t('settings.noMatch') }}</li>
@@ -203,6 +207,9 @@ function onVisible(v: boolean) {
         <ShortcutsSection v-else-if="current.id === 'shortcuts'" :draft="draft.value" />
         <McpSection v-else-if="current.id === 'mcp'" />
         <MemorySection v-else-if="current.id === 'memory'" :draft="draft.value" />
+        <NotificationsSection v-else-if="current.id === 'notifications'" :draft="draft.value" />
+        <SchedulerSection v-else-if="current.id === 'scheduler'" />
+        <AdvancedSection v-else-if="current.id === 'advanced'" :draft="draft.value" />
         <ResetSection v-else-if="current.id === 'reset'" />
         <AboutSection v-else-if="current.id === 'about'" />
         <PlannedSection v-else :tranche="current.tranche ?? ''" />

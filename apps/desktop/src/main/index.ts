@@ -1,6 +1,7 @@
 // Processus principal Electron : fenêtres, barre de titre, dialogues natifs et cycle de vie du
 // moteur. Aucune requête SQL ni aucun streaming ici : le moteur tourne dans un utilityProcess.
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { applyLaunch, readLaunch, writeLaunch } from './launch.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -33,6 +34,11 @@ const engine = new EngineHost({
 });
 
 let mainWindow: BrowserWindow | null = null;
+
+// Réglages de rendu : lus avant le démarrage de Chromium, à côté des données (portable) ou du profil.
+const launchFile = join(portableExeDir() ? join(portableExeDir()!, 'data') : (process.env.MONOLITH_DATA_DIR ?? devDataDir ?? app.getPath('userData')), 'launch.json');
+const launchApplied = applyLaunch(launchFile);
+
 const browser = new BrowserManager(
   () => mainWindow,
   (tabs, activeId, notice) => {
@@ -244,6 +250,45 @@ function registerIpc(): void {
     await browser.command(cmd, args && typeof args === 'object' ? (args as Record<string, unknown>) : {});
   });
   ipcMain.handle('browser:state', (event) => (fromOurWindow(event) ? { tabs: browser.states(), activeId: browser.active, notice: null } : null));
+  ipcMain.handle('host:notify', (event, title: unknown, body: unknown, silent: unknown) => {
+    if (!fromOurWindow(event) || typeof title !== 'string' || !Notification.isSupported()) return false;
+    const n = new Notification({ title: title.slice(0, 120), body: typeof body === 'string' ? body.slice(0, 400) : '', silent: silent === true, icon: join(__dirname, '../../build/icon.png') });
+    n.on('click', () => {
+      if (!mainWindow) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    });
+    n.show();
+    return true;
+  });
+  ipcMain.handle('host:launch', (event, value: unknown) => {
+    if (!fromOurWindow(event)) return null;
+    const saved = value === undefined ? readLaunch(launchFile) : writeLaunch(launchFile, value);
+    return { saved, applied: launchApplied };
+  });
+  ipcMain.handle('host:gpuInfo', async (event) => {
+    if (!fromOurWindow(event)) return null;
+    const basic = (await app.getGPUInfo('basic').catch(() => null)) as { gpuDevice?: { vendorId?: number; deviceId?: number; active?: boolean }[]; auxAttributes?: Record<string, unknown> } | null;
+    const display = screen.getPrimaryDisplay();
+    return {
+      hardwareAcceleration: app.isHardwareAccelerationEnabled(),
+      angle: app.commandLine.getSwitchValue('use-angle') || 'default',
+      vsyncDisabled: app.commandLine.hasSwitch('disable-gpu-vsync'),
+      featureStatus: app.getGPUFeatureStatus(),
+      devices: basic?.gpuDevice?.map((d) => ({ vendorId: d.vendorId, deviceId: d.deviceId, active: d.active })) ?? [],
+      glRenderer: (basic?.auxAttributes?.glRenderer as string | undefined) ?? null,
+      displayHz: display.displayFrequency,
+      scaleFactor: display.scaleFactor,
+      versions: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node },
+    };
+  });
+  ipcMain.handle('host:metrics', (event) => {
+    if (!fromOurWindow(event)) return [];
+    return app.getAppMetrics().map((m) => ({ pid: m.pid, type: m.type, name: m.name ?? m.serviceName ?? '', cpu: Math.round(m.cpu.percentCPUUsage * 10) / 10, memoryMb: Math.round(m.memory.workingSetSize / 1024) }));
+  });
+  ipcMain.handle('host:showPath', (event, path: unknown) => {
+    if (fromOurWindow(event) && typeof path === 'string') shell.showItemInFolder(path);
+  });
   ipcMain.handle('host:relaunch', (event) => {
     if (!fromOurWindow(event)) return;
     app.relaunch();

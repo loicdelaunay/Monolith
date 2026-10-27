@@ -37,6 +37,10 @@ const host: HostApi = {
     if (typeof factor === 'number' && factor >= 0.5 && factor <= 2 && webFrame.getZoomFactor() !== factor) webFrame.setZoomFactor(factor);
   },
   relaunch: () => ipcRenderer.invoke('host:relaunch'),
+  notify: (title, body, silent) => ipcRenderer.invoke('host:notify', title, body, silent),
+  launch: (value) => ipcRenderer.invoke('host:launch', value),
+  gpuInfo: () => ipcRenderer.invoke('host:gpuInfo'),
+  metrics: () => ipcRenderer.invoke('host:metrics'),
   browser: {
     setBounds: (bounds) => ipcRenderer.send('browser:bounds', bounds),
     command: (cmd, args) => ipcRenderer.invoke('browser:command', cmd, args ?? {}),

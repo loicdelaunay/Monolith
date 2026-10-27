@@ -8,8 +8,8 @@ import { dirname, join } from 'node:path';
 const root = join(import.meta.dirname, '..');
 // Racines réellement regroupées dans les bundles (Electron est fourni avec ses propres licences par electron-builder).
 const ROOTS = {
-  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki', 'katex', 'mermaid'],
-  cli: ['ink', 'react'],
+  desktop: ['vue', 'primevue', '@primeuix/themes', 'primeicons', 'vue-i18n', 'markdown-it', 'shiki', 'katex', 'mermaid', 'undici'],
+  cli: ['ink', 'react', 'undici'],
 };
 // Paquets exclus des bundles (remplacés par un module local) et licences déclarées hors package.json.
 const EXCLUDED = new Set(['elkjs']);

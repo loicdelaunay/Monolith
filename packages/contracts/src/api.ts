@@ -49,6 +49,7 @@ import type {
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
 import type { AiDetectionResult, AssetInfo, AssetKind, BenchmarkInput, BenchmarkState, ImageGenInput, ImageGenResult, TextTaskInput, TextTaskResult } from './studio.ts';
+import type { BackupInfo, DashboardData, DashboardQuery, DiagnosticsInfo, MaintenanceReport, NotificationItem, ScheduledRun, ScheduledTask, ScheduledTaskInput } from './ops.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
 export interface AppInfo {
@@ -316,6 +317,32 @@ export interface HarnessApi {
   'assets.save': { params: { name: string; kind: AssetKind; content: string }; result: AssetInfo };
   'assets.delete': { params: { name: string }; result: void };
   'assets.png': { params: { name: string; scale?: number; frame?: number }; result: { dataBase64: string; width: number; height: number } };
+
+  'backup.list': { params: void; result: BackupInfo[] };
+  'backup.create': { params: void; result: BackupInfo };
+  'backup.restore': { params: { name: string }; result: { restartRequired: true } };
+  'backup.delete': { params: { name: string }; result: void };
+  'backup.path': { params: { name: string }; result: string };
+
+  'dashboard.data': { params: DashboardQuery; result: DashboardData };
+  'dashboard.csv': { params: DashboardQuery; result: string };
+
+  'diagnostics.info': { params: void; result: DiagnosticsInfo };
+  'diagnostics.export': { params: { extra?: Record<string, unknown> }; result: string };
+
+  'scheduler.list': { params: void; result: ScheduledTask[] };
+  'scheduler.save': { params: ScheduledTaskInput; result: ScheduledTask };
+  'scheduler.delete': { params: { id: Id }; result: void };
+  'scheduler.runNow': { params: { id: Id }; result: ScheduledRun };
+  'scheduler.history': { params: { taskId?: Id; limit?: number }; result: ScheduledRun[] };
+  'scheduler.preview': { params: { cron: string; timezone: string; count?: number }; result: { next: string[] } };
+
+  'notifications.list': { params: { limit?: number }; result: NotificationItem[] };
+  'notifications.markRead': { params: { ids?: Id[] }; result: void };
+  'notifications.clear': { params: void; result: void };
+  'notifications.add': { params: { level: NotificationItem['level']; title: string; body: string; conversationId?: Id | null }; result: NotificationItem };
+
+  'maintenance.run': { params: void; result: MaintenanceReport };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -376,6 +403,8 @@ export interface HarnessEvents {
   'rag.progress': { conversationId: Id; status: RagStatus };
   'benchmark.progress': BenchmarkState;
   'assets.changed': { assets: AssetInfo[] };
+  'notification.added': NotificationItem;
+  'scheduler.changed': { tasks: ScheduledTask[] };
   'log.error': { message: string; code: string };
 }
 
