@@ -209,6 +209,62 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX compactions_conv ON compactions(conversation_id, up_to_seq);
     `,
   },
+  {
+    version: 3,
+    name: 'tools-and-permissions',
+    sql: /* sql */ `
+      ALTER TABLE conversations ADD COLUMN resources_mode TEXT NOT NULL DEFAULT 'inherit';
+
+      CREATE TABLE conversation_resources (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        path TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (conversation_id, kind, path)
+      );
+
+      CREATE TABLE permission_rules (
+        id INTEGER PRIMARY KEY,
+        scope TEXT NOT NULL,
+        project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+        conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+        tool TEXT NOT NULL DEFAULT '*',
+        family TEXT NOT NULL DEFAULT '*',
+        resource TEXT NOT NULL DEFAULT '',
+        decision TEXT NOT NULL,
+        origin TEXT NOT NULL DEFAULT 'user',
+        created_at TEXT NOT NULL
+      );
+
+      -- Historique explicite des décisions d'autorisation.
+      CREATE TABLE permission_decisions (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER,
+        tool TEXT NOT NULL,
+        target TEXT,
+        decision TEXT NOT NULL,
+        source TEXT NOT NULL,
+        rule_id INTEGER,
+        scope TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX permission_decisions_conv ON permission_decisions(conversation_id, id);
+
+      -- Mode Proposition : changements préparés, appliqués seulement après validation.
+      CREATE TABLE file_proposals (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        message_id INTEGER NOT NULL,
+        call_id TEXT NOT NULL,
+        path TEXT NOT NULL,
+        status TEXT NOT NULL,
+        change_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

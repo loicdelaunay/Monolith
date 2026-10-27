@@ -1,3 +1,5 @@
+import type { ToolCallRecord } from './tools.ts';
+
 // Entités partagées entre le moteur et les interfaces.
 // Les dates sont des chaînes ISO 8601 UTC ; les identifiants sont des entiers SQLite
 // sauf mention contraire.
@@ -72,7 +74,8 @@ export type MessagePart =
   | { type: 'text'; text: string }
   | { type: 'attachment'; attachment: AttachmentRef }
   | { type: 'reasoning'; text: string; durationMs?: number }
-  | { type: 'notice'; level: 'info' | 'warning' | 'error'; code: string; text: string };
+  | { type: 'notice'; level: 'info' | 'warning' | 'error'; code: string; text: string }
+  | { type: 'tool'; call: ToolCallRecord };
 
 export interface MessageUsage {
   inputTokens: number | null;
@@ -106,6 +109,8 @@ export interface GenerationSnapshot {
   responseStyle: ResponseStyle;
   temperature: number | null;
   maxOutputTokens: number | null;
+  /** Outils exposés au modèle pour cette génération. */
+  tools?: string[];
   startedAt: string;
 }
 

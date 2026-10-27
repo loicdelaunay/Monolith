@@ -3,6 +3,9 @@ import type {
   AppInfo,
   Compaction,
   Conversation,
+  FileProposal,
+  LoopReport,
+  PermissionRequest,
   MessageTemplate,
   QueuedInput,
   GenerationState,
@@ -39,6 +42,10 @@ export const store = reactive({
   templates: [] as MessageTemplate[],
   /** Erreurs signalées par le moteur hors d'un appel (ex. élément de file non envoyé). */
   engineErrors: [] as { code: string; message: string }[],
+  /** Demandes d'autorisation en attente (la première est affichée). */
+  permissionRequests: [] as PermissionRequest[],
+  loopReports: [] as LoopReport[],
+  proposals: new Map<Id, FileProposal[]>(),
 });
 
 /** Messages par conversation ouverte. `shallowRef` : on déclenche le rendu explicitement. */
@@ -65,12 +72,14 @@ export async function loadMessages(conversationId: Id): Promise<void> {
   const ref = messagesOf(conversationId);
   store.loadingMessages = true;
   try {
-    const [messages, queue, compactions] = await Promise.all([
+    const [messages, queue, compactions, proposals] = await Promise.all([
       api.call('messages.list', { conversationId }),
       api.call('queue.list', { conversationId }),
       api.call('compactions.list', { conversationId }),
+      api.call('proposals.list', { conversationId }),
     ]);
     ref.value = messages;
+    store.proposals.set(conversationId, proposals);
     store.queues.set(conversationId, queue);
     store.compactions.set(conversationId, compactions);
   } finally {
@@ -153,6 +162,15 @@ function wireEvents(): void {
     if (messageCache.has(conversationId)) void loadMessages(conversationId);
   });
   api.on('log.error', (e) => store.engineErrors.push(e));
+  api.on('permission.requested', (r) => store.permissionRequests.push(r));
+  api.on('permission.resolved', ({ requestId }) => {
+    store.permissionRequests = store.permissionRequests.filter((r) => r.requestId !== requestId);
+  });
+  api.on('loop.detected', (r) => store.loopReports.push(r));
+  api.on('loop.resolved', ({ conversationId }) => {
+    store.loopReports = store.loopReports.filter((r) => r.conversationId !== conversationId);
+  });
+  api.on('proposals.changed', ({ conversationId, proposals }) => store.proposals.set(conversationId, proposals));
   api.on('generation.state', (state) => {
     if (state.status === 'finished') store.generations.delete(state.conversationId);
     else store.generations.set(state.conversationId, state);
@@ -172,6 +190,7 @@ export async function reloadAll(): Promise<void> {
     api.call('chat.active'),
     api.call('templates.list'),
   ]);
+  store.permissionRequests = await api.call('permissions.pending');
   Object.assign(store, { info, settings, projects, providers, presets, templates });
   store.conversations = new Map(conversations.map((c) => [c.id, c]));
   store.generations = new Map(active.map((g) => [g.conversationId, g]));

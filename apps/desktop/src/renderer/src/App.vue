@@ -17,6 +17,8 @@ import ChatView from './components/ChatView.vue';
 import SettingsDialog from './components/settings/SettingsDialog.vue';
 import ChangelogDialog from './components/ChangelogDialog.vue';
 import ProjectDialog from './components/ProjectDialog.vue';
+import PermissionDialog from './components/tools/PermissionDialog.vue';
+import LoopDialog from './components/tools/LoopDialog.vue';
 
 const { locale, t } = useI18n();
 const prefersDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -96,6 +98,8 @@ onBeforeUnmount(() => media.removeEventListener('change', onMedia));
     <SettingsDialog v-if="store.ready" />
     <ChangelogDialog v-if="store.ready" />
     <ProjectDialog v-if="store.ready" />
+    <PermissionDialog v-if="store.ready" />
+    <LoopDialog v-if="store.ready" />
     <Toast position="bottom-right" />
     <ConfirmDialog />
   </div>

@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T2 (3.0.0-alpha.2).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T3 (3.0.0-alpha.3).**
 
 ## 1. Fondations
 
@@ -30,12 +30,12 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | P-02 | Espace personnel (conversations sans projet) | ✅ | ✅ | ⬜ | T1 | |
 | P-03 | Icône et couleur | ✅ | ➖ | ⬜ | T1 | CLI : couleur affichée si le terminal la supporte. |
 | P-04 | Plusieurs dossiers sources par projet | ✅ | 🟡 | ⬜ | T1 | Ajout/retrait, disponibilité vérifiée ; accès des outils aux dossiers en T3. CLI : affichage. |
-| P-05 | Ressources propres à une conversation (fichiers, dossiers, héritage) + retour aux valeurs du projet | ⬜ | ⬜ | ⬜ | T3 | |
-| P-06 | Fichier attaché = accès à ce seul fichier | ⬜ | ⬜ | ⬜ | T3 | |
-| P-07 | Espace privé persistant pour conversation sans dossier | ⬜ | ⬜ | ⬜ | T3 | |
+| P-05 | Ressources propres à une conversation (fichiers, dossiers, héritage) + retour aux valeurs du projet | ✅ | ✅ | ⬜ | T3 | Ressources héritées ou propres (dossiers, fichiers), retour au projet ; CLI `/resources`. |
+| P-06 | Fichier attaché = accès à ce seul fichier | ✅ | ✅ | ⬜ | T3 | Test : fichier joint accessible, dossier parent refusé. |
+| P-07 | Espace privé persistant pour conversation sans dossier | ✅ | ✅ | ⬜ | T3 | `workspace/conversations/<id>` créé à la demande (test). |
 | P-08 | Instructions de projet (menu contextuel + fenêtre) | ✅ | ⬜ | ⬜ | T1 | Menu contextuel et fenêtre ; appliquées aux prochains envois (testé côté moteur). |
-| P-09 | Import + prévisualisation `permission.json` | ⬜ | ⬜ | ⬜ | T3 | |
-| P-10 | Fichiers d'instructions du projet et sous-dossiers avec portée explicite | ⬜ | ⬜ | ⬜ | T3 | AGENTS.md, CLAUDE.md, .monolith/instructions.md |
+| P-09 | Import + prévisualisation `permission.json` | ✅ | ⬜ | ⬜ | T3 | Fenêtre du projet : aperçu des règles puis import ; formats `rules` et `allow/deny/ask` (test). |
+| P-10 | Fichiers d'instructions du projet et sous-dossiers avec portée explicite | ✅ | ✅ | ⬜ | T3 | AGENTS.md, CLAUDE.md, .monolith/instructions.md jusqu’à 3 niveaux, chacun avec sa portée (test). |
 
 ## 3. Conversations
 
@@ -85,7 +85,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | R-08 | Styles de réponse (défaut, court, pragmatique, détaillé, ludique) | ✅ | 🟡 | ⬜ | T1 | Appliqué par le moteur ; CLI : réglage partagé, pas de commande dédiée. |
 | R-09 | Badges de fichiers vérifiés (existence, ligne, type) | ⬜ | ➖ | ⬜ | T4 | |
 | R-10 | Réflexion : affichage Aucun / Réduit / Détaillé | ✅ | ✅ | ⬜ | T2 | Réglage distinct du niveau demandé. |
-| R-11 | Chronologie réflexion/outils/réponses | 🟡 | 🟡 | ⬜ | T2 | Réflexion, texte, notices et instructions transmises dans l’ordre d’arrivée ; outils et questions en T3. |
+| R-11 | Chronologie réflexion/outils/réponses | ✅ | ✅ | ⬜ | T2 | Réflexion, texte, appels d’outils et réponses aux questions dans l’ordre d’arrivée ; les tours successifs restent dans une même réponse. |
 | R-12 | Défilement : suivi auto, suspension, position conservée | 🟡 | ➖ | ➖ | T1 | Suivi, suspension (molette/clavier), reprise en bas, sans polling ; test automatisé à ajouter. |
 | R-13 | Virtualisation des longues conversations | 🟡 | ➖ | ➖ | T2 | `content-visibility` + fenêtre de 80 messages chargée à la demande, position conservée ; mesure sur très longue conversation à faire. |
 
@@ -117,41 +117,41 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | --- | --- | --- | --- | --- | --- | --- |
 | Q-01 | Niveaux de réflexion déclarés uniquement, Auto si inconnu, interrupteur simple | ✅ | ✅ | ⬜ | T2 | Table documentée + catalogue OpenRouter + déclaration utilisateur ; interrupteur simple pour Z.ai ; Auto seul si inconnu. |
 | Q-02 | Niveau demandé / envoyé / paramètre / repli affichés | ✅ | ✅ | ⬜ | T2 | Pied de réponse (desktop) et ligne de métadonnées (CLI). |
-| Q-03 | « Sans réflexion » réel ou incompatibilité signalée | 🟡 | 🟡 | ⬜ | T2 | Chat : désactivation réelle ou refus explicite (tests). Agent (T3) et correcteur (T8) à venir. |
+| Q-03 | « Sans réflexion » réel ou incompatibilité signalée | 🟡 | 🟡 | ⬜ | T2 | Chat et Agent : désactivation réelle ou refus explicite (tests). Correcteur en T8. |
 | Q-04 | Niveau rejeté retiré jusqu'à réévaluation | ✅ | ✅ | ⬜ | T2 | Niveau refusé mémorisé, retiré des choix jusqu’à « Actualiser les capacités » (test). |
 | Q-05 | Fenêtre de contexte / limite de sortie, auto ou personnalisée | ✅ | 🟡 | ⬜ | T2 | Par modèle : catalogue ou valeur personnalisée ; fenêtre et sortie distinctes. CLI : lecture seule. |
 | Q-06 | Compteurs API ou estimation signalée, tokens en cache | ✅ | ✅ | ⬜ | T1 | Compteurs API, cache, estimation signalée ; utilisation de la fenêtre de contexte en T2. |
 | Q-07 | Compactage manuel/auto, historique original conservé | 🟡 | 🟡 | ⬜ | T2 | Manuel et automatique, historique original conservé, noms des pièces jointes gardés ; préservation des échanges d’outils à vérifier en T3. |
 | Q-08 | Streaming robuste aux fragments | ✅ | ✅ | ⬜ | T1 | Tests : découpage à chaque taille, UTF-8 et CRLF coupés. |
 | Q-09 | Retry configurable (transitoires + 400 JSON tronqué ciblé) | ✅ | ✅ | ⬜ | T1 | Tests : 503 puis succès, 400 ordinaire jamais retenté, 400 « JSON tronqué » retenté. |
-| Q-10 | Reprise des réponses interrompues, aucun outil rejoué | ⬜ | ⬜ | ⬜ | T3 | |
+| Q-10 | Reprise des réponses interrompues, aucun outil rejoué | 🟡 | 🟡 | ⬜ | T3 | Aucun outil rejoué (retry bloqué dès qu’un appel est reçu ; appels interrompus marqués). Reprise automatique d’une réponse coupée : non implémentée. |
 | Q-11 | Historique reconstruit après changement de fournisseur | ✅ | ✅ | ⬜ | T2 | Réflexion jamais renvoyée, images retirées pour un modèle sans vision, rôles fusionnés (test). |
 
 ## 8. Modes, agents, orchestration
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| A-01 | Mode Chat vs Agent | ⬜ | ⬜ | ⬜ | T3 | |
-| A-02 | Agent Plan / Proposition / Exécution appliqués par le moteur | ⬜ | ⬜ | ⬜ | T3 | |
+| A-01 | Mode Chat vs Agent | ✅ | ✅ | ⬜ | T3 | Chat : outils conversationnels seulement ; Agent : outils selon le mode. |
+| A-02 | Agent Plan / Proposition / Exécution appliqués par le moteur | ✅ | ✅ | ⬜ | T3 | Filtrage à l’exposition ET à l’exécution (tests : écriture refusée en Plan, proposition en Proposition). |
 | A-03 | Sous-agents (auto/forcé/désactivé, budgets, profondeur, parallélisme, rôles, préréglages) | ⬜ | ⬜ | ⬜ | T7 | |
 | A-04 | Worktrees Git pour sous-agents | ⬜ | ⬜ | ⬜ | T7 | |
 | A-05 | Suivi, rapports, annulation propagée, statut terminé/interrompu/budget | ⬜ | ⬜ | ⬜ | T7 | |
-| A-06 | Questions interactives (unique/multiple/libre/strict, accordéon, navigation) | ⬜ | ⬜ | ⬜ | T3 | |
-| A-07 | Propositions d'actions (4 types, clic unique, consigne consultable) | ⬜ | ⬜ | ⬜ | T3 | |
-| A-08 | Détection de boucle configurable | ⬜ | ⬜ | ⬜ | T3 | |
+| A-06 | Questions interactives (unique/multiple/libre/strict, accordéon, navigation) | ✅ | 🟡 | ⬜ | T3 | Desktop : tuiles, unique par défaut, multiple sur demande, texte, réponse libre, accordéon, navigation, annulation. CLI : réponses numérotées, sans retour arrière. |
+| A-07 | Propositions d'actions (4 types, clic unique, consigne consultable) | ✅ | 🟡 | ⬜ | T3 | Desktop : boutons, consigne consultable, usage unique (test). CLI : affichage seulement. |
+| A-08 | Détection de boucle configurable | ✅ | ✅ | ⬜ | T3 | Seuil, fenêtre, comparaison exacte/équivalente ; arrêter ou poursuivre une fois (test). |
 
 ## 9. Skills, MCP, outils
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| K-01 | Skills activables et configurables individuellement | ⬜ | ⬜ | ⬜ | T3 | |
-| K-02 | Information (date, système, conversation) | ⬜ | ⬜ | ⬜ | T3 | |
-| K-03 | Sources : lister, lire, glob, grep | ⬜ | ⬜ | ⬜ | T3 | |
-| K-04 | Création/édition de fichiers, patch multi-fichiers prévisualisé | ⬜ | ⬜ | ⬜ | T3 | |
+| K-01 | Skills activables et configurables individuellement | ✅ | 🟡 | ⬜ | T3 | Réglages › Skills ; CLI : réglage partagé, sans commande de bascule. |
+| K-02 | Information (date, système, conversation) | ✅ | ✅ | ⬜ | T3 | Catégories date, système, conversation réglables. |
+| K-03 | Sources : lister, lire, glob, grep | ✅ | ✅ | ⬜ | T3 | list_files, read_file, glob_files, grep_files dans la portée. |
+| K-04 | Création/édition de fichiers, patch multi-fichiers prévisualisé | ✅ | ✅ | ⬜ | T3 | write_file, edit_file, apply_patch atomique avec aperçu (tests). |
 | K-05 | Git (état, diff, log, branches, staging, commit, sync) | ⬜ | ⬜ | ⬜ | T4 | |
 | K-06 | Index `index.ohm` | ⬜ | ⬜ | ⬜ | T6 | |
 | K-07 | RAG local/distant | ⬜ | ⬜ | ⬜ | T6 | |
-| K-08 | Terminaux asynchrones | ⬜ | ⬜ | ⬜ | T3 | |
+| K-08 | Terminaux asynchrones | 🟡 | 🟡 | ⬜ | T3 | run_command / read_terminal / kill_terminal (tubes, délai, code de retour, arrière-plan). Panneau terminal interactif en T4. |
 | K-09 | Scripts Python | ⬜ | ⬜ | ⬜ | T6 | Nécessite un Python fourni ou détecté. |
 | K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ⬜ | ⬜ | ⬜ | T6 | |
 | K-11 | Navigateur intégré et DOM | ⬜ | ➖ | ➖ | T4 | CLI/serveur : via MCP si configuré. |
@@ -160,7 +160,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | K-14 | Vision dédiée | ⬜ | ⬜ | ⬜ | T8 | |
 | K-15 | Générateur d'assets (skill) | ⬜ | ⬜ | ⬜ | T8 | |
 | K-16 | Mémoire | ⬜ | ⬜ | ⬜ | T6 | |
-| K-17 | Planification, synthèse, revue de code, conception complète | ⬜ | ⬜ | ⬜ | T3 | |
+| K-17 | Planification, synthèse, revue de code, conception complète | 🟡 | 🟡 | ⬜ | T3 | Plan : outil update_plan. Synthèse, revue de code et conception : skills d’instructions (sans outil dédié). |
 | K-18 | Skills personnalisés `SKILL.md` (global/projet), création/chargement | ⬜ | ⬜ | ⬜ | T6 | |
 | K-19 | MCP : gestion, import JSON prévisualisé, connexion, découverte, activation par conversation, `/mcp` | ⬜ | ⬜ | ⬜ | T6 | |
 
@@ -168,12 +168,12 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| G-01 | Politique Refuser tout / Demander / Règles | ⬜ | ⬜ | ⬜ | T3 | |
-| G-02 | Accords ponctuels et persistants, règles outil/famille/ressource/projet, conflits | ⬜ | ⬜ | ⬜ | T3 | |
-| G-03 | Historique des décisions | ⬜ | ⬜ | ⬜ | T3 | |
-| G-04 | Fenêtre d'autorisation (action, cible, paramètres, changements) | ⬜ | ⬜ | ⬜ | T3 | |
-| G-05 | Bouclier par bulle d'outil + détails | ⬜ | ⬜ | ⬜ | T3 | |
-| G-06 | `edit_source` Raw/Formatted, diff ligne/bloc coloré, hors thread UI | ⬜ | ⬜ | ⬜ | T3 | |
+| G-01 | Politique Refuser tout / Demander / Règles | ✅ | 🟡 | ⬜ | T3 | Réglages › Autorisations ; CLI : affichage de la politique (`/rules`). |
+| G-02 | Accords ponctuels et persistants, règles outil/famille/ressource/projet, conflits | ✅ | 🟡 | ⬜ | T3 | Accords ponctuels, conversation, projet, global ; refus prioritaire puis spécificité (tests). CLI : règles globales `/allow`, `/deny`. |
+| G-03 | Historique des décisions | ✅ | ⬜ | ⬜ | T3 | Historique filtrable par conversation (Réglages › Autorisations). |
+| G-04 | Fenêtre d'autorisation (action, cible, paramètres, changements) | ✅ | ✅ | ⬜ | T3 | Action, cible, raison, paramètres et diff/commande attendus. |
+| G-05 | Bouclier par bulle d'outil + détails | ✅ | 🟡 | ⬜ | T3 | Bouclier coloré + détails (règle, origine, décision, portée). CLI : symbole par ligne d’outil. |
+| G-06 | `edit_source` Raw/Formatted, diff ligne/bloc coloré, hors thread UI | ✅ | 🟡 | ⬜ | T3 | Raw/Formatted, diff Myers ligne/bloc, couleurs, avant/après, numéros de ligne ; Web Worker au-delà de 40 000 caractères. CLI : résumé. |
 | G-07 | Sandbox (copie, diff, application sélective) | ⬜ | ⬜ | ⬜ | T7 | |
 
 ## 11. Contrôle desktop sans curseur
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 47 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 66 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

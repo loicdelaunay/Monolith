@@ -19,6 +19,10 @@ import ProvidersSection from './ProvidersSection.vue';
 import ResetSection from './ResetSection.vue';
 import AboutSection from './AboutSection.vue';
 import PlannedSection from './PlannedSection.vue';
+import SkillsSection from './SkillsSection.vue';
+import AgentsSection from './AgentsSection.vue';
+import PermissionsSection from './PermissionsSection.vue';
+import LoopSection from './LoopSection.vue';
 
 const { t, tm } = useI18n();
 const confirm = useConfirm();
@@ -30,12 +34,12 @@ const SECTIONS: { id: SettingsSectionId; icon: string; tranche?: string }[] = [
   { id: 'chat', icon: 'pi-comments' },
   { id: 'appearance', icon: 'pi-palette' },
   { id: 'providers', icon: 'pi-server' },
-  { id: 'skills', icon: 'pi-bolt', tranche: 'T3 / T6' },
-  { id: 'agents', icon: 'pi-sitemap', tranche: 'T7' },
+  { id: 'skills', icon: 'pi-bolt' },
+  { id: 'agents', icon: 'pi-sitemap' },
   { id: 'mcp', icon: 'pi-link', tranche: 'T6' },
   { id: 'memory', icon: 'pi-database', tranche: 'T6' },
-  { id: 'permissions', icon: 'pi-shield', tranche: 'T3' },
-  { id: 'loop', icon: 'pi-replay', tranche: 'T3' },
+  { id: 'permissions', icon: 'pi-shield' },
+  { id: 'loop', icon: 'pi-replay' },
   { id: 'notifications', icon: 'pi-bell', tranche: 'T9' },
   { id: 'server', icon: 'pi-cloud', tranche: 'T13' },
   { id: 'advanced', icon: 'pi-microchip', tranche: 'T9' },
@@ -51,7 +55,17 @@ const query = ref('');
 /** Recherche : libellé de la section et libellés de ses réglages. */
 function sectionText(id: SettingsSectionId): string {
   const own = t(`settings.sections.${id}`);
-  const nested = ['general', 'chat', 'appearance', 'providers', 'reset', 'about'].includes(id) ? JSON.stringify(tm(`settings.${id}`)) : '';
+  const nested = ['general', 'chat', 'appearance', 'providers', 'reset', 'about'].includes(id)
+    ? JSON.stringify(tm(`settings.${id}`))
+    : id === 'skills'
+      ? JSON.stringify(tm('skills'))
+      : id === 'permissions'
+        ? JSON.stringify(tm('permissionsSettings'))
+        : id === 'loop'
+          ? JSON.stringify(tm('loopSettings'))
+          : id === 'agents'
+            ? JSON.stringify(tm('agentsSettings'))
+            : '';
   return `${own} ${nested}`.toLowerCase();
 }
 const visibleSections = computed(() => {
@@ -178,6 +192,10 @@ function onVisible(v: boolean) {
         <ChatSection v-else-if="current.id === 'chat'" :draft="draft.value" />
         <AppearanceSection v-else-if="current.id === 'appearance'" :draft="draft.value" />
         <ProvidersSection v-else-if="current.id === 'providers'" :draft="draft.value" @update:dirty="(v: boolean) => (providersDirty = v)" />
+        <SkillsSection v-else-if="current.id === 'skills'" :draft="draft.value" />
+        <AgentsSection v-else-if="current.id === 'agents'" :draft="draft.value" />
+        <PermissionsSection v-else-if="current.id === 'permissions'" :draft="draft.value" />
+        <LoopSection v-else-if="current.id === 'loop'" :draft="draft.value" />
         <ResetSection v-else-if="current.id === 'reset'" />
         <AboutSection v-else-if="current.id === 'about'" />
         <PlannedSection v-else :tranche="current.tranche ?? ''" />

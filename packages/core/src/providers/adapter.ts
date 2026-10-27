@@ -2,10 +2,27 @@ import type { CatalogModel, ConnectionTestResult, ProviderKind, ProviderOptions,
 
 export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
+export interface ToolCallRequest {
+  id: string;
+  name: string;
+  /** JSON brut tel que produit par le modèle. */
+  arguments: string;
+}
+
 /** Message normalisé envoyé à un adaptateur (indépendant du protocole). */
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | ContentPart[];
+  /** Appels d'outils émis par l'assistant dans ce message. */
+  toolCalls?: ToolCallRequest[];
+  /** Réponse d'outil : identifiant de l'appel. */
+  toolCallId?: string;
+}
+
+export interface ToolSpec {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
 }
 
 export interface ChatRequest {
@@ -16,12 +33,15 @@ export interface ChatRequest {
   maxOutputTokens: number | null;
   /** Champs propres au transport (paramètres de réflexion…), fusionnés au corps de la requête. */
   extraBody?: Record<string, unknown>;
+  /** Outils exposés au modèle (absents : aucun outil). */
+  tools?: ToolSpec[];
 }
 
 /** Événements normalisés produits par tous les adaptateurs. */
 export type StreamEvent =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
+  | { type: 'tool_call'; call: ToolCallRequest }
   | { type: 'usage'; inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null }
   | { type: 'finish'; reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'other'; raw: string | null }
   | { type: 'notice'; level: 'info' | 'warning'; code: string; text: string };

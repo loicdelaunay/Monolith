@@ -20,6 +20,7 @@ import {
   type SendInput,
   type SendResult,
   type Settings,
+  type ToolCallRecord,
   type UsageRecord,
 } from '@monolith/contracts';
 import type { EventBus } from '../events.ts';
@@ -33,10 +34,20 @@ import type { UsageService } from '../services/usage.ts';
 import type { QueueService } from '../services/queue.ts';
 import type { AttachmentService } from '../services/attachments.ts';
 import type { CompactionService } from '../services/compactions.ts';
-import type { ChatMessage, ChatRequest, ProviderAdapter, ProviderConnection, StreamEvent } from '../providers/adapter.ts';
+import type { ChatMessage, ChatRequest, ProviderAdapter, ProviderConnection, StreamEvent, ToolCallRequest } from '../providers/adapter.ts';
+import type { ToolRegistry, Host } from '../tools/registry.ts';
+import { modeAllows } from '../tools/registry.ts';
+import type { ToolContext, ToolDefinition } from '../tools/types.ts';
+import { limit } from '../tools/types.ts';
+import type { ResourceScope } from '../tools/scope.ts';
+import type { PermissionEngine } from '../permissions/engine.ts';
+import type { ResourceService } from '../services/resources.ts';
+import type { TerminalManager } from '../tools/terminals.ts';
+import { LoopDetector, type LoopGate, type ProposalService, type QuestionBroker } from '../tools/interactions.ts';
+import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
 import { decideRetry } from './retry.ts';
-import { buildHistory, buildSystemPrompt, compactionCut, estimateRequestTokens, plainText } from './prompt.ts';
+import { buildHistory, buildSystemPrompt, compactionCut, estimateRequestTokens, transcriptText } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
 import { estimateTokens, sleep } from '../util.ts';
 
@@ -65,6 +76,11 @@ interface JobContext {
   snapshot: GenerationSnapshot;
   reasoningBody: Record<string, unknown>;
   policy: { maxAttempts: number; baseDelayMs: number; retryTruncatedJson400: boolean };
+  /** Outils exposés pour cette génération (skills actifs, mode, hôte). */
+  tools: ToolDefinition[];
+  scope: ResourceScope;
+  loop: LoopDetector;
+  instructionFiles: { scope: string; path: string; content: string }[];
 }
 
 export interface GenerationDeps {
@@ -79,6 +95,14 @@ export interface GenerationDeps {
   queue: QueueService;
   attachments: AttachmentService;
   compactions: CompactionService;
+  tools: ToolRegistry;
+  permissions: PermissionEngine;
+  resources: ResourceService;
+  terminals: TerminalManager;
+  questions: QuestionBroker;
+  loopGate: LoopGate;
+  proposals: ProposalService;
+  host: Host;
 }
 
 /**
@@ -172,6 +196,9 @@ export class GenerationRunner {
     const limits = providers.modelLimits(provider.id, model);
     const plan = planReasoning(conversation.reasoningLevel, caps, transportFor(provider.preset));
     const project = conversation.projectId !== null ? projects.get(conversation.projectId) : null;
+    const tools = this.deps.tools.available(s, conversation.mode, conversation.agentMode, this.deps.host);
+    const { scope } = this.deps.resources.scope(conversationId);
+    const instructionFiles = conversation.mode === 'agent' && s.agent.readInstructionFiles ? this.deps.resources.instructionFiles(scope.roots) : [];
     const snapshot: GenerationSnapshot = {
       providerId: provider.id,
       providerName: provider.name,
@@ -184,6 +211,7 @@ export class GenerationRunner {
       responseStyle: s.chat.responseStyle,
       temperature: conn.options.temperature,
       maxOutputTokens: conn.options.maxOutputTokens ?? limits.maxOutputTokens,
+      tools: tools.map((t) => t.name),
       startedAt: new Date().toISOString(),
     };
     return {
@@ -198,6 +226,10 @@ export class GenerationRunner {
       snapshot,
       reasoningBody: plan.body,
       policy: { maxAttempts: s.network.retryMaxAttempts, baseDelayMs: s.network.retryBaseDelayMs, retryTruncatedJson400: s.network.retryTruncatedJson400 },
+      tools,
+      scope,
+      loop: new LoopDetector(s.loop),
+      instructionFiles,
     };
   }
 
@@ -300,8 +332,11 @@ export class GenerationRunner {
   // Requêtes
   // ---------------------------------------------------------------------------
 
-  /** Requête complète pour la conversation : instructions, résumé de compactage, historique reconstruit pour le modèle cible. */
-  private buildRequest(ctx: JobContext, excludeMessageId: Id | null): { request: ChatRequest; droppedImages: number } {
+  /**
+   * Requête complète : instructions, résumé de compactage, historique reconstruit pour le modèle cible,
+   * puis le message en cours (texte et outils des tours précédents) et les outils exposés.
+   */
+  private buildRequest(ctx: JobContext, excludeMessageId: Id | null, currentParts: MessagePart[] = []): { request: ChatRequest; droppedImages: number } {
     const { messages, compactions, attachments } = this.deps;
     const conversation = this.deps.conversations.get(ctx.conversation.id);
     const latest = compactions.latest(conversation.id);
@@ -311,15 +346,29 @@ export class GenerationRunner {
       project: ctx.project,
       goal: conversation.goal,
       compactionSummary: latest?.summary ?? null,
+      agent:
+        ctx.snapshot.mode === 'agent'
+          ? {
+              agentMode: ctx.snapshot.agentMode,
+              roots: ctx.scope.roots,
+              files: ctx.scope.files,
+              instructionFiles: ctx.instructionFiles,
+              notes: Object.entries(INSTRUCTION_SKILLS)
+                .filter(([id]) => ctx.settings.skills.enabled[id])
+                .map(([, text]) => text),
+              hasTools: ctx.tools.length > 0,
+            }
+          : null,
     });
-    const history = buildHistory(
-      messages.list(conversation.id).filter((m) => m.id !== excludeMessageId && m.status !== 'streaming'),
-      {
-        attachments: { text: (r) => attachments.text(r.id), dataUrl: (r) => attachments.dataUrl(r.id) },
-        vision: ctx.caps?.vision ?? null,
-        compactedUpToSeq: latest?.upToSeq ?? null,
-      },
-    );
+    const list = messages.list(conversation.id).filter((m) => m.id !== excludeMessageId && m.status !== 'streaming');
+    if (currentParts.length) {
+      list.push({ id: -1, conversationId: conversation.id, seq: Number.MAX_SAFE_INTEGER, role: 'assistant', origin: 'direct', status: 'streaming', parts: currentParts, snapshot: null, usage: null, error: null, createdAt: '', completedAt: null, durationMs: null, firstTokenMs: null });
+    }
+    const history = buildHistory(list, {
+      attachments: { text: (r) => attachments.text(r.id), dataUrl: (r) => attachments.dataUrl(r.id) },
+      vision: ctx.caps?.vision ?? null,
+      compactedUpToSeq: latest?.upToSeq ?? null,
+    });
     return {
       droppedImages: history.droppedImages,
       request: {
@@ -329,22 +378,25 @@ export class GenerationRunner {
         temperature: ctx.snapshot.temperature,
         maxOutputTokens: ctx.snapshot.maxOutputTokens,
         extraBody: ctx.reasoningBody,
+        ...(ctx.tools.length ? { tools: ctx.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) } : {}),
       },
     };
   }
 
   private async runTurn(job: Job, ctx: JobContext, messageId: Id): Promise<MessageStatus> {
-    const { events, messages, usage, logger, providers } = this.deps;
+    const { events, messages, usage, logger, providers, queue } = this.deps;
     const signal = job.controller.signal;
     const started = performance.now();
     const parts: MessagePart[] = [];
     let firstTokenMs: number | null = null;
-    let apiUsage: Extract<StreamEvent, { type: 'usage' }> | null = null;
-    let finish: Extract<StreamEvent, { type: 'finish' }> | null = null;
     let status: MessageStatus = 'complete';
     let error: MessageError | null = null;
     let lastPersist = performance.now();
     let snapshot = ctx.snapshot;
+    // Compteurs cumulés sur tous les tours d'outils de la réponse.
+    const totals = { input: 0, output: 0, cached: 0, reasoning: 0, estimated: false, any: false };
+    let lastFinish: Extract<StreamEvent, { type: 'finish' }> | null = null;
+    let lastRequest: ChatRequest | null = null;
 
     // Regroupement des deltas pour limiter les réveils d'IPC et de rendu.
     let pending: MessageDelta[] = [];
@@ -362,6 +414,12 @@ export class GenerationRunner {
       else pending.push(d);
       flushTimer ??= setTimeout(flush, DELTA_FLUSH_MS);
     };
+    const persist = (force = false) => {
+      if (force || performance.now() - lastPersist > PERSIST_EVERY_MS) {
+        lastPersist = performance.now();
+        messages.saveParts(messageId, parts);
+      }
+    };
     const append = (type: 'text' | 'reasoning', text: string) => {
       if (!text) return;
       firstTokenMs ??= performance.now() - started;
@@ -375,117 +433,184 @@ export class GenerationRunner {
         (part as { text: string }).text = text;
       }
       queueDelta({ kind: type, partIndex: parts.length - 1, text });
-      if (performance.now() - lastPersist > PERSIST_EVERY_MS) {
-        lastPersist = performance.now();
-        messages.saveParts(messageId, parts);
-      }
+      persist();
     };
     const notice = (level: 'info' | 'warning' | 'error', code: string, text: string) => {
       const part: MessagePart = { type: 'notice', level, code, text };
       parts.push(part);
       queueDelta({ kind: 'part', partIndex: parts.length - 1, part });
     };
+    const setPart = (index: number, part: MessagePart) => {
+      parts[index] = part;
+      queueDelta({ kind: 'part', partIndex: index, part: structuredClone(part) });
+      persist(true);
+    };
 
-    const built = this.buildRequest(ctx, messageId);
-    let request = built.request;
-    if (built.droppedImages) notice('warning', 'images_dropped', `${built.droppedImages} image(s) non transmise(s) : le modèle « ${ctx.snapshot.model} » est déclaré sans vision.`);
     if (ctx.snapshot.reasoning?.fallback) notice('info', 'reasoning_fallback', `Réflexion : ${ctx.snapshot.reasoning.fallback} ; requête envoyée en Auto.`);
-
-    const usageId = usage.start({ kind: 'chat', conversationId: job.conversationId, projectId: ctx.conversation.projectId, providerId: ctx.provider.id, providerName: ctx.provider.name, model: ctx.snapshot.model });
     let reasoningRetried = false;
+    let droppedNoticeShown = false;
 
-    for (let attempt = 1; ; attempt++) {
-      job.state.attempt = attempt;
-      try {
-        for await (const ev of ctx.adapter.stream(ctx.conn, request, signal)) {
-          switch (ev.type) {
-            case 'text':
-            case 'reasoning':
-              append(ev.type, ev.text);
-              break;
-            case 'usage':
-              apiUsage = ev;
-              break;
-            case 'finish':
-              finish = ev;
-              break;
-            case 'notice':
-              if (ev.text) notice(ev.level, ev.code, ev.text);
-              break;
+    rounds: for (let round = 0; ; round++) {
+      const built = this.buildRequest(ctx, messageId, parts);
+      let request = built.request;
+      lastRequest = request;
+      if (built.droppedImages && !droppedNoticeShown) {
+        droppedNoticeShown = true;
+        notice('warning', 'images_dropped', `${built.droppedImages} image(s) non transmise(s) : le modèle « ${ctx.snapshot.model} » est déclaré sans vision.`);
+      }
+      const roundStart = parts.length;
+      const calls: ToolCallRequest[] = [];
+      let apiUsage: Extract<StreamEvent, { type: 'usage' }> | null = null;
+      let finish: Extract<StreamEvent, { type: 'finish' }> | null = null;
+      const usageId = usage.start({ kind: 'chat', conversationId: job.conversationId, projectId: ctx.conversation.projectId, providerId: ctx.provider.id, providerName: ctx.provider.name, model: ctx.snapshot.model });
+      const roundStarted = performance.now();
+      let roundFirst: number | null = null;
+      let roundStatus: 'ok' | 'error' | 'cancelled' | 'incomplete' = 'ok';
+
+      for (let attempt = 1; ; attempt++) {
+        job.state.attempt = attempt;
+        try {
+          for await (const ev of ctx.adapter.stream(ctx.conn, request, signal)) {
+            switch (ev.type) {
+              case 'text':
+              case 'reasoning':
+                roundFirst ??= performance.now() - roundStarted;
+                append(ev.type, ev.text);
+                break;
+              case 'tool_call':
+                calls.push(ev.call);
+                break;
+              case 'usage':
+                apiUsage = ev;
+                break;
+              case 'finish':
+                finish = ev;
+                break;
+              case 'notice':
+                if (ev.text) notice(ev.level, ev.code, ev.text);
+                break;
+            }
           }
-        }
-        break;
-      } catch (e) {
-        const outputStarted = parts.some((p) => p.type === 'text' || p.type === 'reasoning');
-        if (signal.aborted || (e instanceof HarnessError && e.code === 'cancelled')) {
-          status = 'cancelled';
+          break;
+        } catch (e) {
+          const outputStarted = parts.slice(roundStart).some((p) => p.type === 'text' || p.type === 'reasoning');
+          if (signal.aborted || (e instanceof HarnessError && e.code === 'cancelled')) {
+            status = 'cancelled';
+            roundStatus = 'cancelled';
+            break;
+          }
+          // Niveau de réflexion refusé explicitement : mémorisé, puis une seule nouvelle requête en Auto.
+          // « Sans réflexion » n'est jamais remplacé : l'incompatibilité est signalée.
+          const sent = snapshot.reasoning?.sent ?? null;
+          if (!outputStarted && !reasoningRetried && sent && e instanceof ProviderError && isReasoningRejection(e.status, e.body)) {
+            providers.rejectLevel(ctx.provider.id, ctx.snapshot.model, sent);
+            if (sent === 'none') {
+              status = 'error';
+              roundStatus = 'error';
+              error = { code: 'unavailable', message: `Le fournisseur refuse la désactivation de la réflexion pour « ${ctx.snapshot.model} » : ${e.message}`, status: e.status ?? undefined, retryable: false, attempts: attempt };
+              break;
+            }
+            reasoningRetried = true;
+            ctx.reasoningBody = {};
+            snapshot = { ...snapshot, reasoning: { requested: snapshot.reasoning!.requested, sent: null, parameter: null, fallback: `niveau « ${sent} » refusé par le fournisseur` } };
+            ctx.snapshot = snapshot;
+            messages.saveSnapshot(messageId, snapshot);
+            notice('warning', 'reasoning_rejected', `Le fournisseur a refusé le niveau de réflexion « ${sent} » ; requête renvoyée en Auto. Ce niveau n’est plus proposé jusqu’à la prochaine actualisation des modèles.`);
+            request = { ...request, extraBody: {} };
+            attempt--;
+            continue;
+          }
+          // Les outils déjà exécutés ne sont jamais rejoués : chaque tour repart de leurs résultats enregistrés.
+          const decision = decideRetry(e, attempt, ctx.policy, outputStarted || calls.length > 0);
+          if (decision.retry) {
+            logger.warn('generation', 'Nouvelle tentative', { conversationId: job.conversationId, attempt, reason: decision.reason, delayMs: decision.delayMs });
+            Object.assign(job.state, { status: 'retrying', retryReason: decision.reason, retryInMs: decision.delayMs });
+            events.emit('generation.state', { ...job.state });
+            try {
+              await sleep(decision.delayMs, signal);
+            } catch {
+              status = 'cancelled';
+              roundStatus = 'cancelled';
+              break;
+            }
+            Object.assign(job.state, { status: 'running', attempt: attempt + 1, retryReason: undefined, retryInMs: undefined });
+            events.emit('generation.state', { ...job.state });
+            continue;
+          }
+          const he = e instanceof HarnessError ? e : new HarnessError('internal', e instanceof Error ? e.message : String(e));
+          const anyOutput = parts.some((p) => p.type === 'text' || p.type === 'reasoning' || p.type === 'tool');
+          status = anyOutput ? 'interrupted' : 'error';
+          roundStatus = anyOutput ? 'incomplete' : 'error';
+          error = {
+            code: he.code,
+            message: he.message,
+            ...(e instanceof ProviderError && e.status !== null ? { status: e.status } : {}),
+            retryable: e instanceof ProviderError ? e.retryable : false,
+            attempts: attempt,
+          };
+          logger.warn('generation', 'Génération en erreur', { conversationId: job.conversationId, code: he.code, attempt });
           break;
         }
-        // Niveau de réflexion refusé explicitement : mémorisé, puis une seule nouvelle requête en Auto.
-        // « Sans réflexion » n'est jamais remplacé : l'incompatibilité est signalée.
-        const sent = snapshot.reasoning?.sent ?? null;
-        if (!outputStarted && !reasoningRetried && sent && e instanceof ProviderError && isReasoningRejection(e.status, e.body)) {
-          providers.rejectLevel(ctx.provider.id, ctx.snapshot.model, sent);
-          if (sent === 'none') {
-            status = 'error';
-            error = { code: 'unavailable', message: `Le fournisseur refuse la désactivation de la réflexion pour « ${ctx.snapshot.model} » : ${e.message}`, status: e.status ?? undefined, retryable: false, attempts: attempt };
-            break;
-          }
-          reasoningRetried = true;
-          ctx.reasoningBody = {};
-          snapshot = { ...snapshot, reasoning: { requested: snapshot.reasoning!.requested, sent: null, parameter: null, fallback: `niveau « ${sent} » refusé par le fournisseur` } };
-          ctx.snapshot = snapshot;
-          messages.saveSnapshot(messageId, snapshot);
-          notice('warning', 'reasoning_rejected', `Le fournisseur a refusé le niveau de réflexion « ${sent} » ; requête renvoyée en Auto. Ce niveau n’est plus proposé jusqu’à la prochaine actualisation des modèles.`);
-          request = { ...request, extraBody: {} };
-          attempt--;
-          continue;
+      }
+
+      // Consommation du tour (une ligne par requête).
+      const roundText = parts.slice(roundStart).filter((p) => p.type === 'text' || p.type === 'reasoning').map((p) => (p as { text: string }).text).join('');
+      const roundUsage = apiUsage
+        ? { inputTokens: apiUsage.inputTokens, outputTokens: apiUsage.outputTokens, cachedInputTokens: apiUsage.cachedInputTokens, reasoningTokens: apiUsage.reasoningTokens, estimated: false }
+        : { inputTokens: estimateRequestTokens(request.messages), outputTokens: estimateTokens(roundText + calls.map((c) => c.arguments).join('')), cachedInputTokens: null, reasoningTokens: null, estimated: true };
+      usage.finish(usageId, { firstTokenMs: roundFirst, ...roundUsage, status: roundStatus });
+      totals.any = true;
+      totals.input += roundUsage.inputTokens ?? 0;
+      totals.output += roundUsage.outputTokens ?? 0;
+      totals.cached += roundUsage.cachedInputTokens ?? 0;
+      totals.reasoning += roundUsage.reasoningTokens ?? 0;
+      totals.estimated ||= roundUsage.estimated;
+      lastFinish = finish;
+
+      if (status !== 'complete') break;
+      if (calls.length === 0) break;
+
+      // Exécution des appels, dans l'ordre, chacun soumis au mode et aux autorisations.
+      for (const call of calls) {
+        const index = parts.length;
+        const outcome = await this.executeTool(job, ctx, messageId, call, (record) => setPart(index, { type: 'tool', call: record }));
+        if (outcome === 'stop' || signal.aborted) {
+          status = 'cancelled';
+          if (outcome === 'stop') notice('warning', 'loop_stopped', 'Travail arrêté par l’utilisateur après une détection de boucle.');
+          break rounds;
         }
-        const decision = decideRetry(e, attempt, ctx.policy, outputStarted);
-        if (decision.retry) {
-          logger.warn('generation', 'Nouvelle tentative', { conversationId: job.conversationId, attempt, reason: decision.reason, delayMs: decision.delayMs });
-          Object.assign(job.state, { status: 'retrying', retryReason: decision.reason, retryInMs: decision.delayMs });
-          events.emit('generation.state', { ...job.state });
-          try {
-            await sleep(decision.delayMs, signal);
-          } catch {
-            status = 'cancelled';
-            break;
-          }
-          Object.assign(job.state, { status: 'running', attempt: attempt + 1, retryReason: undefined, retryInMs: undefined });
-          events.emit('generation.state', { ...job.state });
-          continue;
-        }
-        const he = e instanceof HarnessError ? e : new HarnessError('internal', e instanceof Error ? e.message : String(e));
-        status = outputStarted ? 'interrupted' : 'error';
-        error = {
-          code: he.code,
-          message: he.message,
-          ...(e instanceof ProviderError && e.status !== null ? { status: e.status } : {}),
-          retryable: e instanceof ProviderError ? e.retryable : false,
-          attempts: attempt,
-        };
-        logger.warn('generation', 'Génération en erreur', { conversationId: job.conversationId, code: he.code, attempt });
+      }
+      if (round + 1 >= ctx.settings.agent.maxToolRounds) {
+        notice('warning', 'max_tool_rounds', `Limite de ${ctx.settings.agent.maxToolRounds} tours d’outils atteinte : réponse arrêtée. Relancez pour poursuivre.`);
         break;
       }
+      // Frontière contrôlée : une instruction transmise pendant ce tour interrompt la boucle ici.
+      if (queue.list(job.conversationId).some((i) => i.kind === 'steer')) break;
+      Object.assign(job.state, { status: 'running', attempt: 1 });
     }
 
     if (status === 'complete') {
       const hasText = parts.some((p) => p.type === 'text' && p.text.trim());
-      if (finish?.reason === 'length') notice('warning', 'max_tokens', 'Réponse tronquée : la limite de sortie du modèle a été atteinte.');
-      else if (finish?.reason === 'content_filter') notice('warning', 'content_filter', 'Le fournisseur a interrompu ou refusé la réponse (filtre de contenu).');
-      else if (!finish && hasText) notice('warning', 'no_finish', 'Le flux s’est terminé sans indication de fin : la réponse peut être incomplète.');
-      if (!hasText && !parts.some((p) => p.type === 'reasoning')) {
+      const hasTools = parts.some((p) => p.type === 'tool');
+      if (lastFinish?.reason === 'length') notice('warning', 'max_tokens', 'Réponse tronquée : la limite de sortie du modèle a été atteinte.');
+      else if (lastFinish?.reason === 'content_filter') notice('warning', 'content_filter', 'Le fournisseur a interrompu ou refusé la réponse (filtre de contenu).');
+      else if (!lastFinish && hasText) notice('warning', 'no_finish', 'Le flux s’est terminé sans indication de fin : la réponse peut être incomplète.');
+      if (!hasText && !hasTools && !parts.some((p) => p.type === 'reasoning')) {
         status = 'error';
-        error = { code: finish?.reason === 'content_filter' ? 'provider_refusal' : 'provider_stream', message: 'Le fournisseur n’a renvoyé aucun contenu.', attempts: job.state.attempt };
+        error = { code: lastFinish?.reason === 'content_filter' ? 'provider_refusal' : 'provider_stream', message: 'Le fournisseur n’a renvoyé aucun contenu.', attempts: job.state.attempt };
+      }
+    }
+    // Appels restés en cours (annulation) : jamais présentés comme réussis.
+    for (const [i, p] of parts.entries()) {
+      if (p.type === 'tool' && ['pending', 'awaiting_permission', 'running'].includes(p.call.status)) {
+        parts[i] = { type: 'tool', call: { ...p.call, status: p.call.status === 'running' ? 'interrupted' : 'cancelled', result: p.call.status === 'running' ? null : 'Appel annulé avant exécution.', finishedAt: new Date().toISOString() } };
       }
     }
 
     const durationMs = performance.now() - started;
-    const outputText = parts.filter((p) => p.type === 'text' || p.type === 'reasoning').map((p) => (p as { text: string }).text).join('');
-    const finalUsage: MessageUsage = apiUsage
-      ? { inputTokens: apiUsage.inputTokens, outputTokens: apiUsage.outputTokens, cachedInputTokens: apiUsage.cachedInputTokens, reasoningTokens: apiUsage.reasoningTokens, estimated: false }
-      : { inputTokens: estimateRequestTokens(request.messages), outputTokens: estimateTokens(outputText), cachedInputTokens: null, reasoningTokens: null, estimated: true };
+    const finalUsage: MessageUsage = totals.any
+      ? { inputTokens: totals.input, outputTokens: totals.output, cachedInputTokens: totals.cached || null, reasoningTokens: totals.reasoning || null, estimated: totals.estimated }
+      : { inputTokens: lastRequest ? estimateRequestTokens(lastRequest.messages) : 0, outputTokens: 0, cachedInputTokens: null, reasoningTokens: null, estimated: true };
 
     if (flushTimer) clearTimeout(flushTimer);
     flush();
@@ -496,23 +621,137 @@ export class GenerationRunner {
       // Conversation supprimée pendant la génération : rien à enregistrer.
       logger.info('generation', 'Message introuvable en fin de génération', { error: (e as Error).message });
     }
-    usage.finish(usageId, {
-      firstTokenMs,
-      inputTokens: finalUsage.inputTokens,
-      outputTokens: finalUsage.outputTokens,
-      cachedInputTokens: finalUsage.cachedInputTokens,
-      reasoningTokens: finalUsage.reasoningTokens,
-      estimated: finalUsage.estimated,
-      status: status === 'complete' ? 'ok' : status === 'cancelled' ? 'cancelled' : status === 'interrupted' ? 'incomplete' : 'error',
-    });
     // Dernier tour : la conversation est libérée avant l'annonce du message final.
-    const lastTurn = status !== 'complete' || this.deps.queue.list(job.conversationId).every((i) => i.kind !== 'steer');
+    const lastTurn = status !== 'complete' || queue.list(job.conversationId).every((i) => i.kind !== 'steer');
     if (lastTurn) {
       job.final = status;
       this.release(job);
     }
     if (final) events.emit('message.updated', { message: final });
     return status;
+  }
+
+  /**
+   * Un appel d'outil : mode, skill, détection de boucle, autorisation, puis exécution. Le résultat
+   * renvoyé au modèle est toujours fidèle (refus, erreur, annulation sont dits comme tels).
+   */
+  private async executeTool(job: Job, ctx: JobContext, messageId: Id, call: ToolCallRequest, update: (r: ToolCallRecord) => void): Promise<'ok' | 'stop'> {
+    const { permissions, proposals, questions, loopGate, events, terminals } = this.deps;
+    const signal = job.controller.signal;
+    const nowIso = () => new Date().toISOString();
+    const record: ToolCallRecord = { id: call.id, name: call.name, family: 'inconnu', effects: [], arguments: call.arguments, target: null, status: 'pending', result: null, display: null, permission: null, startedAt: nowIso(), finishedAt: null };
+    const end = (patch: Partial<ToolCallRecord>) => {
+      Object.assign(record, patch, { finishedAt: nowIso() });
+      if (record.result) record.result = limit(record.result, ctx.settings.agent.maxResultChars);
+      update({ ...record });
+    };
+    update({ ...record });
+
+    const def = this.deps.tools.get(call.name);
+    if (!def) {
+      end({ status: 'error', result: `Outil inconnu : ${call.name}. Outils disponibles : ${ctx.tools.map((t) => t.name).join(', ') || 'aucun'}.` });
+      return 'ok';
+    }
+    record.family = def.family;
+    record.effects = def.effects;
+    if (!ctx.tools.includes(def)) {
+      const m = modeAllows(def, ctx.snapshot.mode, ctx.snapshot.agentMode);
+      const reason = m.ok ? `Le skill « ${def.skill} » est désactivé ou l’outil est indisponible sur cet hôte.` : m.reason;
+      const permission = { decision: 'deny' as const, source: 'mode' as const, ruleId: null, scope: null, reason, decidedAt: nowIso() };
+      permissions.log(job.conversationId, def.name, null, permission);
+      end({ status: 'denied', permission, result: `Refusé : ${reason}` });
+      return 'ok';
+    }
+    let args: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(call.arguments || '{}');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('un objet JSON est attendu');
+      args = parsed as Record<string, unknown>;
+    } catch (e) {
+      end({ status: 'error', result: `Arguments JSON invalides pour ${def.name} : ${(e as Error).message}` });
+      return 'ok';
+    }
+
+    const toolCtx: ToolContext = {
+      conversationId: job.conversationId,
+      projectId: ctx.conversation.projectId,
+      messageId,
+      callId: call.id,
+      scope: ctx.scope,
+      mode: ctx.snapshot.mode,
+      agentMode: ctx.snapshot.agentMode,
+      settings: ctx.settings,
+      signal,
+      terminals,
+      events,
+      host: this.deps.host,
+      propose: (changes) => changes.map((c) => proposals.create(job.conversationId, messageId, call.id, c.full, { path: c.path, status: c.status, before: c.before, after: c.after })),
+      ask: async (qs) => {
+        record.display = { kind: 'question', questions: qs, answers: null, cancelled: false };
+        update({ ...record });
+        return questions.ask(job.conversationId, messageId, call.id, qs, signal);
+      },
+      info: { conversationTitle: ctx.conversation.title, projectName: ctx.project?.name ?? null, model: ctx.snapshot.model, provider: ctx.provider.name },
+    };
+
+    let target: { label: string | null; resources: string[] };
+    try {
+      target = def.target(args, toolCtx);
+    } catch {
+      target = { label: null, resources: [] };
+    }
+    record.target = target.label;
+
+    // Détection de boucle : mêmes appels répétés sans progrès.
+    const loop = ctx.loop.check(job.conversationId, def.name, call.arguments);
+    if (loop) {
+      record.status = 'awaiting_permission';
+      update({ ...record });
+      const decision = await loopGate.wait(loop, signal);
+      if (decision === 'stop') {
+        end({ status: 'cancelled', result: 'Arrêté par l’utilisateur : appels répétés sans progrès détectés.' });
+        return 'stop';
+      }
+      ctx.loop.allowOnce(def.name, call.arguments);
+    }
+
+    // Autorisation.
+    const query = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources: target.resources };
+    const evaluation = permissions.evaluate(query, ctx.settings.permissions.policy);
+    let permission: NonNullable<ToolCallRecord['permission']>;
+    if (evaluation.decision === 'ask') {
+      let preview = null;
+      try {
+        preview = def.preview ? await def.preview(args, toolCtx) : null;
+      } catch (e) {
+        // Le changement est impossible tel quel : inutile de demander une autorisation.
+        end({ status: 'error', result: `Erreur : ${(e as Error).message}` });
+        return 'ok';
+      }
+      record.status = 'awaiting_permission';
+      update({ ...record });
+      const resp = await permissions.request({ conversationId: job.conversationId, messageId, tool: def.name, family: def.family, effects: def.effects, target: target.label, arguments: call.arguments, preview, reason: evaluation.reason }, query, signal);
+      permission = { decision: resp.decision, source: 'user', ruleId: null, scope: resp.scope, reason: resp.reason, decidedAt: nowIso() };
+    } else {
+      permission = { decision: evaluation.decision, source: evaluation.source, ruleId: evaluation.ruleId, scope: evaluation.scope, reason: evaluation.reason, decidedAt: nowIso() };
+    }
+    permissions.log(job.conversationId, def.name, target.label, permission);
+    record.permission = permission;
+    if (permission.decision === 'deny') {
+      end({ status: signal.aborted ? 'cancelled' : 'denied', result: `Refusé : ${permission.reason} Ne tentez pas d’obtenir le même effet par un autre outil ; demandez à l’utilisateur si nécessaire.` });
+      return 'ok';
+    }
+
+    record.status = 'running';
+    update({ ...record });
+    try {
+      const r = await def.execute(args, toolCtx);
+      end({ status: signal.aborted ? 'cancelled' : (r.status ?? 'done'), result: r.result, display: r.display ?? record.display });
+    } catch (e) {
+      if (signal.aborted) end({ status: 'interrupted', result: 'Annulé pendant l’exécution : l’effet est incertain.' });
+      else end({ status: 'error', result: `Erreur : ${(e as Error).message}` });
+    }
+    return 'ok';
   }
 
   /** Requête auxiliaire (nommage, compactage) : texte complet, consommation enregistrée séparément. */
@@ -571,7 +810,7 @@ export class GenerationRunner {
       model,
       messages: [
         { role: 'system', content: 'Tu donnes un titre court à une conversation. Réponds uniquement par le titre : 6 mots au plus, dans la langue de la conversation, sans guillemets ni ponctuation finale.' },
-        { role: 'user', content: `Utilisateur :\n${excerpt(plainText(user) || '(pièces jointes)')}\n\nAssistant :\n${excerpt(plainText(reply))}` },
+        { role: 'user', content: `Utilisateur :\n${excerpt(transcriptText(user) || '(pièces jointes)')}\n\nAssistant :\n${excerpt(transcriptText(reply))}` },
       ],
       reasoningLevel: 'auto',
       temperature: null,
@@ -662,7 +901,7 @@ export class GenerationRunner {
     const transcript = slice
       .map((m) => {
         const files = m.parts.filter((p) => p.type === 'attachment').map((p) => (p as { attachment: AttachmentRef }).attachment.name);
-        return `### ${m.role === 'user' ? 'Utilisateur' : 'Assistant'}\n${plainText(m)}${files.length ? `\n(Pièces jointes : ${files.join(', ')})` : ''}`;
+        return `### ${m.role === 'user' ? 'Utilisateur' : 'Assistant'}\n${transcriptText(m)}${files.length ? `\n(Pièces jointes : ${files.join(', ')})` : ''}`;
       })
       .join('\n\n');
     const request: ChatRequest = {

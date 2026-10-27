@@ -97,6 +97,14 @@ async function printMode(harness: Harness, client: ReturnType<typeof createInPro
     if (!provider) throw new Error(translate(locale, 'cli.noProviders'));
     await client.call('conversations.update', { id: conv.id, patch: { providerId: provider.id, model } });
   }
+  // Sans terminal interactif, aucune demande ne peut être tranchée par l'utilisateur :
+  // refus explicite (jamais une approbation implicite), questions annulées, boucles arrêtées.
+  client.on('permission.requested', (r) => {
+    process.stderr.write(`${translate(locale, 'cli.printDenied', { tool: r.tool })}\n`);
+    void client.call('permissions.respond', { requestId: r.requestId, decision: 'deny', scope: 'once' });
+  });
+  client.on('question.requested', (q) => void client.call('questions.answer', { conversationId: q.conversationId, callId: q.callId, answers: null }));
+  client.on('loop.detected', (r) => void client.call('loop.resolve', { conversationId: r.conversationId, decision: 'stop' }));
   let assistantId: number | null = null;
   const done = new Promise<number>((resolve) => {
     client.on('message.delta', ({ messageId, deltas }: { messageId: number; deltas: MessageDelta[] }) => {

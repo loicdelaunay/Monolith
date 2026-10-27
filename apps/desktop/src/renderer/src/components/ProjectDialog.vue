@@ -63,6 +63,28 @@ async function save() {
   }
 }
 
+// Import d'un permission.json : aperçu des règles, puis import explicite (opération immédiate).
+const importJson = ref('');
+const importPreview = ref<{ rules: { decision: string; tool: string; family: string; resource: string }[]; errors: string[] } | null>(null);
+const importInput = ref<HTMLInputElement | null>(null);
+async function onImportFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
+  if (!file || !project.value) return;
+  importJson.value = await file.text();
+  importPreview.value = await api.call('permissions.previewImport', { projectId: project.value.id, json: importJson.value }).catch((err) => ({ rules: [], errors: [errorMessage(err)] }));
+}
+async function applyImport() {
+  if (!project.value) return;
+  try {
+    const rules = await api.call('permissions.import', { projectId: project.value.id, json: importJson.value });
+    toast.add({ severity: 'success', summary: t('project.imported', { count: rules.length }), life: 3000 });
+    importPreview.value = null;
+  } catch (e) {
+    fail(e);
+  }
+}
+
 // Dossiers : opérations immédiates (ajout/retrait), signalées comme telles.
 async function addFolder() {
   if (!project.value) return;
@@ -121,6 +143,24 @@ async function removeFolder(folderId: number) {
         </ul>
         <div><Button :label="t('project.addFolder')" icon="pi pi-folder-plus" size="small" severity="secondary" outlined @click="addFolder" /></div>
         <p class="mh-hint">{{ t('project.foldersHint') }}</p>
+      </div>
+
+      <div v-if="project" class="mh-field">
+        <div class="mh-row between">
+          <span class="mh-label">{{ t('project.importPermissions') }}</span>
+          <span class="mh-badge-immediate"><i class="pi pi-bolt" />{{ t('common.immediate') }}</span>
+        </div>
+        <p class="mh-hint">{{ t('project.importHint') }}</p>
+        <div><Button :label="t('project.chooseJson')" icon="pi pi-upload" size="small" severity="secondary" outlined @click="importInput?.click()" /></div>
+        <input ref="importInput" type="file" accept=".json,application/json" hidden @change="onImportFile" />
+        <div v-if="importPreview" class="import">
+          <p v-for="(err, i) in importPreview.errors" :key="i" class="err">{{ err }}</p>
+          <p class="mh-hint">{{ t('project.previewRules', { count: importPreview.rules.length }) }}</p>
+          <ul>
+            <li v-for="(r, i) in importPreview.rules" :key="i"><strong>{{ t(`permissionsSettings.decisions.${r.decision}`) }}</strong> <code>{{ r.tool }}</code><code v-if="r.resource"> ({{ r.resource }})</code></li>
+          </ul>
+          <Button :label="t('project.importApply')" size="small" :disabled="importPreview.errors.length > 0 || importPreview.rules.length === 0" @click="applyImport" />
+        </div>
       </div>
     </form>
     <template #footer>
@@ -188,6 +228,23 @@ async function removeFolder(folderId: number) {
   white-space: nowrap;
   font-family: var(--mh-font-mono);
   font-size: 12.5px;
+}
+.import {
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius-sm);
+  padding: 8px 10px;
+}
+.import ul {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.import code {
+  font-family: var(--mh-font-mono);
+}
+.err {
+  color: var(--mh-danger);
+  margin: 0 0 4px;
 }
 .missing-label {
   font-size: 12px;

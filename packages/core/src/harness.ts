@@ -29,6 +29,13 @@ import { QueueService } from './services/queue.ts';
 import { TemplateService } from './services/templates.ts';
 import { CompactionService } from './services/compactions.ts';
 import { HistoryService } from './services/history.ts';
+import { ResourceService } from './services/resources.ts';
+import { PermissionEngine } from './permissions/engine.ts';
+import { ToolRegistry } from './tools/registry.ts';
+import { BUILTIN_TOOLS } from './tools/builtin.ts';
+import { TerminalManager } from './tools/terminals.ts';
+import { LoopGate, ProposalService, QuestionBroker } from './tools/interactions.ts';
+import type { ActionProposal, Message, MessagePart } from '@monolith/contracts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
 import type { ProviderAdapter } from './providers/adapter.ts';
@@ -72,6 +79,13 @@ export class Harness {
   readonly templates: TemplateService;
   readonly compactions: CompactionService;
   readonly history: HistoryService;
+  readonly resources: ResourceService;
+  readonly permissions: PermissionEngine;
+  readonly tools: ToolRegistry;
+  readonly terminals: TerminalManager;
+  readonly questions: QuestionBroker;
+  readonly loopGate: LoopGate;
+  readonly proposals: ProposalService;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
   private readonly testControllers = new Set<AbortController>();
@@ -109,6 +123,14 @@ export class Harness {
     this.queue = new QueueService(this.db, this.events);
     this.templates = new TemplateService(this.db, this.events);
     this.compactions = new CompactionService(this.db, this.events);
+    // Base, clés et journaux de l'application : jamais accessibles aux outils, même dans une racine.
+    this.resources = new ResourceService(this.db, this.projects, this.layout.conversations, [this.layout.keys, this.layout.database, `${this.layout.database}-wal`, `${this.layout.database}-shm`, this.layout.logs, this.layout.backups]);
+    this.permissions = new PermissionEngine(this.db, this.events);
+    this.tools = new ToolRegistry(BUILTIN_TOOLS);
+    this.terminals = new TerminalManager(this.events);
+    this.questions = new QuestionBroker(this.events);
+    this.loopGate = new LoopGate(this.events);
+    this.proposals = new ProposalService(this.db, this.events);
     this.generation = new GenerationRunner({
       events: this.events,
       logger: this.logger,
@@ -121,6 +143,14 @@ export class Harness {
       queue: this.queue,
       attachments: this.attachments,
       compactions: this.compactions,
+      tools: this.tools,
+      permissions: this.permissions,
+      resources: this.resources,
+      terminals: this.terminals,
+      questions: this.questions,
+      loopGate: this.loopGate,
+      proposals: this.proposals,
+      host: options.host,
     });
     this.history = new HistoryService({
       db: this.db,
@@ -180,6 +210,7 @@ export class Harness {
     if (this.closed) return;
     this.closed = true;
     this.generation.cancelAll();
+    this.terminals.killAll();
     for (const c of this.testControllers) c.abort();
     await this.generation.idle();
     this.db.close();
@@ -190,6 +221,38 @@ export class Harness {
     const c = new AbortController();
     this.testControllers.add(c);
     return fn(c.signal).finally(() => this.testControllers.delete(c));
+  }
+
+  /**
+   * Proposition d'action : déclenchable une seule fois, sans permission supplémentaire.
+   * La consigne part comme un message ordinaire (file d'attente si une génération est en cours).
+   */
+  private async triggerAction(conversationId: Id, messageId: Id, callId: string, actionId: string): Promise<{ conversationId: Id }> {
+    const message: Message = this.messages.get(messageId);
+    if (message.conversationId !== conversationId) throw new HarnessError('invalid_argument', 'Message d’une autre conversation');
+    const index = message.parts.findIndex((p) => p.type === 'tool' && p.call.id === callId && p.call.display?.kind === 'actions');
+    if (index === -1) throw new HarnessError('not_found', 'Propositions introuvables');
+    const part = message.parts[index] as Extract<MessagePart, { type: 'tool' }>;
+    const display = part.call.display as { kind: 'actions'; actions: ActionProposal[] };
+    const action = display.actions.find((a) => a.id === actionId);
+    if (!action) throw new HarnessError('not_found', 'Action introuvable');
+    if (action.triggered) throw new HarnessError('conflict', 'Cette action a déjà été déclenchée');
+    action.triggered = true;
+    this.messages.saveParts(messageId, message.parts);
+    this.events.emit('message.updated', { message: this.messages.get(messageId) });
+
+    const source = this.conversations.get(conversationId);
+    let target = conversationId;
+    if (action.kind === 'agent' || action.kind === 'new_chat') {
+      const s = this.settings.get();
+      const created = this.conversations.create(source.projectId, action.title, { providerId: source.providerId ?? s.chat.defaultProviderId, model: source.providerId !== null ? source.model : s.chat.defaultModel, reasoningLevel: source.reasoningLevel });
+      // Un agent lancé depuis une proposition n'obtient jamais plus de droits que la conversation d'origine.
+      const agentMode = source.mode === 'agent' ? source.agentMode : 'plan';
+      this.conversations.update(created.id, { mode: action.kind === 'agent' ? 'agent' : 'chat', agentMode });
+      target = created.id;
+    }
+    await this.generation.send(target, { text: action.instructions, mode: 'queue' });
+    return { conversationId: target };
   }
 
   /** Retire les références à une connexion supprimée (réglages par défaut, conversations). */
@@ -291,6 +354,50 @@ export class Harness {
       'templates.delete': (p) => this.templates.delete(p.id),
 
       'usage.list': (p) => this.usage.list(Math.min(5000, Math.max(1, p?.limit ?? 500))),
+
+      'resources.get': (p) => this.resources.get(p.conversationId, this.settings.get().agent.readInstructionFiles),
+      'resources.add': (p) => {
+        this.resources.add(p.conversationId, p.kind === 'file' ? 'file' : 'folder', p.path);
+        return this.resources.get(p.conversationId, this.settings.get().agent.readInstructionFiles);
+      },
+      'resources.remove': (p) => {
+        this.resources.remove(p.conversationId, p.resourceId);
+        return this.resources.get(p.conversationId, this.settings.get().agent.readInstructionFiles);
+      },
+      'resources.reset': (p) => {
+        this.resources.reset(p.conversationId);
+        return this.resources.get(p.conversationId, this.settings.get().agent.readInstructionFiles);
+      },
+
+      'permissions.rules': (p) => this.permissions.rules(p?.projectId),
+      'permissions.addRule': (p) => this.permissions.addRule(p),
+      'permissions.removeRule': (p) => this.permissions.removeRule(p.id),
+      'permissions.history': (p) => this.permissions.history(p?.conversationId, Math.min(2000, Math.max(1, p?.limit ?? 200))),
+      'permissions.pending': () => this.permissions.listPending(),
+      'permissions.respond': (p) => this.permissions.respond(p.requestId, p.decision, p.scope),
+      'permissions.previewImport': (p) => {
+        this.projects.get(p.projectId);
+        return this.permissions.parseImport(p.projectId, p.json);
+      },
+      'permissions.import': (p) => {
+        this.projects.get(p.projectId);
+        const parsed = this.permissions.parseImport(p.projectId, p.json);
+        if (parsed.errors.length) throw new HarnessError('invalid_argument', `Import refusé : ${parsed.errors.join(' ; ')}`);
+        return this.db.transaction(() => parsed.rules.map((r) => this.permissions.addRule(r)));
+      },
+
+      'questions.answer': (p) => this.questions.answer(p.conversationId, p.callId, p.answers),
+      'actions.trigger': (p) => this.triggerAction(p.conversationId, p.messageId, p.callId, p.actionId),
+      'loop.resolve': (p) => this.loopGate.resolve(p.conversationId, p.decision),
+
+      'proposals.list': (p) => this.proposals.list(p.conversationId),
+      'proposals.apply': (p) => this.proposals.apply(p.id),
+      'proposals.reject': (p) => this.proposals.reject(p.id),
+
+      'skills.list': () => this.tools.skills(this.settings.get(), this.options.host),
+      'terminals.list': (p) => this.terminals.list(p.conversationId),
+      'terminals.output': (p) => ({ output: this.terminals.output(p.terminalId), info: { ...this.terminals.get(p.terminalId).info } }),
+      'terminals.kill': (p) => this.terminals.kill(p.terminalId),
       'conversations.search': (p) => this.conversations.search(String(p.query ?? ''), Math.min(100, Math.max(1, p.limit ?? 30))),
 
       'messages.list': (p) => this.messages.list(p.conversationId),

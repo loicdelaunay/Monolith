@@ -15,6 +15,7 @@ export interface RendererInfo {
 export interface HostApi {
   info(): Promise<RendererInfo>;
   pickDirectory(title?: string): Promise<string | null>;
+  pickFiles(title?: string): Promise<string[]>;
   openExternal(url: string): Promise<boolean>;
   showItemInFolder(path: string): Promise<void>;
   /** Dialogue « Enregistrer sous » puis écriture du texte ; retourne le chemin ou null si annulé. */

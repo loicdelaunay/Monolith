@@ -32,6 +32,19 @@ const reasoningOptions = computed(() => {
   const levels: ReasoningLevel[] = ['auto', ...(caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l))];
   return levels.map((l) => ({ label: t(`reasoningLevels.${l}`), value: l }));
 });
+/** Mode de la conversation : Chat ou Agent (Plan, Proposition, Exécution), appliqué par le moteur. */
+const modeOptions = computed(() => [
+  { value: 'chat', label: t('modes.chat'), icon: 'pi-comments' },
+  { value: 'agent:plan', label: t('modes.plan'), icon: 'pi-search' },
+  { value: 'agent:propose', label: t('modes.propose'), icon: 'pi-file-edit' },
+  { value: 'agent:execute', label: t('modes.execute'), icon: 'pi-play' },
+]);
+const modeValue = computed(() => (props.conversation.mode === 'chat' ? 'chat' : `agent:${props.conversation.agentMode}`));
+function selectMode(v: string) {
+  if (v === 'chat') void update({ mode: 'chat' });
+  else void update({ mode: 'agent', agentMode: v.split(':')[1] as 'plan' | 'propose' | 'execute' });
+}
+
 const reasoningUnknown = computed(() => reasoningOptions.value.length === 1 && props.conversation.reasoningLevel === 'auto');
 
 async function update(patch: Parameters<typeof api.call<'conversations.update'>>[1]['patch']) {
@@ -62,6 +75,17 @@ function manageModels() {
 
 <template>
   <div class="picker">
+    <Select :model-value="modeValue" :options="modeOptions" option-label="label" option-value="value" :aria-label="t('modes.label')" size="small" class="mode" @update:model-value="selectMode">
+      <template #value="{ value }">
+        <span class="opt"><i class="pi" :class="modeOptions.find((o) => o.value === value)?.icon" />{{ modeOptions.find((o) => o.value === value)?.label }}</span>
+      </template>
+      <template #option="{ option }">
+        <span class="opt-col">
+          <span class="opt"><i class="pi" :class="option.icon" />{{ option.label }}</span>
+          <span class="mh-hint">{{ t(`modes.hint.${option.value.replace('agent:', '')}`) }}</span>
+        </span>
+      </template>
+    </Select>
     <Select
       :model-value="effectiveProviderId"
       :options="providerOptions"
@@ -135,6 +159,15 @@ function manageModels() {
 }
 .provider {
   max-width: 200px;
+}
+.mode {
+  max-width: 190px;
+}
+.opt-col {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  white-space: normal;
 }
 .model {
   max-width: 260px;

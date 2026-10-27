@@ -27,6 +27,7 @@ ipcRenderer.send('engine:request-port');
 const host: HostApi = {
   info: () => ipcRenderer.invoke('host:info'),
   pickDirectory: (title) => ipcRenderer.invoke('host:pickDirectory', title),
+  pickFiles: (title) => ipcRenderer.invoke('host:pickFiles', title),
   openExternal: (url) => ipcRenderer.invoke('host:openExternal', url),
   showItemInFolder: (path) => ipcRenderer.invoke('host:showItemInFolder', path),
   saveTextFile: (defaultName, content, filters) => ipcRenderer.invoke('host:saveTextFile', defaultName, content, filters),

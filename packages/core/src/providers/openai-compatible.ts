@@ -1,13 +1,63 @@
 import type { CatalogModel, ConnectionTestResult, ProviderKind } from '@monolith/contracts';
-import type { ChatRequest, ProviderAdapter, ProviderConnection, StreamEvent } from './adapter.ts';
+import type { ChatMessage, ChatRequest, ProviderAdapter, ProviderConnection, StreamEvent, ToolCallRequest } from './adapter.ts';
 import { HttpClient, ProviderError, readBody } from './http.ts';
 import { SseParser } from './sse.ts';
 import { HarnessError } from '@monolith/contracts';
 
+interface ToolCallDelta {
+  index?: number;
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string | Record<string, unknown> };
+}
+
 interface ChunkChoice {
-  delta?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null };
-  message?: { content?: string | null; reasoning_content?: string | null };
+  delta?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null; tool_calls?: ToolCallDelta[] | null };
+  message?: { content?: string | null; reasoning_content?: string | null; tool_calls?: ToolCallDelta[] | null };
   finish_reason?: string | null;
+}
+
+/** Appels d'outils reconstitués à partir de fragments (index, id, nom, arguments en morceaux). */
+class ToolCallAccumulator {
+  private readonly calls = new Map<number, { id: string; name: string; arguments: string }>();
+  private nextIndex = 0;
+
+  push(deltas: ToolCallDelta[]): void {
+    for (const d of deltas) {
+      const index = typeof d.index === 'number' ? d.index : d.id && ![...this.calls.values()].some((c) => c.id === d.id) ? this.nextIndex : Math.max(0, this.nextIndex - 1);
+      let call = this.calls.get(index);
+      if (!call) {
+        call = { id: '', name: '', arguments: '' };
+        this.calls.set(index, call);
+        this.nextIndex = Math.max(this.nextIndex, index + 1);
+      }
+      if (d.id) call.id = d.id;
+      if (d.function?.name) call.name += call.name && call.name === d.function.name ? '' : d.function.name;
+      const args = d.function?.arguments;
+      if (typeof args === 'string') call.arguments += args;
+      else if (args && typeof args === 'object') call.arguments = JSON.stringify(args);
+    }
+  }
+
+  drain(): ToolCallRequest[] {
+    const out = [...this.calls.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([i, c]) => ({ id: c.id || `call_${i}_${Date.now().toString(36)}`, name: c.name, arguments: c.arguments || '{}' }))
+      .filter((c) => c.name);
+    this.calls.clear();
+    return out;
+  }
+}
+
+/** Sérialisation des messages normalisés au format Chat Completions (outils compris). */
+function wireMessages(messages: ChatMessage[]): Record<string, unknown>[] {
+  return messages.map((m) => {
+    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+    if (m.role === 'assistant' && m.toolCalls?.length) {
+      return { role: 'assistant', content: typeof m.content === 'string' && m.content ? m.content : null, tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) };
+    }
+    return { role: m.role, content: m.content };
+  });
 }
 
 interface Usage {
@@ -194,9 +244,13 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   async *stream(conn: ProviderConnection, request: ChatRequest, signal: AbortSignal): AsyncIterable<StreamEvent> {
     const body: Record<string, unknown> = {
       model: request.model,
-      messages: request.messages,
+      messages: wireMessages(request.messages),
       stream: true,
     };
+    if (request.tools?.length) {
+      body.tools = request.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+      body.tool_choice = 'auto';
+    }
     if (conn.options.streamUsage) body.stream_options = { include_usage: true };
     if (request.temperature !== null) body.temperature = request.temperature;
     if (request.maxOutputTokens !== null) body.max_tokens = request.maxOutputTokens;
@@ -225,24 +279,29 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     if (contentType.includes('application/json')) {
       // Serveur ignorant `stream: true` : réponse complète d'un bloc.
       const chunk = (await response.json()) as Chunk;
-      yield* this.fromChunk(chunk, new ThinkTagSplitter(), true);
+      const tools = new ToolCallAccumulator();
+      yield* this.fromChunk(chunk, new ThinkTagSplitter(), true, tools);
+      for (const call of tools.drain()) yield { type: 'tool_call', call };
       return;
     }
 
     const parser = new SseParser();
     const splitter = new ThinkTagSplitter();
+    const tools = new ToolCallAccumulator();
     for await (const bytes of readBody(response, conn.options.idleTimeoutSec * 1000, signal)) {
       for (const ev of parser.push(bytes)) {
-        if (ev.data !== '[DONE]') yield* this.parseEvent(ev.data, splitter);
+        if (ev.data !== '[DONE]') yield* this.parseEvent(ev.data, splitter, tools);
       }
     }
     for (const ev of parser.end()) {
-      if (ev.data !== '[DONE]') yield* this.parseEvent(ev.data, splitter);
+      if (ev.data !== '[DONE]') yield* this.parseEvent(ev.data, splitter, tools);
     }
     yield* splitter.flush();
+    // Les appels d'outils ne sont émis qu'une fois complets (fin du flux).
+    for (const call of tools.drain()) yield { type: 'tool_call', call };
   }
 
-  private *parseEvent(data: string, splitter: ThinkTagSplitter): Iterable<StreamEvent> {
+  private *parseEvent(data: string, splitter: ThinkTagSplitter, tools: ToolCallAccumulator): Iterable<StreamEvent> {
     let chunk: Chunk;
     try {
       chunk = JSON.parse(data) as Chunk;
@@ -251,10 +310,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       yield { type: 'notice', level: 'warning', code: 'invalid_chunk', text: 'Fragment illisible ignoré.' };
       return;
     }
-    yield* this.fromChunk(chunk, splitter, false);
+    yield* this.fromChunk(chunk, splitter, false, tools);
   }
 
-  private *fromChunk(chunk: Chunk, splitter: ThinkTagSplitter, whole: boolean): Iterable<StreamEvent> {
+  private *fromChunk(chunk: Chunk, splitter: ThinkTagSplitter, whole: boolean, tools: ToolCallAccumulator): Iterable<StreamEvent> {
     if (chunk.error) {
       const message = typeof chunk.error === 'string' ? chunk.error : (chunk.error.message ?? 'Erreur du fournisseur');
       throw new ProviderError('provider_stream', message, null, true);
@@ -264,6 +323,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       const reasoning = d?.reasoning_content ?? (d as { reasoning?: string | null } | undefined)?.reasoning;
       if (reasoning) yield { type: 'reasoning', text: reasoning };
       if (d?.content) yield* splitter.push(d.content);
+      if (d?.tool_calls?.length) tools.push(d.tool_calls);
       if (whole) yield* splitter.flush();
       if (choice.finish_reason) yield { type: 'finish', reason: finishReason(choice.finish_reason), raw: choice.finish_reason };
     }

@@ -7,6 +7,7 @@ import { messageVersions, store } from '../stores/app.ts';
 import { formatDuration, formatTokens, throughput } from '../lib/format.ts';
 import MarkdownView from './MarkdownView.vue';
 import AttachmentChip from './AttachmentChip.vue';
+import ToolCallBubble from './tools/ToolCallBubble.vue';
 
 const props = defineProps<{ message: Message; busy?: boolean }>();
 const emit = defineEmits<{ resume: []; fork: [] }>();
@@ -33,7 +34,7 @@ const reasoningInfo = computed(() => {
   const sent = r.sent ? t(`reasoningLevels.${r.sent}`) : t('reasoningLevels.auto');
   return { text: t('chat.reasoningSent', { requested, sent }), detail: [r.parameter ? t('chat.reasoningParameter', { parameter: r.parameter }) : null, r.fallback ? t('chat.reasoningFallback', { reason: r.fallback }) : null].filter(Boolean).join(' · '), fallback: !!r.fallback };
 });
-const hasVisible = computed(() => parts.value.some((p) => (p.type === 'text' && p.text.trim()) || (p.type === 'reasoning' && display.value !== 'none')));
+const hasVisible = computed(() => parts.value.some((p) => (p.type === 'text' && p.text.trim()) || p.type === 'tool' || (p.type === 'reasoning' && display.value !== 'none')));
 /** Statut minimal « Raisonnement… » : réflexion en cours et affichage réglé sur Aucun, ou rien encore reçu. */
 const reasoningOnly = computed(() => streaming.value && parts.value.at(-1)?.type === 'reasoning' && display.value === 'none');
 
@@ -90,6 +91,7 @@ const errorTitle = computed(() => {
             <div class="reasoning-text">{{ part.text }}</div>
           </details>
           <MarkdownView v-else-if="part.type === 'text'" :text="part.text" />
+          <ToolCallBubble v-else-if="part.type === 'tool'" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
           <div v-else-if="part.type === 'notice'" class="notice" :class="part.level" role="note">
             <i class="pi" :class="part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />
             <span>{{ part.text }}</span>

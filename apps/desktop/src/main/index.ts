@@ -134,6 +134,9 @@ let customTitleBarActive = false;
  */
 function smokeCapture(win: BrowserWindow, target: string): void {
   const steps = (process.env.MONOLITH_SMOKE_STEPS ?? '').split('|||').filter(Boolean);
+  win.webContents.on('console-message', (event) => {
+    if (event.level === 'error' || event.level === 'warning') console.log('CONSOLE', event.level, event.message.slice(0, 400));
+  });
   win.webContents.once('did-finish-load', async () => {
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     await wait(Number(process.env.MONOLITH_SMOKE_DELAY ?? 2500));
@@ -176,6 +179,12 @@ function registerIpc(): void {
     if (!win) return null;
     const r = await dialog.showOpenDialog(win, { title: typeof title === 'string' ? title : undefined, properties: ['openDirectory', 'createDirectory'] });
     return r.canceled ? null : (r.filePaths[0] ?? null);
+  });
+  ipcMain.handle('host:pickFiles', async (event, title: unknown) => {
+    const win = fromOurWindow(event);
+    if (!win) return [];
+    const r = await dialog.showOpenDialog(win, { title: typeof title === 'string' ? title : undefined, properties: ['openFile', 'multiSelections'] });
+    return r.canceled ? [] : r.filePaths;
   });
   ipcMain.handle('host:openExternal', async (event, url: unknown) => {
     if (!fromOurWindow(event) || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;

@@ -1,4 +1,5 @@
 export * from './model.ts';
+export * from './tools.ts';
 export * from './settings.ts';
 export * from './errors.ts';
 export * from './api.ts';

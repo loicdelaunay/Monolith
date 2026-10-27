@@ -46,7 +46,7 @@ describe('éditeur multiligne', () => {
 
 describe('commandes', () => {
   it('complète et analyse', () => {
-    expect(completions('/pro').map((c) => c.name)).toEqual(['projects', 'project', 'providers']);
+    expect(completions('/pro').map((c) => c.name)).toEqual(['projects', 'project', 'providers', 'proposals']);
     expect(completions('/rename x')).toEqual([]);
     expect(parseCommand('/rename  Mon titre ')).toEqual({ name: 'rename', arg: 'Mon titre' });
   });
@@ -138,5 +138,54 @@ describe('parcours interactif', () => {
     await until(() => stdout.text.includes('avant reprise'));
     expect(await harness.call('messages.list', { conversationId: conversations[0]!.id })).toEqual([]);
     expect((await harness.call('conversations.get', { id: conversations[0]!.id })).draft).toBe('Bonjour');
+  });
+});
+
+describe('autorisations dans le terminal', () => {
+  it('affiche la demande et applique la réponse au clavier', async () => {
+    const { mkdtempSync, readFileSync, rmSync, existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    let n = 0;
+    const mock = await mockProvider((_req, _b, res) => {
+      n++;
+      const args = JSON.stringify({ path: 'note.txt', content: 'écrit depuis le CLI' });
+      const body =
+        n === 1
+          ? `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'write_file', arguments: args } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+          : standardStream('Fichier écrit.');
+      return writeFragmented(res, body, 50);
+    });
+    cleanups.push(mock.close);
+    const { harness, cleanup } = tempHarness();
+    cleanups.push(cleanup);
+    const folder = mkdtempSync(join(tmpdir(), 'mh-cli-'));
+    cleanups.push(() => rmSync(folder, { recursive: true, force: true }));
+    const project = await harness.call('projects.create', { name: 'P' });
+    await harness.call('projects.addFolder', { id: project.id, path: folder });
+    const p = await harness.call('providers.create', { name: 'Mock', kind: 'openai-compatible', preset: 'custom', baseUrl: mock.url });
+    await harness.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'mock-model', autoNaming: false } });
+    const conv = await harness.call('conversations.create', { projectId: project.id });
+    await harness.call('conversations.update', { id: conv.id, patch: { mode: 'agent', agentMode: 'execute' } });
+
+    const stdout = new FakeStdout();
+    const stdin = fakeStdin();
+    lastOutput = () => stdout.text;
+    const app = render(<App client={createInProcessClient(harness)} locale="fr" dataDir="test" changelog="" />, { stdout: stdout as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false, debug: true });
+    cleanups.push(() => app.unmount());
+    await until(() => stdout.text.includes('Monolith Harness'));
+    stdin.write('/open 1');
+    await until(() => stdout.text.includes('/open 1'));
+    stdin.write('\r');
+    await until(() => stdout.text.includes('agent:execute'));
+    stdin.write('Écris une note');
+    await until(() => stdout.text.includes('Écris une note'));
+    stdin.write('\r');
+    await until(() => stdout.text.includes('Autorisation requise'));
+    expect(existsSync(join(folder, 'note.txt'))).toBe(false);
+    stdin.write('o');
+    await harness.generation.idle();
+    expect(readFileSync(join(folder, 'note.txt'), 'utf8')).toBe('écrit depuis le CLI');
+    await until(() => stdout.text.includes('Fichier écrit.'));
   });
 });

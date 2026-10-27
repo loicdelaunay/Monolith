@@ -128,6 +128,19 @@ export class MessageService {
    * (fermeture, plantage). Il est marqué `interrupted`, son contenu partiel est conservé.
    */
   recoverInterrupted(): number {
+    // Appels d'outils restés en cours : marqués interrompus (effet incertain), jamais rejoués.
+    for (const row of this.db.all<{ id: number; parts_json: string }>("SELECT id, parts_json FROM messages WHERE status = 'streaming'")) {
+      const parts = json<MessagePart[]>(row.parts_json, []);
+      let changed = false;
+      for (const p of parts) {
+        if (p.type === 'tool' && ['pending', 'awaiting_permission', 'running'].includes(p.call.status)) {
+          p.call.status = p.call.status === 'running' ? 'interrupted' : 'cancelled';
+          p.call.finishedAt = now();
+          changed = true;
+        }
+      }
+      if (changed) this.db.run('UPDATE messages SET parts_json = ? WHERE id = ?', JSON.stringify(parts), row.id);
+    }
     return this.db.run(
       "UPDATE messages SET status = 'interrupted', completed_at = ?, error_json = ? WHERE status = 'streaming'",
       now(),

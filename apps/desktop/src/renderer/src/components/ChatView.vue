@@ -17,6 +17,8 @@ import type { SettingsSectionId } from '../ui-state.ts';
 import MessageItem from './MessageItem.vue';
 import Composer from './Composer.vue';
 import QueuePanel from './QueuePanel.vue';
+import ResourcesButton from './tools/ResourcesButton.vue';
+import ProposalsPanel from './tools/ProposalsPanel.vue';
 
 const emit = defineEmits<{ 'open-settings': [section?: SettingsSectionId] }>();
 const { t } = useI18n();
@@ -125,6 +127,7 @@ const openSource = (id: Id) => openConversation(id);
         <button v-if="activeConversation.forkedFrom && store.conversations.has(activeConversation.forkedFrom.conversationId)" type="button" class="origin-link" @click="openSource(activeConversation.forkedFrom.conversationId)">
           <i class="pi pi-clone" /> {{ t('actions.forkedFrom', { title: store.conversations.get(activeConversation.forkedFrom.conversationId)!.title }) }}
         </button>
+        <ResourcesButton :key="activeConversation.id" :conversation="activeConversation" />
         <span ref="goalAnchor" class="goal-anchor">
           <button v-if="activeConversation.goal" type="button" class="goal-chip" :title="activeConversation.goal" @click="openGoal($event)"><i class="pi pi-flag" /> {{ activeConversation.goal }}</button>
         </span>
@@ -163,6 +166,7 @@ const openSource = (id: Id) => openConversation(id);
       </button>
 
       <div class="bottom">
+        <ProposalsPanel :conversation="activeConversation" />
         <QueuePanel :conversation="activeConversation" />
         <Composer :conversation="activeConversation" @sent="scrollToBottom(true)" @open-goal="openGoal()" />
       </div>

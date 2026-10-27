@@ -53,6 +53,34 @@ createServer((req, res) => {
       res.end('data: [DONE]\n\n');
       return;
     }
+    // Démonstration des outils : le faux modèle appelle un outil selon la demande, puis résume son résultat.
+    const lastMessage = request.messages?.at(-1);
+    if (Array.isArray(request.tools) && request.tools.length) {
+      const names = request.tools.map((t) => t.function?.name);
+      let call = null;
+      if (lastMessage?.role === 'user') {
+        const q = last.toLowerCase();
+        if (q.includes('écris') && names.includes('write_file')) call = { name: 'write_file', arguments: { path: 'NOTES.md', content: '# Notes\n\n- Créé par la démonstration.\n' } };
+        else if (q.includes('liste') && names.includes('list_files')) call = { name: 'list_files', arguments: {} };
+        else if (q.includes('question') && names.includes('ask_user')) call = { name: 'ask_user', arguments: { questions: [{ prompt: 'Quel style préférez-vous ?', options: ['Sobre', 'Coloré', 'Rétro'] }, { prompt: 'Un nom pour la page ?' }] } };
+      }
+      if (call) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(chunk({ content: 'Je m’en occupe.' }));
+        res.write(chunk({ tool_calls: [{ index: 0, id: `call_${Date.now()}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } }] }));
+        res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 300, completion_tokens: 30 } })}\n\n`);
+        res.end('data: [DONE]\n\n');
+        return;
+      }
+      if (lastMessage?.role === 'tool') {
+        const result = String(lastMessage.content ?? '').split('\n').slice(0, 4).join(' ').slice(0, 160);
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(chunk({ content: `C’est fait. Résultat de l’outil : ${result}` }));
+        res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 350, completion_tokens: 25 } })}\n\n`);
+        res.end('data: [DONE]\n\n');
+        return;
+      }
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const reasoning = request.model === 'mock-reasoner';
     if (reasoning) {

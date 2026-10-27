@@ -16,6 +16,10 @@ const SECTIONS: { id: keyof Settings; label: string }[] = [
   { id: 'appearance', label: 'settings.sections.appearance' },
   { id: 'network', label: 'settings.chat.retry' },
   { id: 'layout', label: 'settings.reset.layout' },
+  { id: 'agent', label: 'settings.sections.agents' },
+  { id: 'permissions', label: 'permissionsSettings.policy' },
+  { id: 'loop', label: 'settings.sections.loop' },
+  { id: 'skills', label: 'settings.sections.skills' },
 ];
 
 function reset(section?: keyof Settings, label?: string) {

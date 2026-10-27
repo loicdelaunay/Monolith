@@ -16,6 +16,12 @@ import {
   type MessageDelta,
   type QueuedInput,
   type ReasoningLevel,
+  type FileProposal,
+  type LoopReport,
+  type PermissionRequest,
+  type PermissionRule,
+  type Question,
+  type ToolCallRecord,
   type Project,
   type Provider,
   type Settings,
@@ -81,6 +87,31 @@ function MarkdownLines({ text, theme, maxLines }: { text: string; theme: CliThem
   );
 }
 
+/** Un appel d'outil sur une ligne : nom, cible, statut, origine de l'autorisation et résumé du résultat. */
+function ToolLine({ call, theme, locale }: { call: ToolCallRecord; theme: CliTheme; locale: Locale }) {
+  const t = (k: string, p?: Record<string, string | number>) => translate(locale, k, p);
+  const color = call.status === 'done' ? theme.success : call.status === 'error' || call.status === 'denied' ? theme.error : call.status === 'proposed' ? theme.accent : theme.warning;
+  const shield = call.permission ? (call.permission.decision === 'deny' ? '⛔' : call.permission.source === 'user' ? '🔓' : call.permission.source === 'rule' ? '🛡' : '·') : '';
+  const d = call.display;
+  let detail = '';
+  if (d?.kind === 'command') detail = `${d.exitCode !== null ? `code ${d.exitCode}` : t(`tools.cmdStatus.${d.status}`)} — ${sanitize(d.output.trim().split('\n').slice(-3).join(' ⏎ ')).slice(0, 160)}`;
+  else if (d?.kind === 'changes') detail = d.changes.map((c) => `${c.path} (${t(`tools.change.${c.status}`)})`).join(', ');
+  else if (d?.kind === 'list') detail = `${d.items.length} ${d.truncated ? '+' : ''}`;
+  else if (d?.kind === 'file') detail = t('tools.lines', { start: d.startLine, end: d.endLine, total: d.totalLines });
+  else if (d?.kind === 'plan') detail = d.items.map((it) => `${it.status === 'done' ? '✓' : it.status === 'in_progress' ? '▸' : '○'} ${sanitize(it.text)}`).join('  ');
+  else if (d?.kind === 'question' && d.answers) detail = d.questions.map((q) => sanitize(q.prompt)).join(' / ');
+  else if (d?.kind === 'actions') detail = d.actions.map((a) => sanitize(a.title)).join(' | ');
+  else if (call.status === 'error' || call.status === 'denied') detail = sanitize(call.result ?? '').slice(0, 200);
+  return (
+    <Text>
+      <Text color={theme.muted}>{`⚙ ${call.name}`}</Text>
+      {call.target ? <Text color={theme.code}>{` ${sanitize(call.target).slice(0, 80)}`}</Text> : null}
+      <Text color={color}>{`  ${t(`tools.status.${call.status}`)}`}</Text>
+      <Text color={theme.muted}>{` ${shield}${detail ? `  ${detail}` : ''}`}</Text>
+    </Text>
+  );
+}
+
 function MessageView({ message, theme, settings, locale, tail }: { message: Message; theme: CliTheme; settings: Settings; locale: Locale; tail?: number }) {
   const t = (k: string, p?: Record<string, string | number>) => translate(locale, k, p);
   if (message.role === 'user') {
@@ -116,6 +147,7 @@ function MessageView({ message, theme, settings, locale, tail }: { message: Mess
           );
         }
         if (part.type === 'text') return <MarkdownLines key={i} text={part.text} theme={theme} {...(tail ? { maxLines: tail } : {})} />;
+        if (part.type === 'tool') return <ToolLine key={i} call={part.call} theme={theme} locale={locale} />;
         if (part.type !== 'notice') return null;
         return (
           <Text key={i} color={part.level === 'info' ? theme.muted : theme.warning}>
@@ -166,6 +198,11 @@ export function App({ client, locale, dataDir, changelog }: Props) {
   const [selection, setSelection] = useState(0);
   const [pendingConfirm, setPendingConfirm] = useState<{ prompt: string; run: () => Promise<void> } | null>(null);
   const [queue, setQueue] = useState<QueuedInput[]>([]);
+  const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
+  const [loops, setLoops] = useState<LoopReport[]>([]);
+  const [question, setQuestion] = useState<{ conversationId: number; callId: string; questions: Question[]; index: number; answers: { questionId: string; optionIds: string[]; text: string | null }[] } | null>(null);
+  const rulesRef = useRef<PermissionRule[]>([]);
+  const proposalsRef = useRef<FileProposal[]>([]);
   const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const history = useRef(new ed.History());
   const activeRef = useRef<Conversation | null>(null);
@@ -241,6 +278,11 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         if (compaction.conversationId === activeRef.current?.id) note(t(compaction.trigger === 'auto' ? 'chat.compactedAuto' : 'chat.compactedManual', { date: new Date(compaction.createdAt).toLocaleString() }), 'accent');
       }),
       client.on('log.error', (e) => note(`${t(`errors.${e.code}`)} — ${e.message}`, 'error')),
+      client.on('permission.requested', (r) => setPermissions((list) => [...list, r])),
+      client.on('permission.resolved', ({ requestId }) => setPermissions((list) => list.filter((r) => r.requestId !== requestId))),
+      client.on('loop.detected', (r) => setLoops((list) => [...list, r])),
+      client.on('loop.resolved', ({ conversationId }) => setLoops((list) => list.filter((r) => r.conversationId !== conversationId))),
+      client.on('question.requested', (q) => setQuestion({ ...q, index: 0, answers: [] })),
       client.on('generation.state', (s) => {
         if (s.conversationId !== activeRef.current?.id) return;
         setGen(s.status === 'finished' ? null : s);
@@ -515,6 +557,65 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         await client.call('conversations.update', { id: conv.id, patch: { reasoningLevel: arg as ReasoningLevel } });
         return note(t('common.saved'), 'success');
       }
+      case 'mode': {
+        const conv = needConversation();
+        if (!arg) return note(`${t('modes.label')} : ${conv.mode === 'chat' ? t('modes.chat') : t(`modes.${conv.agentMode}`)}`);
+        if (arg === 'chat') await client.call('conversations.update', { id: conv.id, patch: { mode: 'chat' } });
+        else if (['plan', 'propose', 'execute'].includes(arg)) await client.call('conversations.update', { id: conv.id, patch: { mode: 'agent', agentMode: arg as 'plan' | 'propose' | 'execute' } });
+        else return note('chat | plan | propose | execute', 'error');
+        return note(`${t('modes.label')} : ${arg === 'chat' ? t('modes.chat') : t(`modes.${arg}`)} — ${t(`modes.hint.${arg}`)}`, 'success');
+      }
+      case 'resources': {
+        const conv = needConversation();
+        const [sub, ...rest] = arg.split(/\s+/);
+        const path = rest.join(' ').replace(/^["']|["']$/g, '');
+        let info;
+        if (sub === 'add' && path) info = await client.call('resources.add', { conversationId: conv.id, kind: 'folder', path: resolve(path) });
+        else if (sub === 'file' && path) info = await client.call('resources.add', { conversationId: conv.id, kind: 'file', path: resolve(path) });
+        else if (sub === 'reset') info = await client.call('resources.reset', { conversationId: conv.id });
+        else info = await client.call('resources.get', { conversationId: conv.id });
+        return note(
+          [
+            `${t('resources.title')} (${info.mode === 'inherit' ? t('resources.inherit') : t('resources.custom')}) :`,
+            ...info.roots.map((r) => `  📁 ${r}${r === info.privateDir ? ` (${t('resources.privateHint')})` : ''}`),
+            ...info.files.map((f) => `  📄 ${f} (${t('resources.fileOnly')})`),
+            ...info.instructionFiles.map((f) => `  📘 ${f.path} — ${t('resources.scope', { scope: f.scope })}`),
+          ].join('\n'),
+        );
+      }
+      case 'rules': {
+        rulesRef.current = await client.call('permissions.rules', {});
+        const settingsNow = await client.call('settings.get');
+        return note(
+          `${t('permissionsSettings.policy')} : ${t(`permissionsSettings.policies.${settingsNow.permissions.policy}`)}\n` +
+            (rulesRef.current.length ? rulesRef.current.map((r, i) => `${String(i + 1).padStart(3)}. ${t(`permissionsSettings.decisions.${r.decision}`)} ${r.tool}${r.family !== '*' ? ` [${r.family}]` : ''}${r.resource ? ` (${r.resource})` : ''} — ${t(`permissionsSettings.scopes.${r.scope}`)}`).join('\n') : t('permissionsSettings.noRules')),
+        );
+      }
+      case 'allow':
+      case 'deny': {
+        const [tool, ...res] = arg.split(/\s+/);
+        if (!tool) return note(t('cli.argRequired'), 'error');
+        await client.call('permissions.addRule', { scope: 'global', projectId: null, conversationId: null, tool, family: '*', resource: res.join(' '), decision: name === 'allow' ? 'allow' : 'deny' });
+        return note(t('common.saved'), 'success');
+      }
+      case 'unrule': {
+        const rule = rulesRef.current[Number(arg) - 1];
+        if (!rule) return note(t('cli.rulesFirst'), 'error');
+        await client.call('permissions.removeRule', { id: rule.id });
+        return note(t('common.saved'), 'success');
+      }
+      case 'proposals': {
+        proposalsRef.current = (await client.call('proposals.list', { conversationId: needConversation().id })).filter((p) => p.status === 'pending' || p.status === 'conflict');
+        if (proposalsRef.current.length === 0) return note(t('cli.noProposals'));
+        return note(proposalsRef.current.map((p, i) => `${String(i + 1).padStart(3)}. ${p.change.path} (${t(`tools.change.${p.change.status}`)})${p.status === 'conflict' ? ` — ${t('proposals.conflict')}` : ''}`).join('\n') + `\n${t('cli.proposalsHint')}`);
+      }
+      case 'apply':
+      case 'reject': {
+        const p = proposalsRef.current[Number(arg) - 1];
+        if (!p) return note(t('cli.proposalsFirst'), 'error');
+        await client.call(name === 'apply' ? 'proposals.apply' : 'proposals.reject', { id: p.id });
+        return note(name === 'apply' ? t('proposals.applied', { path: p.change.path }) : t('proposals.rejected'), 'success');
+      }
       case 'theme': {
         if (!arg || !CLI_THEMES.some((x) => x.id === arg)) return note(`${t('cli.themes')} ${CLI_THEMES.map((x) => x.id).join(', ')}`);
         await client.call('settings.update', { cli: { theme: arg } });
@@ -574,6 +675,45 @@ export function App({ client, locale, dataDir, changelog }: Props) {
   useEffect(() => setSelection(0), [editor.text]);
 
   useInput((input, key) => {
+    const perm = permissions[0];
+    if (perm) {
+      const map: Record<string, ['allow' | 'deny', 'once' | 'conversation' | 'global']> = { o: ['allow', 'once'], y: ['allow', 'once'], c: ['allow', 'conversation'], t: ['allow', 'global'], a: ['allow', 'global'], n: ['deny', 'once'] };
+      const choice = key.escape ? (['deny', 'once'] as const) : map[input.toLowerCase()];
+      if (!choice) return;
+      setPermissions((list) => list.slice(1));
+      void client.call('permissions.respond', { requestId: perm.requestId, decision: choice[0], scope: choice[1] }).catch((e) => note(errorText(locale, e), 'error'));
+      return;
+    }
+    const loop = loops[0];
+    if (loop) {
+      const decision = input.toLowerCase() === 'c' ? 'continue' : input.toLowerCase() === 'a' || key.escape ? 'stop' : null;
+      if (!decision) return;
+      setLoops((list) => list.slice(1));
+      void client.call('loop.resolve', { conversationId: loop.conversationId, decision });
+      return;
+    }
+    if (question && key.escape) {
+      const q = question;
+      setQuestion(null);
+      void client.call('questions.answer', { conversationId: q.conversationId, callId: q.callId, answers: null });
+      return;
+    }
+    if (question && key.return) {
+      const q = question;
+      const current = q.questions[q.index]!;
+      const raw = editor.text.trim();
+      const numbers = raw.split(/[\s,;]+/).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= (current.options?.length ?? 0));
+      const optionIds = current.kind === 'text' ? [] : (current.kind === 'multiple' ? numbers : numbers.slice(0, 1)).map((n) => current.options![n - 1]!.id);
+      const text = optionIds.length ? null : raw || null;
+      setEditor(ed.empty());
+      const answers = [...q.answers, { questionId: current.id, optionIds, text }];
+      if (q.index + 1 < q.questions.length) setQuestion({ ...q, index: q.index + 1, answers });
+      else {
+        setQuestion(null);
+        void client.call('questions.answer', { conversationId: q.conversationId, callId: q.callId, answers });
+      }
+      return;
+    }
     if (pendingConfirm) {
       const yes = /^[oy]$/i.test(input);
       const job = pendingConfirm;
@@ -696,6 +836,30 @@ export function App({ client, locale, dataDir, changelog }: Props) {
       <Box marginTop={1}>
         <Text color={theme.border}>{'─'.repeat(width)}</Text>
       </Box>
+      {permissions[0] ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={theme.warning} paddingX={1}>
+          <Text color={theme.warning} bold>{`🛡 ${t('permission.title')} — ${permissions[0].tool}`}</Text>
+          {permissions[0].target ? <Text>{`${t('permission.target')} : ${sanitize(permissions[0].target)}`}</Text> : null}
+          {permissions[0].preview?.kind === 'command' ? <Text color={theme.code}>{`$ ${sanitize(permissions[0].preview.command)}`}</Text> : null}
+          {permissions[0].preview?.kind === 'changes'
+            ? permissions[0].preview.changes.map((c) => <Text key={c.path} color={theme.code}>{`${c.status === 'created' ? '+' : c.status === 'deleted' ? '−' : '~'} ${sanitize(c.path)}  (${c.before.split('\n').length} → ${c.after.split('\n').length} lignes)`}</Text>)
+            : null}
+          <Text color={theme.muted}>{sanitize(permissions[0].reason)}</Text>
+          <Text>{t('cli.permissionKeys')}</Text>
+        </Box>
+      ) : loops[0] ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={theme.warning} paddingX={1}>
+          <Text color={theme.warning} bold>{`⟳ ${t('loop.title')}`}</Text>
+          {loops[0].calls.map((c, i) => <Text key={i}>{`${c.name} × ${c.count}  ${sanitize(c.arguments).slice(0, 120)}`}</Text>)}
+          <Text>{t('cli.loopKeys')}</Text>
+        </Box>
+      ) : question ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={theme.accent} paddingX={1}>
+          <Text color={theme.accent} bold>{`? ${sanitize(question.questions[question.index]!.prompt)}  (${question.index + 1}/${question.questions.length})`}</Text>
+          {(question.questions[question.index]!.options ?? []).map((o, i) => <Text key={o.id}>{`  ${i + 1}. ${sanitize(o.label)}${o.description ? ` — ${sanitize(o.description)}` : ''}`}</Text>)}
+          <Text color={theme.muted}>{question.questions[question.index]!.kind === 'multiple' ? t('cli.questionMultiple') : question.questions[question.index]!.kind === 'text' ? t('cli.questionText') : t('cli.questionSingle')}</Text>
+        </Box>
+      ) : null}
       {pendingConfirm ? (
         <Text color={theme.warning}>{pendingConfirm.prompt}</Text>
       ) : (
@@ -727,7 +891,7 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         </Box>
       ) : null}
       <Text color={theme.muted}>
-        {`${projectName(active?.projectId ?? contextProject)}${active ? ` › ${sanitize(active.title)}` : ''}  ·  ${provider ? sanitize(provider.name) : t('cli.noProvider')}${model ? ` / ${model}` : ''}${active && active.reasoningLevel !== 'auto' ? ` · ✻ ${active.reasoningLevel}` : ''}${queue.length ? `  ·  ⏱ ${queue.length}` : ''}${attachments.length ? `  ·  📎 ${attachments.map((a) => sanitize(a.name)).join(', ')}` : ''}${active?.goal ? '  ·  ⚑' : ''}  ·  /help`}
+        {`${projectName(active?.projectId ?? contextProject)}${active ? ` › ${sanitize(active.title)}` : ''}  ·  ${provider ? sanitize(provider.name) : t('cli.noProvider')}${model ? ` / ${model}` : ''}${active ? ` · ${active.mode === 'chat' ? 'chat' : `agent:${active.agentMode}`}` : ''}${active && active.reasoningLevel !== 'auto' ? ` · ✻ ${active.reasoningLevel}` : ''}${queue.length ? `  ·  ⏱ ${queue.length}` : ''}${attachments.length ? `  ·  📎 ${attachments.map((a) => sanitize(a.name)).join(', ')}` : ''}${active?.goal ? '  ·  ⚑' : ''}  ·  /help`}
       </Text>
     </Box>
   );

@@ -1,6 +1,6 @@
 {
   "name": "@monolith/cli",
-  "version": "3.0.0-alpha.2",
+  "version": "3.0.0-alpha.3",
   "private": true,
   "type": "module",
   "description": "Monolith Harness — interface terminal interactive",
@@ -13,8 +13,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@monolith/contracts": "3.0.0-alpha.2",
-    "@monolith/core": "3.0.0-alpha.2",
+    "@monolith/contracts": "3.0.0-alpha.3",
+    "@monolith/core": "3.0.0-alpha.3",
     "ink": "8.0.0",
     "react": "19.3.1"
   },

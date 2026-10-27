@@ -1,4 +1,5 @@
 import type { Id, ReasoningLevel, ResponseStyle } from './model.ts';
+import type { PermissionPolicy } from './tools.ts';
 
 export type Language = 'system' | 'fr' | 'en';
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -60,6 +61,33 @@ export interface Settings {
   cli: {
     theme: string;
   };
+  agent: {
+    /** Tours d'outils maximum par réponse. */
+    maxToolRounds: number;
+    /** Délai d'attente d'une commande avant de la laisser en arrière-plan (s). */
+    commandTimeoutSec: number;
+    /** Taille maximale d'un résultat d'outil renvoyé au modèle (caractères). */
+    maxResultChars: number;
+    /** Lire les fichiers d'instructions (AGENTS.md, CLAUDE.md, .monolith/instructions.md) des racines et sous-dossiers. */
+    readInstructionFiles: boolean;
+  };
+  permissions: {
+    policy: PermissionPolicy;
+  };
+  loop: {
+    enabled: boolean;
+    /** Nombre de répétitions qui déclenche l'alerte. */
+    threshold: number;
+    /** Nombre de derniers appels comparés. */
+    window: number;
+    /** `exact` : arguments identiques ; `equivalent` : arguments normalisés (espaces, ordre des clés, casse). */
+    match: 'exact' | 'equivalent';
+  };
+  skills: {
+    /** Activation par skill (identifiant → actif). Désactiver retire l'accès au modèle, les données restent. */
+    enabled: Record<string, boolean>;
+    info: { date: boolean; system: boolean; conversation: boolean };
+  };
   layout: {
     sidebarWidth: number;
     sidebarCollapsed: boolean;
@@ -114,6 +142,38 @@ export const DEFAULT_SETTINGS: Settings = {
   cli: {
     theme: 'monolith',
   },
+  agent: {
+    maxToolRounds: 40,
+    commandTimeoutSec: 120,
+    maxResultChars: 24_000,
+    readInstructionFiles: true,
+  },
+  permissions: {
+    // Lecture dans la portée : automatique ; écriture, commandes, réseau : demande (sauf règle).
+    policy: 'rules',
+  },
+  loop: {
+    enabled: true,
+    threshold: 3,
+    window: 12,
+    match: 'equivalent',
+  },
+  skills: {
+    enabled: {
+      info: true,
+      sources: true,
+      editing: true,
+      patch: true,
+      terminal: true,
+      questions: true,
+      actions: true,
+      planning: true,
+      summary: true,
+      review: true,
+      design: false,
+    },
+    info: { date: true, system: true, conversation: true },
+  },
   layout: {
     sidebarWidth: 280,
     sidebarCollapsed: false,
@@ -136,4 +196,9 @@ export const SETTINGS_BOUNDS = {
   'layout.sidebarWidth': [200, 520],
   'chat.compactThreshold': [40, 95],
   'chat.compactKeepTurns': [1, 20],
+  'agent.maxToolRounds': [1, 200],
+  'agent.commandTimeoutSec': [5, 3600],
+  'agent.maxResultChars': [2000, 200_000],
+  'loop.threshold': [2, 20],
+  'loop.window': [3, 100],
 } as const satisfies Record<string, readonly [number, number]>;

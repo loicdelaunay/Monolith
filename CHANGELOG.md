@@ -2,6 +2,22 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.3 — 2026-10-27
+
+Tranche T3 : outils, modes Agent et autorisations.
+
+- **Modes** : Chat (conversation, sans accès aux fichiers) et Agent en trois modes appliqués par le moteur, pas seulement par les instructions : **Plan** (lecture seule), **Proposition** (changements de fichiers enregistrés, appliqués ou rejetés par vous, avec détection de conflit si le fichier a changé), **Exécution**.
+- **Outils** : lister, lire (plages de lignes), glob, grep, écrire, modifier, patch multi-fichiers atomique (tout ou rien), commandes asynchrones avec délai et code de retour, informations (date, système, conversation, réglables), questions interactives, propositions d'actions, plan de travail. Chaque skill est activable individuellement (Réglages › Skills) ; l'activer n'accorde aucune autorisation.
+- **Autorisations** : politiques Refuser tout / Demander / Selon les règles, règles par outil, famille, ressource (motifs glob) et portée (globale, projet, conversation), refus explicite toujours prioritaire, historique des décisions. La demande présente l'action, la cible, la raison, les paramètres et le diff des changements attendus. Une annulation ne vaut jamais approbation. Import prévisualisé d'un `permission.json` par projet.
+- **Bouclier** dans chaque bulle d'outil : origine de la décision (règle, réponse, politique, mode, lecture automatique), portée et motif. Paramètres en vue **Formatée** (diff ligne par ligne et par bloc : ajouts verts, suppressions rouges, remplacements orange avec avant/après et numéros de ligne, calcul hors du thread d'interface pour les gros fichiers) ou **Brute** (JSON original).
+- **Ressources** : héritées du projet ou propres à la conversation (dossiers et fichiers isolés), retour aux ressources du projet ; un fichier joint n'ouvre jamais son dossier ; une conversation sans dossier dispose d'un espace privé persistant. Les chemins sont canonisés : `..`, liens symboliques et jonctions ne permettent pas de sortir de la portée ; la base, les clés et les journaux de l'application restent inaccessibles.
+- **Fichiers d'instructions** (`AGENTS.md`, `CLAUDE.md`, `.monolith/instructions.md`) des dossiers et sous-dossiers, transmis avec leur portée explicite.
+- **Questions interactives** : tuiles adaptées au thème, choix unique par défaut, choix multiple seulement sur demande, texte libre ou réponse personnalisée, accordéon récapitulatif et navigation précédente/suivante.
+- **Propositions d'actions** (continuer ici, agent dans une nouvelle discussion, nouvelle discussion, file d'attente) : consigne consultable, rien ne démarre avant le clic, une seule utilisation, aucune permission supplémentaire.
+- **Détection de boucle** : seuil, fenêtre et comparaison (exacte ou équivalente) réglables ; arrêter ou poursuivre une fois, sans toucher aux autres conversations.
+- **Fiabilité** : un outil déjà exécuté n'est jamais rejoué ; un appel en cours lors d'une fermeture est marqué « interrompu » (effet incertain) ; le résultat renvoyé au modèle est toujours fidèle (refus, erreur, annulation).
+- **CLI** : demandes d'autorisation, questions et boucles au clavier, `/mode`, `/resources`, `/rules`, `/allow`, `/deny`, `/unrule`, `/proposals`, `/apply`, `/reject` ; en mode non interactif (`-p`), toute demande d'autorisation est refusée explicitement.
+
 ## 3.0.0-alpha.2 — 2026-10-27
 
 Tranche T2 : conversation avancée.

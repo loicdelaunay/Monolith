@@ -23,6 +23,14 @@ await h.call('providers.setModels', {
 });
 await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'mock-reasoner', showThroughput: true } });
 const project = await h.call('projects.create', { name: 'Site vitrine', icon: 'globe', color: '#1D6FC8', instructions: 'Réponds avec des exemples concrets.' });
+// Dossier de démonstration pour les outils (jamais un dossier de l'utilisateur).
+const { mkdirSync, writeFileSync } = await import('node:fs');
+const { resolve } = await import('node:path');
+const files = resolve(`${dir}-fichiers`);
+mkdirSync(`${files}/src`, { recursive: true });
+writeFileSync(`${files}/README.md`, '# Site vitrine\n\nPage d’accueil de démonstration.\n');
+writeFileSync(`${files}/src/index.html`, '<h1>Bienvenue</h1>\n');
+await h.call('projects.addFolder', { id: project.id, path: files });
 await h.call('projects.create', { name: 'Outils internes', icon: 'code', color: '#0f8a7a' });
 await h.call('conversations.create', { projectId: project.id, title: 'Refonte de la page d’accueil' });
 await h.call('conversations.create', { projectId: null, title: 'Idées de vacances' });

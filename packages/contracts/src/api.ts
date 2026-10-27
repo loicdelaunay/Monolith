@@ -26,6 +26,19 @@ import type {
   UsageRecord,
 } from './model.ts';
 import type { Settings, SettingsPatch } from './settings.ts';
+import type {
+  FileProposal,
+  LoopReport,
+  PermissionDecisionLog,
+  PermissionRequest,
+  PermissionRule,
+  PermissionScope,
+  QuestionAnswer,
+  ResourceScopeInfo,
+  SkillInfo,
+  TerminalInfo,
+  Question,
+} from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
 
 export interface AppInfo {
@@ -203,6 +216,36 @@ export interface HarnessApi {
   'templates.delete': { params: { id: Id }; result: void };
 
   'usage.list': { params: { limit?: number }; result: UsageRecord[] };
+
+  'resources.get': { params: { conversationId: Id }; result: ResourceScopeInfo };
+  'resources.add': { params: { conversationId: Id; kind: 'folder' | 'file'; path: string }; result: ResourceScopeInfo };
+  'resources.remove': { params: { conversationId: Id; resourceId: Id }; result: ResourceScopeInfo };
+  /** Retour aux ressources par défaut du projet. */
+  'resources.reset': { params: { conversationId: Id }; result: ResourceScopeInfo };
+
+  'permissions.rules': { params: { projectId?: Id | null }; result: PermissionRule[] };
+  'permissions.addRule': { params: Omit<PermissionRule, 'id' | 'createdAt' | 'origin'> & { origin?: PermissionRule['origin'] }; result: PermissionRule };
+  'permissions.removeRule': { params: { id: Id }; result: void };
+  'permissions.history': { params: { conversationId?: Id; limit?: number }; result: PermissionDecisionLog[] };
+  'permissions.pending': { params: void; result: PermissionRequest[] };
+  /** Réponse à une demande d'autorisation ; un refus ou une annulation ne vaut jamais approbation. */
+  'permissions.respond': { params: { requestId: string; decision: 'allow' | 'deny'; scope: PermissionScope }; result: void };
+  /** Aperçu puis import d'un fichier `permission.json` dans un projet. */
+  'permissions.previewImport': { params: { projectId: Id; json: string }; result: { rules: Omit<PermissionRule, 'id' | 'createdAt'>[]; errors: string[] } };
+  'permissions.import': { params: { projectId: Id; json: string }; result: PermissionRule[] };
+
+  'questions.answer': { params: { conversationId: Id; callId: string; answers: QuestionAnswer[] | null }; result: void };
+  'actions.trigger': { params: { conversationId: Id; messageId: Id; callId: string; actionId: string }; result: { conversationId: Id } };
+  'loop.resolve': { params: { conversationId: Id; decision: 'stop' | 'continue' }; result: void };
+
+  'proposals.list': { params: { conversationId: Id }; result: FileProposal[] };
+  'proposals.apply': { params: { id: Id }; result: FileProposal };
+  'proposals.reject': { params: { id: Id }; result: FileProposal };
+
+  'skills.list': { params: void; result: SkillInfo[] };
+  'terminals.list': { params: { conversationId: Id }; result: TerminalInfo[] };
+  'terminals.output': { params: { terminalId: string }; result: { output: string; info: TerminalInfo } };
+  'terminals.kill': { params: { terminalId: string }; result: void };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -249,6 +292,15 @@ export interface HarnessEvents {
   'queue.changed': { conversationId: Id; items: QueuedInput[] };
   'templates.changed': { templates: MessageTemplate[] };
   'compaction.added': { compaction: Compaction };
+  'permission.requested': PermissionRequest;
+  'permission.resolved': { requestId: string; decision: 'allow' | 'deny' };
+  'question.requested': { conversationId: Id; messageId: Id; callId: string; questions: Question[] };
+  'loop.detected': LoopReport;
+  'loop.resolved': { conversationId: Id };
+  'proposals.changed': { conversationId: Id; proposals: FileProposal[] };
+  'terminal.output': { terminalId: string; conversationId: Id; chunk: string };
+  'terminal.changed': { terminal: TerminalInfo };
+  'rules.changed': { rules: PermissionRule[] };
   'log.error': { message: string; code: string };
 }
 
