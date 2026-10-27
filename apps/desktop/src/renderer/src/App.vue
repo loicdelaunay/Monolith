@@ -11,6 +11,7 @@ import { activeConversation, initStore, store } from './stores/app.ts';
 import { applyAppearance } from './theme/themes.ts';
 import { setCodeTheme, setRenderOptions } from './lib/markdown.ts';
 import WorkPanel from './components/panel/WorkPanel.vue';
+import StudioDialog from './components/studio/StudioDialog.vue';
 import { uiState, type SettingsSectionId } from './ui-state.ts';
 import TitleBar from './components/TitleBar.vue';
 import Sidebar from './components/Sidebar.vue';
@@ -145,6 +146,7 @@ onBeforeUnmount(() => {
     <ProjectDialog v-if="store.ready" />
     <PermissionDialog v-if="store.ready" />
     <LoopDialog v-if="store.ready" />
+    <StudioDialog v-if="store.ready && uiState.studio.open" />
     <Toast position="bottom-right" />
     <ConfirmDialog />
   </div>

@@ -10,3 +10,4 @@ export * from './version.ts';
 export * from './rpc-client.ts';
 export * from './shortcuts.ts';
 export * from './knowledge.ts';
+export * from './studio.ts';

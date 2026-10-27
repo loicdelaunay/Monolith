@@ -48,6 +48,7 @@ import type {
   SandboxStatus,
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
+import type { AiDetectionResult, AssetInfo, AssetKind, BenchmarkInput, BenchmarkState, ImageGenInput, ImageGenResult, TextTaskInput, TextTaskResult } from './studio.ts';
 import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
 export interface AppInfo {
@@ -302,6 +303,19 @@ export interface HarnessApi {
   'sandbox.diff': { params: { conversationId: Id }; result: SandboxChange[] };
   'sandbox.apply': { params: { conversationId: Id; files: { root: number; path: string }[]; force?: boolean }; result: { applied: number; conflicts: string[] } };
   'sandbox.discard': { params: { conversationId: Id }; result: SandboxStatus };
+
+  'studio.text': { params: TextTaskInput; result: TextTaskResult };
+  'studio.detect': { params: { text: string; useModel?: boolean; providerId?: Id | null; model?: string | null }; result: AiDetectionResult };
+  'benchmark.start': { params: BenchmarkInput; result: BenchmarkState };
+  'benchmark.cancel': { params: void; result: void };
+  'benchmark.state': { params: void; result: BenchmarkState | null };
+  'images.generate': { params: ImageGenInput; result: ImageGenResult };
+  'vision.describe': { params: { attachmentId: Id; prompt?: string }; result: { text: string } };
+  'assets.list': { params: void; result: AssetInfo[] };
+  'assets.read': { params: { name: string }; result: { kind: AssetKind; content: string } };
+  'assets.save': { params: { name: string; kind: AssetKind; content: string }; result: AssetInfo };
+  'assets.delete': { params: { name: string }; result: void };
+  'assets.png': { params: { name: string; scale?: number; frame?: number }; result: { dataBase64: string; width: number; height: number } };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -360,6 +374,8 @@ export interface HarnessEvents {
   'memory.changed': { id: Id | null };
   'mcp.changed': { servers: McpServer[] };
   'rag.progress': { conversationId: Id; status: RagStatus };
+  'benchmark.progress': BenchmarkState;
+  'assets.changed': { assets: AssetInfo[] };
   'log.error': { message: string; code: string };
 }
 

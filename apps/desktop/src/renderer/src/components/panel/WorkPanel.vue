@@ -8,14 +8,16 @@ import TerminalTab from './TerminalTab.vue';
 import GitTab from './GitTab.vue';
 import BrowserTab from './BrowserTab.vue';
 import PreviewTab from './PreviewTab.vue';
+import AssetsView from '../studio/AssetsView.vue';
 
-export type PanelTab = 'files' | 'terminal' | 'git' | 'browser' | 'preview';
+export type PanelTab = 'files' | 'terminal' | 'git' | 'browser' | 'preview' | 'assets';
 const TABS: { id: PanelTab; icon: string }[] = [
   { id: 'files', icon: 'pi-folder' },
   { id: 'terminal', icon: 'pi-code' },
   { id: 'git', icon: 'pi-sitemap' },
   { id: 'browser', icon: 'pi-globe' },
   { id: 'preview', icon: 'pi-eye' },
+  { id: 'assets', icon: 'pi-palette' },
 ];
 
 const { t } = useI18n();
@@ -66,7 +68,8 @@ function resizeKey(e: KeyboardEvent) {
       <button type="button" class="mh-icon-btn" :aria-label="t('panel.close')" v-tooltip.bottom="t('panel.close')" @click="save({ panelOpen: false, panelMaximized: false })"><i class="pi pi-times" /></button>
     </header>
     <div class="body">
-      <p v-if="!conversation && tab !== 'browser'" class="mh-muted empty">{{ t('panel.noConversation') }}</p>
+      <div v-if="tab === 'assets'" class="assets-tab"><AssetsView /></div>
+      <p v-else-if="!conversation && tab !== 'browser'" class="mh-muted empty">{{ t('panel.noConversation') }}</p>
       <template v-else>
         <FilesTab v-if="tab === 'files' && conversation" :key="`f${conversation.id}`" :conversation-id="conversation.id" @preview="select('preview')" />
         <TerminalTab v-else-if="tab === 'terminal' && conversation" :key="`t${conversation.id}`" :conversation-id="conversation.id" />
@@ -146,6 +149,13 @@ function resizeKey(e: KeyboardEvent) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.assets-tab {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
 }
 .empty {
   padding: 24px;

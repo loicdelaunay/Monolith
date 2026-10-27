@@ -44,6 +44,9 @@ import { RagService } from './services/rag.ts';
 import { McpService } from './mcp/service.ts';
 import { delegateTool, SubagentService } from './orchestration/subagents.ts';
 import { SandboxService } from './orchestration/sandbox.ts';
+import { StudioService } from './services/studio.ts';
+import { AssetService } from './services/assets.ts';
+import { studioTools } from './tools/studio.ts';
 import { memoryTools } from './tools/memory.ts';
 import { FILE_INDEX_TOOLS } from './tools/file-index.ts';
 import { WEB_TOOLS } from './tools/web.ts';
@@ -111,6 +114,8 @@ export class Harness {
   readonly mcp: McpService;
   readonly subagents: SubagentService;
   readonly sandbox: SandboxService;
+  readonly studio: StudioService;
+  readonly assets: AssetService;
   hostBridge: HostBridge | null;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
@@ -178,7 +183,10 @@ export class Harness {
       ...skillTools(this.layout.skills),
       ...PYTHON_TOOLS,
       delegateTool(() => this.subagents, () => this.settings.get().subagents.presets),
+      ...studioTools(() => this.studio, () => this.assets, () => this.attachments),
     ]);
+    this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
+    this.assets = new AssetService(join(this.layout.workspace, 'assets'), this.events);
     this.memory = new MemoryService(this.db, this.events);
     this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get());
     this.sandbox = new SandboxService(this.resources, join(this.layout.workspace, 'sandboxes'));
@@ -212,6 +220,7 @@ export class Harness {
       memory: this.memory,
       mcp: this.mcp,
       customSkills: (roots, settings) => discoverSkills(this.layout.skills, roots, settings),
+      vision: { cached: (id) => this.studio.cachedDescription(id), ensure: (id, signal) => this.studio.ensureDescription(id, signal) },
     });
     this.subagents = new SubagentService({
       conversations: this.conversations,
@@ -579,6 +588,22 @@ export class Harness {
       'sandbox.discard': (p) => {
         if (this.generation.isActive(p.conversationId)) throw new HarnessError('busy', 'Génération en cours : attendez la fin');
         return this.sandbox.discard(p.conversationId);
+      },
+
+      'studio.text': (p) => this.withAbort((signal) => this.studio.text(p, signal)),
+      'studio.detect': (p) => this.withAbort((signal) => this.studio.detect(p, signal)),
+      'benchmark.start': (p) => this.studio.startBenchmark(p),
+      'benchmark.cancel': () => this.studio.cancelBenchmark(),
+      'benchmark.state': () => this.studio.benchmarkState(),
+      'images.generate': (p) => this.withAbort((signal) => this.studio.generateImage(p, signal)),
+      'vision.describe': async (p) => ({ text: (await this.withAbort((signal) => this.studio.describe(p.attachmentId, p.prompt ?? null, signal))).text }),
+      'assets.list': () => this.assets.list(),
+      'assets.read': (p) => this.assets.read(String(p.name)),
+      'assets.save': (p) => this.assets.save(String(p.name), p.kind, String(p.content ?? '')),
+      'assets.delete': (p) => this.assets.delete(String(p.name)),
+      'assets.png': (p) => {
+        const r = this.assets.png(String(p.name), p.scale ?? 8, p.frame ?? 0);
+        return { dataBase64: r.png.toString('base64'), width: r.width, height: r.height };
       },
 
       'git.run': async (p) => {

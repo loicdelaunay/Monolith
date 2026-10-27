@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T7 (3.0.0-alpha.7).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T8 (3.0.0-alpha.8).**
 
 ## 1. Fondations
 
@@ -61,10 +61,10 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | U-01 | Barre latérale projets/conversations/recherche/notifications | 🟡 | ➖ | ➖ | T1 | Projets, conversations, recherche ; notifications en T9. |
-| U-02 | Panneau d'outils redimensionnable (navigateur, terminaux, Git, fichiers, assets, aperçu) | 🟡 | ➖ | ➖ | T4 | Fichiers, Terminal, Git, Navigateur, Aperçu : redimensionnable, agrandir, fermer, Ctrl+J, état conservé (parcours visuel). Onglet Assets avec le générateur (T8). |
+| U-02 | Panneau d'outils redimensionnable (navigateur, terminaux, Git, fichiers, assets, aperçu) | ✅ | ➖ | ➖ | T4–T8 | Fichiers, Terminal, Git, Navigateur, Aperçu, Assets : redimensionnable, agrandir, fermer, Ctrl+J, état conservé (parcours visuels). |
 | U-03 | Barre supérieure : identité unique, contrôles natifs uniques, repli système, drag jusqu'au bord | 🟡 | ➖ | ➖ | T1 | Identité unique, contrôles natifs superposés (un seul jeu), repli « cadre système », zone de déplacement jusqu’au bord. À vérifier manuellement : déplacement depuis une fenêtre maximisée. |
 | U-04 | Bouton version → changelog intégré | ✅ | ✅ | ⬜ | T1 | CLI : `/changelog`. |
-| U-05 | Menu outils dédiés en bas de la barre latérale, à côté de Réglages | ⬜ | ➖ | ➖ | T8 | |
+| U-05 | Menu outils dédiés en bas de la barre latérale, à côté de Réglages | ✅ | ➖ | ➖ | T8 | Menu Outils : traducteur/correcteur, images et vision, assets, benchmark, détection IA (parcours visuel). |
 | U-06 | Saisie multiligne, Entrée/Maj+Entrée, collage, glisser-déposer | ✅ | 🟡 | ➖ | T1 | Pièces jointes par bouton, glisser-déposer et collage (vérifié dans la fenêtre réelle). CLI : `/attach`. |
 | U-07 | Autocomplétion commandes et skills | 🟡 | 🟡 | ➖ | T2 | Commandes « / » dans l’éditeur desktop et autocomplétion CLI ; skills en T6. |
 | U-08 | Agrandissement de la saisie au-delà de 10 lignes, retour sans perte | ✅ | ➖ | ➖ | T1 | |
@@ -109,7 +109,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | M-14 | Import catalogue, recherche, sélection, pagination, ajout manuel | ✅ | ⬜ | ⬜ | T1 | |
 | M-15 | Sélecteur fournisseur puis modèle dans le chat | ✅ | 🟡 | ➖ | T1 | CLI : `/model [connexion/]modèle`. |
 | M-16 | Raccourcis fournisseur/modèle/mode/réflexion | ✅ | 🟡 | ➖ | T5 | Desktop : Ctrl+Maj+M (mode), Ctrl+Maj+R (réflexion), raccourcis personnalisés enregistrables (Réglages › Raccourcis). CLI : `/shortcut` et Alt+chiffre (les terminaux ne transmettent pas Ctrl+Maj). |
-| M-17 | Génération d'images (locale ou distante) | ⬜ | ⬜ | ⬜ | T8 | |
+| M-17 | Génération d'images (locale ou distante) | 🟡 | 🟡 | ⬜ | T8 | Distante : compatible OpenAI `/images/generations` et Gemini (réponse image), outil generate_image et atelier (test avec serveur simulé). Locale (diffusion) : non disponible (dépend des modèles locaux, T10). |
 
 ## 7. Réflexion, contexte, fiabilité
 
@@ -157,8 +157,8 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | K-11 | Navigateur intégré et DOM | ✅ | ➖ | ➖ | T4 | browser_open/read/dom/click/type : monde JS isolé, refus des champs mot de passe, adresses privées refusées à l'agent (SSRF). Parcours visuel. CLI/serveur : via MCP si configuré (T6). |
 | K-12 | Captures d'écran | ✅ | ➖ | ➖ | T4 | Capture du navigateur intégré, de l'écran ou d'une fenêtre, jointe à la conversation et transmise aux modèles avec vision. Skill désactivé par défaut. |
 | K-13 | Contrôle applications/souris/clavier | ⬜ | ➖ | ➖ | T11 | |
-| K-14 | Vision dédiée | ⬜ | ⬜ | ⬜ | T8 | |
-| K-15 | Générateur d'assets (skill) | ⬜ | ⬜ | ⬜ | T8 | |
+| K-14 | Vision dédiée | ✅ | ✅ | ⬜ | T8 | Vision de secours (image décrite une fois par le modèle de vision, transmise en texte au modèle sans vision, test) ; outil describe_image ; API vision.describe. |
+| K-15 | Générateur d'assets (skill) | ✅ | ✅ | ⬜ | T8 | asset_create / list / read / export : SVG validé (sans script, événement ni lien externe) et pixel art JSON (palette, images, fps), export SVG/PNG (encodeur PNG intégré) (test). |
 | K-16 | Mémoire | ✅ | ✅ | ⬜ | T6 | memory_search / read / save / delete ; outils et administration (tests). |
 | K-17 | Planification, synthèse, revue de code, conception complète | 🟡 | 🟡 | ⬜ | T3 | Plan : outil update_plan. Synthèse, revue de code et conception : skills d’instructions (sans outil dédié). |
 | K-18 | Skills personnalisés `SKILL.md` (global/projet), création/chargement | ✅ | ✅ | ⬜ | T6 | Dossier skills de l'application et `.monolith/skills` / `.claude/skills` des ressources ; liste dans les instructions, load_skill, read_skill_resource, create_skill, activation individuelle (test). |
@@ -203,10 +203,10 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | W-02 | Terminaux multiples par conversation | ⬜ | ⬜ | ⬜ | T4 | |
 | W-03 | Explorateur de fichiers + aperçu Raw/Preview | ✅ | ⬜ | ⬜ | T4 | Arborescence dans la portée, recherche par nom et contenu, aperçu rendu/source (Markdown, HTML isolé, SVG, images, code coloré). |
 | W-04 | Panneau Git + propositions de modifications | ✅ | ⬜ | ⬜ | T4 | Statut, diff par fichier, indexer/désindexer/annuler (confirmation), commit, branches, historique, fetch/pull/push (confirmation pour push). |
-| W-05 | Traducteur et correcteur | ⬜ | ⬜ | ⬜ | T8 | |
-| W-06 | Générateur d'assets (vectoriel, pixel art, animation, exports) | ⬜ | ➖ | ➖ | T8 | |
-| W-07 | Benchmark | ⬜ | ⬜ | ⬜ | T8 | |
-| W-08 | Détection de contenu IA | ⬜ | ⬜ | ⬜ | T8 | |
+| W-05 | Traducteur et correcteur | ✅ | ⬜ | ⬜ | T8 | Traduire, corriger (diff des corrections), réécrire ; ton et consignes ; modèle au choix ; consommation enregistrée (test). CLI : T12. |
+| W-06 | Générateur d'assets (vectoriel, pixel art, animation, exports) | ✅ | ➖ | ➖ | T8 | Atelier et onglet Assets du panneau : aperçu SVG (animations SMIL/CSS) et pixel art animé, import SVG, export SVG et PNG à l'échelle. Pas d'export GIF/vidéo. |
+| W-07 | Benchmark | ✅ | ⬜ | ⬜ | T8 | Plusieurs modèles en parallèle par consigne, répétitions, premier token, durée, tok/s, contrôle de réponse attendue, annulation, synthèse (test). |
+| W-08 | Détection de contenu IA | 🟡 | ⬜ | ⬜ | T8 | Indicateurs stylistiques (variabilité, richesse lexicale, répétitions) et avis facultatif d'un modèle, présentés comme indicatifs avec avertissement explicite : aucune détection fiable n'est prétendue (test). |
 
 ## 14. Statistiques, diagnostics, tâches planifiées
 
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 94 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 99 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

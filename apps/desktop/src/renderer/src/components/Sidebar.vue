@@ -239,6 +239,18 @@ function resizeKey(e: KeyboardEvent) {
 }
 
 const tools = ref<InstanceType<typeof Popover> | null>(null);
+const STUDIO_TOOLS = [
+  { id: 'text', icon: 'pi-language' },
+  { id: 'images', icon: 'pi-image' },
+  { id: 'assets', icon: 'pi-palette' },
+  { id: 'benchmark', icon: 'pi-gauge' },
+  { id: 'detect', icon: 'pi-search' },
+] as const;
+function openStudio(tab: (typeof STUDIO_TOOLS)[number]['id']) {
+  tools.value?.hide();
+  uiState.studio.tab = tab;
+  uiState.studio.open = true;
+}
 const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (store.projects.find((p) => p.id === id)?.name ?? ''));
 </script>
 
@@ -374,7 +386,10 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
     <Popover ref="tools">
       <div class="tools-pop">
         <strong>{{ t('sidebar.tools') }}</strong>
-        <p class="mh-hint">{{ t('sidebar.toolsPlanned') }}</p>
+        <button v-for="x in STUDIO_TOOLS" :key="x.id" type="button" class="tool-item" @click="openStudio(x.id)">
+          <i class="pi" :class="x.icon" />
+          <span class="tool-text"><span>{{ t(`studio.tabs.${x.id}`) }}</span><span class="mh-hint">{{ t(`studio.hints.${x.id}`) }}</span></span>
+        </button>
       </div>
     </Popover>
   </nav>
@@ -639,6 +654,31 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
 .resizer:hover,
 .resizer:focus-visible {
   background: color-mix(in srgb, var(--mh-accent) 40%, transparent);
+}
+.tool-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 7px 8px;
+  border-radius: var(--mh-radius-sm);
+  cursor: pointer;
+  color: var(--mh-text);
+  font: inherit;
+  text-align: left;
+}
+.tool-item:hover {
+  background: var(--mh-hover);
+}
+.tool-item .pi {
+  margin-top: 3px;
+  color: var(--mh-muted);
+}
+.tool-text {
+  display: flex;
+  flex-direction: column;
 }
 .tools-pop {
   max-width: 280px;

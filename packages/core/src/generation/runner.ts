@@ -111,6 +111,8 @@ export interface GenerationDeps {
   /** Serveurs MCP : connexion avant génération et filtrage des outils par conversation. */
   mcp?: { allows(tool: ToolDefinition, conversationId: Id): boolean; ensureConnected(conversationId: Id, cwd: string): Promise<string[]> };
   customSkills?: (roots: string[], settings: Settings) => CustomSkill[];
+  /** Vision de secours (modèle de la conversation sans vision). */
+  vision?: { cached(attachmentId: Id): string | null; ensure(attachmentId: Id, signal: AbortSignal): Promise<string> };
 }
 
 /**
@@ -391,6 +393,7 @@ export class GenerationRunner {
     const history = buildHistory(list, {
       attachments: { text: (r) => attachments.text(r.id), dataUrl: (r) => attachments.dataUrl(r.id) },
       vision: ctx.caps?.vision ?? null,
+      ...(this.deps.vision && ctx.settings.studio.visionFallback ? { describe: (id: number) => this.deps.vision!.cached(id) } : {}),
       compactedUpToSeq: latest?.upToSeq ?? null,
     });
     return {
@@ -599,6 +602,23 @@ export class GenerationRunner {
     };
 
     for (const e of ctx.mcpErrors) notice('warning', 'mcp_unavailable', `Serveur MCP indisponible pour cette réponse — ${e}`);
+    // Vision de secours : les images sont décrites une fois par le modèle de vision configuré.
+    if (this.deps.vision && ctx.caps?.vision === false && ctx.settings.studio.visionFallback && ctx.settings.studio.visionProviderId !== null && ctx.settings.studio.visionModel) {
+      const images = this.deps.messages
+        .list(job.conversationId)
+        .flatMap((m) => m.parts)
+        .filter((p): p is Extract<MessagePart, { type: 'attachment' }> => p.type === 'attachment' && p.attachment.kind === 'image')
+        .map((p) => p.attachment)
+        .filter((a) => !this.deps.vision!.cached(a.id));
+      for (const img of images) {
+        try {
+          await this.deps.vision.ensure(img.id, signal);
+          notice('info', 'vision_fallback', `Image « ${img.name} » décrite par le modèle de vision de secours.`);
+        } catch (e) {
+          notice('warning', 'vision_fallback_failed', `Vision de secours indisponible pour « ${img.name} » : ${(e as Error).message}`);
+        }
+      }
+    }
     if (ctx.snapshot.reasoning?.fallback) notice('info', 'reasoning_fallback', `Réflexion : ${ctx.snapshot.reasoning.fallback} ; requête envoyée en Auto.`);
     let reasoningRetried = false;
     let droppedNoticeShown = false;

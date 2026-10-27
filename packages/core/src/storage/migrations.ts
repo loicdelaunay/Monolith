@@ -369,6 +369,19 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX conversations_parent ON conversations(parent_id);
     `,
   },
+  {
+    version: 6,
+    name: 'vision-descriptions',
+    sql: /* sql */ `
+      -- Vision de secours : description d'une image par un modèle de vision, réutilisée.
+      CREATE TABLE attachment_descriptions (
+        attachment_id INTEGER PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

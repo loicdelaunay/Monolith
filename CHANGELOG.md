@@ -2,6 +2,18 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.8 — 2026-10-27
+
+Tranche T8 : outils dédiés.
+
+- **Menu Outils** (bas de la barre latérale) ouvrant l'atelier :
+  - **Traducteur et correcteur** : traduire, corriger (avec diff des corrections) ou réécrire, ton et consignes, modèle au choix.
+  - **Images et vision** : génération d'images (connexions compatibles OpenAI ou Gemini) ; **vision de secours** : quand le modèle de la conversation n'accepte pas les images, elles sont décrites une fois par un modèle de vision puis transmises en texte.
+  - **Assets** : SVG (animations comprises) et pixel art animé, import SVG, export SVG et PNG à l'échelle ; aussi dans l'onglet Assets du panneau de travail.
+  - **Benchmark** : plusieurs modèles comparés en parallèle (premier token, durée, tokens/s, réponse attendue), répétitions, annulation.
+  - **Détection de contenu IA** : indicateurs stylistiques et avis facultatif d'un modèle, présentés comme indicatifs avec un avertissement explicite.
+- Outils de l'agent : generate_image, describe_image, asset_create / list / read / export.
+
 ## 3.0.0-alpha.7 — 2026-10-27
 
 Tranche T7 : orchestration.

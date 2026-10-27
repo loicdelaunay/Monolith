@@ -31,6 +31,7 @@ const host: HostApi = {
   openExternal: (url) => ipcRenderer.invoke('host:openExternal', url),
   showItemInFolder: (path) => ipcRenderer.invoke('host:showItemInFolder', path),
   saveTextFile: (defaultName, content, filters) => ipcRenderer.invoke('host:saveTextFile', defaultName, content, filters),
+  saveBinaryFile: (defaultName, dataBase64, filters) => ipcRenderer.invoke('host:saveBinaryFile', defaultName, dataBase64, filters),
   setTitleBarColors: (colors) => ipcRenderer.invoke('host:setTitleBarColors', colors),
   setZoom: (factor) => {
     if (typeof factor === 'number' && factor >= 0.5 && factor <= 2 && webFrame.getZoomFactor() !== factor) webFrame.setZoomFactor(factor);

@@ -109,6 +109,18 @@ export interface Settings {
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
   };
+  studio: {
+    /** Connexion et modèle des outils dédiés (null : modèle par défaut du chat). */
+    providerId: Id | null;
+    model: string | null;
+    imageProviderId: Id | null;
+    imageModel: string | null;
+    imageSize: string;
+    /** Vision de secours : description des images par ce modèle quand celui de la conversation n'a pas la vision. */
+    visionFallback: boolean;
+    visionProviderId: Id | null;
+    visionModel: string | null;
+  };
   subagents: {
     /** auto : outil disponible ; forced : délégation demandée au modèle ; off : désactivés. */
     mode: 'auto' | 'forced' | 'off';
@@ -242,6 +254,9 @@ export const DEFAULT_SETTINGS: Settings = {
       custom_skills: true,
       mcp: true,
       subagents: true,
+      images: false,
+      vision: true,
+      assets: true,
     },
     info: { date: true, system: true, conversation: true },
   },
@@ -250,6 +265,16 @@ export const DEFAULT_SETTINGS: Settings = {
     latex: true,
     htmlPreview: true,
     fileBadges: true,
+  },
+  studio: {
+    providerId: null,
+    model: null,
+    imageProviderId: null,
+    imageModel: null,
+    imageSize: '1024x1024',
+    visionFallback: true,
+    visionProviderId: null,
+    visionModel: null,
   },
   subagents: {
     mode: 'auto',

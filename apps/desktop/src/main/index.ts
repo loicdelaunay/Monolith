@@ -214,6 +214,16 @@ function registerIpc(): void {
     await writeFile(r.filePath, content, 'utf8');
     return r.filePath;
   });
+  // Écriture binaire (PNG exportés…) uniquement vers un chemin choisi dans le dialogue natif.
+  ipcMain.handle('host:saveBinaryFile', async (event, defaultName: unknown, dataBase64: unknown, filters: unknown) => {
+    const win = fromOurWindow(event);
+    if (!win || typeof dataBase64 !== 'string' || dataBase64.length > 70 * 1024 * 1024) return null;
+    const name = typeof defaultName === 'string' ? defaultName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120) : 'export.bin';
+    const r = await dialog.showSaveDialog(win, { defaultPath: name, filters: Array.isArray(filters) ? (filters as Electron.FileFilter[]) : undefined });
+    if (r.canceled || !r.filePath) return null;
+    await writeFile(r.filePath, Buffer.from(dataBase64, 'base64'));
+    return r.filePath;
+  });
   ipcMain.handle('host:setTitleBarColors', (event, colors: { background?: unknown; symbols?: unknown }) => {
     const win = fromOurWindow(event);
     if (!win || !customTitleBarActive) return;
