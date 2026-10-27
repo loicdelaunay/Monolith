@@ -153,9 +153,9 @@ describe('fournisseurs et secrets', () => {
     expect(cleared.hasKey).toBe(false);
   });
 
-  it('refuse un type de connexion non encore implémenté avec une explication', async () => {
+  it('refuse un préréglage de connexion inconnu', async () => {
     const { harness } = setup();
-    await expect(harness.call('providers.create', { name: 'L', kind: 'local', preset: 'local', baseUrl: '' })).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(harness.call('providers.create', { name: 'X', kind: 'openai-compatible', preset: 'inexistant', baseUrl: 'http://127.0.0.1:1' })).rejects.toMatchObject({ code: 'invalid_argument' });
   });
 
   it('teste la connexion et importe le catalogue', async () => {
