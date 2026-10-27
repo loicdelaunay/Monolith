@@ -69,7 +69,7 @@ const kind = computed(() => props.provider.kind);
 const showBaseUrl = computed(() => !['acp', 'composite', 'opencode', 'local'].includes(kind.value));
 const showKey = computed(() => preset.value?.keyKind !== 'none' && !(kind.value === 'vertex' && form.google.auth === 'adc'));
 const jsonKey = computed(() => kind.value === 'vertex' && form.google.auth === 'service_account');
-const authOptions = computed(() => (['express', 'adc', 'service_account'] as const).map((a) => ({ label: t(`settings.providers.google.auths.${a}`), value: a })));
+const authOptions = computed(() => (['adc', 'api_key', 'express', 'service_account'] as const).map((a) => ({ label: t(`settings.providers.google.auths.${a}`), value: a })));
 
 function parseEnv(text: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -332,18 +332,20 @@ function removeModel(m: ProviderModel) {
               <label :for="`gauth-${provider.id}`">{{ t('settings.providers.google.auth') }}</label>
               <Select :input-id="`gauth-${provider.id}`" v-model="form.google.auth" :options="authOptions" option-label="label" option-value="value" fluid />
               <p v-if="form.google.auth === 'adc'" class="mh-hint">{{ t('settings.providers.google.adcHint') }}</p>
+              <p v-else-if="form.google.auth === 'api_key'" class="mh-hint">{{ t('settings.providers.google.apiKeyHint') }}</p>
+              <p v-else-if="form.google.auth === 'express'" class="mh-hint">{{ t('settings.providers.google.expressHint') }}</p>
             </div>
             <div class="mh-row wrap">
               <div class="mh-field grow">
                 <label :for="`gproj-${provider.id}`">{{ t('settings.providers.google.project') }}</label>
-                <InputText :id="`gproj-${provider.id}`" v-model="form.google.project" spellcheck="false" fluid :disabled="form.google.auth === 'express'" />
+                <InputText :id="`gproj-${provider.id}`" v-model="form.google.project" spellcheck="false" fluid :disabled="form.google.auth === 'express'" :invalid="form.google.auth === 'api_key' && !form.google.project.trim()" placeholder="project-…" />
               </div>
               <div class="mh-field">
                 <label :for="`gloc-${provider.id}`">{{ t('settings.providers.google.location') }}</label>
                 <InputText :id="`gloc-${provider.id}`" v-model="form.google.location" spellcheck="false" :disabled="form.google.auth === 'express'" />
               </div>
             </div>
-            <p class="mh-hint">{{ t('settings.providers.google.projectHint') }}</p>
+            <p class="mh-hint">{{ form.google.auth === 'api_key' ? t('settings.providers.google.projectRequired') : t('settings.providers.google.projectHint') }}</p>
           </fieldset>
 
           <!-- Agent externe ACP -->

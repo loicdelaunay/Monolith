@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.15 — 2026-10-28
+
+- **Vertex AI · clé API Google Cloud de projet** (comme la v1) : nouvelle authentification « Clé API Google Cloud · projet » ; indiquez l'ID du projet (ex. `project-…`) et la région, puis collez la clé complète (points compris) dans le champ Clé. Elle est chiffrée et envoyée dans l'en-tête `x-goog-api-key`, jamais dans l'URL. Les identifiants de modèle `google/gemini-…` sont acceptés.
+
 ## 3.0.0-alpha.14 — 2026-10-28
 
 Autorisations : modes Automatique et Autoriser tout (comme la v1).

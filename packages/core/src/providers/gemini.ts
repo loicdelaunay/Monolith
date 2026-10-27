@@ -139,24 +139,32 @@ export class GeminiAdapter implements ProviderAdapter {
   /** URL et en-têtes d'une méthode de modèle. */
   private async endpoint(conn: ProviderConnection, model: string, method: string, signal: AbortSignal): Promise<{ url: string; headers: Record<string, string> }> {
     const headers: Record<string, string> = { ...conn.options.headers };
-    const name = encodeURIComponent(model).replace(/%2F/g, '/');
+    // API native : « google/gemini-… » (forme du point compatible OpenAI) devient « gemini-… ».
+    const name = encodeURIComponent(this.kind === 'vertex' ? model.replace(/^google\//, '') : model).replace(/%2F/g, '/');
     if (this.kind === 'gemini') {
       if (!conn.apiKey) throw new HarnessError('provider_auth', 'Clé Google AI Studio manquante');
       headers['x-goog-api-key'] = conn.apiKey;
       return { url: joinUrl(conn.baseUrl, `models/${name}:${method}`), headers };
     }
     const g = conn.options.google;
-    if (g.auth === 'express' || g.auth === 'api_key') {
-      if (!conn.apiKey) throw new HarnessError('provider_auth', 'Clé Vertex AI (mode Express) manquante');
+    if (g.auth === 'express') {
+      if (!conn.apiKey) throw new HarnessError('provider_auth', 'Clé API Google Cloud (mode Express) manquante');
       headers['x-goog-api-key'] = conn.apiKey;
       return { url: joinUrl(conn.baseUrl || 'https://aiplatform.googleapis.com/v1', `publishers/google/models/${name}:${method}`), headers };
     }
+    const location = g.location || 'global';
+    const base = conn.baseUrl || `https://${location === 'global' ? '' : `${location}-`}aiplatform.googleapis.com/v1`;
+    if (g.auth === 'api_key') {
+      // Clé API Google Cloud liée à un projet : API native du projet, clé dans l'en-tête (jamais dans l'URL).
+      if (!conn.apiKey) throw new HarnessError('provider_auth', 'Clé API Google Cloud manquante');
+      if (!g.project) throw new HarnessError('invalid_argument', 'Projet Google Cloud manquant : indiquez l’ID du projet (Réglages › Fournisseurs › Vertex AI).');
+      headers['x-goog-api-key'] = conn.apiKey;
+      return { url: joinUrl(base, `projects/${encodeURIComponent(g.project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${name}:${method}`), headers };
+    }
     const project = g.project || this.auth.defaultProject(g.auth, conn.apiKey);
     if (!project) throw new HarnessError('invalid_argument', 'Projet Google Cloud manquant (Réglages › Fournisseurs › Vertex AI).');
-    const location = g.location || 'global';
     headers.authorization = `Bearer ${await this.auth.token(g.auth, conn.apiKey, signal)}`;
     headers['x-goog-user-project'] = project;
-    const base = conn.baseUrl || `https://${location === 'global' ? '' : `${location}-`}aiplatform.googleapis.com/v1`;
     return { url: joinUrl(base, `projects/${project}/locations/${location}/publishers/google/models/${name}:${method}`), headers };
   }
 

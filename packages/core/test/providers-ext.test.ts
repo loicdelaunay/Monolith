@@ -134,6 +134,41 @@ describe('Vertex AI', () => {
     await expect(h.call('providers.setKey', { id: p.id, apiKey: '{"type":"authorized_user"}' })).rejects.toThrow(/compte de service/);
     await expect(h.call('providers.setKey', { id: p.id, apiKey: JSON.stringify({ type: 'service_account', client_email: 'x', private_key: '-----BEGIN PRIVATE KEY-----', token_uri: 'https://evil.example/token' }) })).rejects.toThrow(/token_uri/);
   });
+
+  it('clé API Google Cloud de projet : API native du projet, clé dans l’en-tête, sans jeton OAuth', async () => {
+    const { h, project } = await base();
+    const mock = await mockProvider((req, _raw, res: ServerResponse) => {
+      if (req.url?.includes(':countTokens')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ totalTokens: 4 }));
+        return;
+      }
+      void writeFragmented(res, gsse({ candidates: [{ content: { parts: [{ text: 'Bonjour par clé de projet.' }] }, finishReason: 'STOP' }] }));
+    });
+    cleanups.push(mock.close);
+    // Clé factice au format des clés Google Cloud (points compris) ; aucune vraie clé dans les tests.
+    const fakeKey = 'AQ.Test-cle_factice.0000-aaaa';
+    const p = await h.call('providers.create', { name: 'Vertex clé', kind: 'vertex', preset: 'vertex', baseUrl: mock.url, apiKey: fakeKey, options: { google: { project: 'project-0000-test', location: 'europe-west1', auth: 'api_key' } } });
+    expect(p.options.google.auth).toBe('api_key');
+    await h.call('providers.setModels', { id: p.id, models: [{ id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null } }] });
+    const c = await h.call('conversations.create', { projectId: project.id });
+    await h.call('conversations.update', { id: c.id, patch: { providerId: p.id, model: 'google/gemini-2.5-flash' } });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'Bonjour' } });
+    await h.generation.idle();
+    expect((await lastAssistant(h, c.id)).parts.at(-1)).toMatchObject({ type: 'text', text: 'Bonjour par clé de projet.' });
+    const call = mock.requests.find((r) => r.path.includes(':streamGenerateContent'))!;
+    expect(call.path).toBe('/v1/projects/project-0000-test/locations/europe-west1/publishers/google/models/gemini-2.5-flash:streamGenerateContent?alt=sse');
+    expect(call.headers['x-goog-api-key']).toBe(fakeKey);
+    expect(call.headers.authorization).toBeUndefined();
+    expect(call.path).not.toContain(fakeKey);
+    // Test de connexion : comptage de tokens sur le même point de terminaison.
+    expect((await h.call('providers.test', { providerId: p.id, kind: 'vertex', baseUrl: mock.url, model: 'gemini-2.5-flash' })).ok).toBe(true);
+    expect(mock.requests.some((r) => r.path === '/v1/projects/project-0000-test/locations/europe-west1/publishers/google/models/gemini-2.5-flash:countTokens')).toBe(true);
+    // Projet obligatoire ; clé avec espace refusée.
+    await h.call('providers.update', { id: p.id, patch: { options: { google: { project: '', location: 'europe-west1', auth: 'api_key' } } } });
+    expect((await h.call('providers.test', { providerId: p.id, kind: 'vertex', baseUrl: mock.url, model: 'gemini-2.5-flash' })).ok).toBe(false);
+    await expect(h.call('providers.setKey', { id: p.id, apiKey: 'AQ.cle avec espace' })).rejects.toThrow(/espaces/);
+  });
 });
 
 describe('Agent externe ACP', () => {
