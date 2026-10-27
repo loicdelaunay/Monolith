@@ -22,6 +22,8 @@ const isOn = (id: string) => props.draft.skills.enabled[id] ?? DEFAULT_SETTINGS.
 const providerOptions = computed(() => [{ label: t('skills.config.embeddingNone'), value: null }, ...store.providers.filter((p) => p.kind === 'openai-compatible').map((p) => ({ label: p.name, value: p.id }))]);
 const searchOptions = computed(() => (['duckduckgo', 'searxng', 'none'] as const).map((v) => ({ label: t(`skills.config.providers.${v}`), value: v })));
 const modeOptions = computed(() => (['smart', 'legacy'] as const).map((v) => ({ label: t(`skills.config.httpModes.${v}`), value: v })));
+const inputOptions = computed(() => (['auto', 'uia', 'legacy'] as const).map((v) => ({ label: t(`skills.config.inputModes.${v}`), value: v })));
+const desktopAvailable = computed(() => skills.value.find((s) => s.id === 'keyboard')?.available ?? false);
 
 function setEnabled(id: string, value: boolean) {
   props.draft.skills.enabled = { ...props.draft.skills.enabled, [id]: value };
@@ -91,6 +93,28 @@ function setEnabled(id: string, value: boolean) {
   <div class="mh-switch-row">
     <label for="http-redir">{{ t('skills.config.httpFollowRedirects') }}</label>
     <ToggleSwitch input-id="http-redir" v-model="draft.web.httpFollowRedirects" />
+  </div>
+
+  <h3 class="mh-section-title">{{ t('skills.config.desktop') }}</h3>
+  <p class="mh-hint">{{ t('skills.config.desktopHint') }}</p>
+  <p v-if="skills.length && !desktopAvailable" class="mh-hint warn">{{ t('skills.config.desktopUnavailable') }}</p>
+  <div class="mh-row wrap">
+    <div class="mh-field">
+      <label for="dk-kb">{{ t('skills.config.keyboardMode') }}</label>
+      <Select input-id="dk-kb" v-model="draft.desktop.keyboardMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
+    </div>
+    <div class="mh-field">
+      <label for="dk-mouse">{{ t('skills.config.mouseMode') }}</label>
+      <Select input-id="dk-mouse" v-model="draft.desktop.mouseMode" :options="inputOptions" option-label="label" option-value="value" :disabled="!desktopAvailable" />
+    </div>
+  </div>
+  <div class="mh-switch-row">
+    <label for="dk-ai">{{ t('skills.config.allowAiChoose') }}</label>
+    <ToggleSwitch input-id="dk-ai" v-model="draft.desktop.allowAiChoose" :disabled="!desktopAvailable" />
+  </div>
+  <div class="mh-switch-row">
+    <label for="dk-fb">{{ t('skills.config.legacyFallback') }}</label>
+    <ToggleSwitch input-id="dk-fb" v-model="draft.desktop.legacyFallback" :disabled="!desktopAvailable" />
   </div>
 
   <h3 class="mh-section-title">{{ t('skills.config.rag') }}</h3>

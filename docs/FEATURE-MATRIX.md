@@ -7,7 +7,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T10 (3.0.0-alpha.10).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T11 (3.0.0-alpha.11).**
 
 ## 1. Fondations
 
@@ -182,10 +182,10 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| X-01 | Windows : Auto / UIA-API / Legacy séparés souris/clavier | ⬜ | ➖ | ➖ | T11 | |
-| X-02 | Repli Legacy désactivé par défaut, conditions propres | ⬜ | ➖ | ➖ | T11 | |
-| X-03 | Mode réel et raison du repli affichés | ⬜ | ➖ | ➖ | T11 | |
-| X-04 | Capacités Linux/macOS déclarées | ⬜ | ➖ | ➖ | T11 | |
+| X-01 | Windows : Auto / UIA-API / Legacy séparés souris/clavier | ✅ | ➖ | ➖ | T11 | Skills « Contrôle du clavier » et « Contrôle de la souris » (désactivés par défaut), mode réglé séparément pour chacun (Réglages › Skills). UI Automation par l'API COM native (proxys MSAA/Win32 compris), assistant PowerShell sur thread MTA, délais natifs et délai de 10 s par action. desktop_inspect_ui (fenêtres, arbre borné, element_id opaques expirant après 10 min ou réinspection), clavier (type, set_value ; mots de passe jamais lus), souris (invoke, toggle, select, expand/collapse, scroll, scroll_into_view). Fenêtres de Monolith exclues. Vérifié sur une vraie fenêtre Win32 (test automatique sans focus ni curseur). Legacy (curseur, SendKeys) non testé automatiquement : il déplace la vraie souris. |
+| X-02 | Repli Legacy désactivé par défaut, conditions propres | ✅ | ➖ | ➖ | T11 | Repli désactivé par défaut ; activé, il n'a lieu qu'en mode Automatique, sur une capacité absente détectée avant toute action, avec une autorisation distincte (règles puis demande). Jamais de relance après un échec d'exécution ou un délai dépassé ; Legacy bloqué 30 s après un délai UI Automation. Un mode fixe n'est jamais contourné ; « Autoriser l'IA à choisir » (actif par défaut) ne vaut qu'en mode Automatique. Accords permanents distincts UI Automation / Legacy (tests). |
+| X-03 | Mode réel et raison du repli affichés | ✅ | ➖ | ➖ | T11 | Résultat transmis au modèle et carte de l'outil : mode configuré, mode réel, raison du repli, choix de l'IA (tests). |
+| X-04 | Capacités Linux/macOS déclarées | ✅ | ➖ | ➖ | T11 | Hors Windows, les skills Clavier et Souris sont listés indisponibles avec la raison (macOS : non pris en charge dans cette version ; Linux : non disponible) ; Réglages › À propos détaille les capacités réelles par système. Non vérifié sur macOS/Linux (test conditionnel). |
 
 ## 12. Mémoire, index, RAG
 
@@ -267,4 +267,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 108 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 115 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

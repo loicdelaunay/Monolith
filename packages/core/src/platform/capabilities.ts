@@ -2,7 +2,6 @@ import type { CapabilityStatus, PlatformCapabilities } from '@monolith/contracts
 
 export type HostKind = 'desktop' | 'cli' | 'server';
 
-const planned = (reason: string): CapabilityStatus => ({ state: 'planned', reason });
 const unavailable = (reason: string): CapabilityStatus => ({ state: 'unavailable', reason });
 
 /**
@@ -21,20 +20,24 @@ export function platformCapabilities(host: HostKind, platform: NodeJS.Platform =
           : mac
             ? { state: 'available', backend: 'keychain', reason: 'Implémenté mais non vérifié sur macOS.' }
             : unavailable('Système non pris en charge'),
-    'browser.embedded': gui ? planned('Navigateur intégré : tranche T4.') : unavailable('Indisponible hors interface graphique ; utilisez un serveur MCP de navigation.'),
-    'terminal.pty': planned('Terminaux interactifs : tranche T4.'),
-    'terminal.pipe': planned('Terminaux asynchrones de l’agent : tranche T3.'),
-    'desktop.screenshot': gui ? planned('Captures : tranche T4.') : unavailable('Nécessite l’interface desktop.'),
+    'browser.embedded': gui ? { state: 'available', backend: 'electron' } : unavailable('Indisponible hors interface graphique ; utilisez un serveur MCP de navigation.'),
+    'terminal.pty': unavailable('Pas de pseudo-terminal interactif : les commandes s’exécutent en tâche asynchrone (sortie en direct, arrêt).'),
+    'terminal.pipe': { state: 'available', backend: platform === 'win32' ? 'cmd' : 'sh' },
+    'desktop.screenshot': gui ? { state: 'available', backend: 'electron' } : unavailable('Nécessite l’interface desktop.'),
     'desktop.semanticControl': !gui
       ? unavailable('Nécessite l’interface desktop.')
       : platform === 'win32'
-        ? planned('UI Automation : tranche T11.')
+        ? { state: 'available', backend: 'uia', reason: 'UI Automation (PowerShell, thread MTA, délai de 10 s) ; skills Clavier et Souris désactivés par défaut.' }
         : mac
-          ? planned('Accessibilité macOS (AX) : non implémentée.')
-          : planned('AT-SPI : à évaluer (tranche T11).'),
-    'desktop.legacyInput': gui ? planned('Saisie physique (Legacy) : tranche T11, désactivée par défaut.') : unavailable('Nécessite l’interface desktop.'),
-    'notifications.system': gui ? planned('Notifications : tranche T9.') : unavailable('Le CLI utilise la cloche du terminal (tranche T9).'),
-    localModels: planned('Moteur GGUF intégré : tranche T10. Les serveurs locaux compatibles OpenAI fonctionnent déjà.'),
-    python: planned('Scripts Python : tranche T6.'),
+          ? unavailable('macOS : contrôle du clavier et de la souris non pris en charge dans cette version.')
+          : unavailable('Linux : contrôle du clavier et de la souris non disponible (AT-SPI non implémenté).'),
+    'desktop.legacyInput': !gui
+      ? unavailable('Nécessite l’interface desktop.')
+      : platform === 'win32'
+        ? { state: 'available', backend: 'win32', reason: 'Saisie physique séparée ; repli automatique désactivé par défaut.' }
+        : unavailable(mac ? 'macOS : non pris en charge dans cette version.' : 'Linux : non disponible.'),
+    'notifications.system': gui ? { state: 'available', backend: 'electron' } : unavailable('Le CLI n’affiche pas de notifications système.'),
+    localModels: { state: 'available', backend: 'llama.cpp', reason: 'Moteur llama-server externe (chemin choisi ou version officielle installée).' },
+    python: { state: 'available', backend: 'system', reason: 'Python 3 du poste (py, python3, python) ; aucun Python embarqué.' },
   };
 }

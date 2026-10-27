@@ -889,9 +889,26 @@ export class GenerationRunner {
         record.display = display;
         update({ ...record });
       },
+      authorize: async (resources, label, reason) => {
+        const q = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources, grant: resources.at(-1) ?? '' };
+        const ev = permissions.evaluate(q, ctx.settings.permissions.policy);
+        let decided: NonNullable<ToolCallRecord['permission']>;
+        if (ev.decision === 'ask') {
+          record.status = 'awaiting_permission';
+          update({ ...record });
+          const resp = await permissions.request({ conversationId: job.conversationId, messageId, tool: def.name, family: def.family, effects: def.effects, target: label, arguments: call.arguments, preview: null, reason: `${reason} — ${ev.reason}` }, q, signal);
+          decided = { decision: resp.decision, source: 'user', ruleId: null, scope: resp.scope, reason: resp.reason, decidedAt: nowIso() };
+          record.status = 'running';
+          update({ ...record });
+        } else {
+          decided = { decision: ev.decision, source: ev.source, ruleId: ev.ruleId, scope: ev.scope, reason: ev.reason, decidedAt: nowIso() };
+        }
+        permissions.log(job.conversationId, def.name, label, decided);
+        return decided.decision === 'allow' && !signal.aborted;
+      },
     };
 
-    let target: { label: string | null; resources: string[] };
+    let target: { label: string | null; resources: string[]; grant?: string };
     try {
       target = def.target(args, toolCtx);
     } catch {
@@ -913,7 +930,7 @@ export class GenerationRunner {
     }
 
     // Autorisation.
-    const query = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources: target.resources };
+    const query = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: def.name, family: def.family, effects: def.effects, resources: target.resources, ...(target.grant ? { grant: target.grant } : {}) };
     const evaluation = permissions.evaluate(query, ctx.settings.permissions.policy);
     let permission: NonNullable<ToolCallRecord['permission']>;
     if (evaluation.decision === 'ask') {

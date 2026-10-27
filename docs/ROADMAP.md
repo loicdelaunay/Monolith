@@ -2,7 +2,7 @@
 
 Chaque tranche se termine par : compilation (`npm run typecheck`, `npm run build`), tests (`npm test`), mise à jour de [FEATURE-MATRIX.md](FEATURE-MATRIX.md) et, si visible pour l'utilisateur, une entrée du [CHANGELOG](../CHANGELOG.md). Le CLI suit chaque tranche puisqu'il partage le moteur.
 
-État au 2026-10-27 : **T0 à T10 livrées** (3.0.0-alpha.3). Les éléments encore partiels de ces tranches sont détaillés dans la matrice (ex. PDF en pièce jointe, CLI sans édition de file).
+État au 2026-10-27 : **T0 à T11 livrées** (3.0.0-alpha.11). Les éléments encore partiels de ces tranches sont détaillés dans la matrice (ex. PDF en pièce jointe, CLI sans édition de file).
 
 | Tranche | Contenu | Dépend de |
 | --- | --- | --- |

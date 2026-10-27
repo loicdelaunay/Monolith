@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.11 — 2026-10-27
+
+Tranche T11 : contrôle du bureau Windows.
+
+- **Contrôle du clavier** et **contrôle de la souris** (Réglages › Skills, désactivés par défaut) : l'IA liste les fenêtres, inspecte l'arbre des contrôles (identifiants opaques valables 10 minutes) puis agit par **UI Automation**, sans déplacer le curseur ni simuler de touches : saisir ou remplacer une valeur, invoquer, cocher, sélectionner, dérouler, faire défiler.
+- **Modes séparés** pour le clavier et la souris : Automatique (UI Automation d'abord), UI Automation seule, ou Legacy (saisie physique : raccourcis, double clic, clic droit, coordonnées). « Autoriser l'IA à choisir le mode » est actif par défaut ; un mode fixe n'est jamais contourné.
+- **Repli Legacy** désactivé par défaut ; activé, il n'intervient que si UI Automation n'expose pas l'action, avant toute modification, et demande une autorisation distincte. Aucune relance après un échec ou un délai dépassé.
+- Chaque résultat indique le **mode réellement utilisé** et la **raison d'un repli**. Les accords permanents distinguent UI Automation et Legacy. Les fenêtres de Monolith ne peuvent pas être contrôlées par l'IA.
+- Capacités par système mises à jour (Réglages › À propos) : macOS et Linux déclarés non pris en charge pour le contrôle du clavier et de la souris.
+
 ## 3.0.0-alpha.10 — 2026-10-27
 
 Tranche T10 : modèles locaux.

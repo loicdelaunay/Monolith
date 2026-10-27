@@ -38,6 +38,8 @@ import { LoopGate, ProposalService, QuestionBroker } from './tools/interactions.
 import type { ActionProposal, GitStatusInfo, Message, MessagePart } from '@monolith/contracts';
 import { GIT_TOOLS, gitFileVersions, gitStatus, hasGit, repoRoot, runGit } from './tools/git.ts';
 import { browserTools, type HostBridge } from './tools/browser.ts';
+import { desktopTools } from './desktop/input.ts';
+import { UiaDriver, type DesktopDriver } from './desktop/uia-host.ts';
 import { WorkspaceFiles } from './services/workspace.ts';
 import { MemoryService } from './services/memory.ts';
 import { RagService } from './services/rag.ts';
@@ -82,6 +84,8 @@ export interface HarnessOptions {
   hostBridge?: HostBridge | null;
   /** Tests : adresses de Hugging Face et de l'API GitHub. */
   localEndpoints?: { hfBase?: string; githubApi?: string };
+  /** Contrôle du bureau (tests) ; par défaut UI Automation sous Windows avec l'interface de bureau. */
+  desktopDriver?: DesktopDriver | null;
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -135,6 +139,7 @@ export class Harness {
   private cpuSample = { at: Date.now(), usage: process.cpuUsage() };
   readonly assets: AssetService;
   hostBridge: HostBridge | null;
+  private desktop: DesktopDriver | null | undefined;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
   private readonly testControllers = new Set<AbortController>();
@@ -208,7 +213,9 @@ export class Harness {
       ...PYTHON_TOOLS,
       delegateTool(() => this.subagents, () => this.settings.get().subagents.presets),
       ...studioTools(() => this.studio, () => this.assets, () => this.attachments),
+      ...desktopTools(() => this.desktopDriver()),
     ]);
+    this.desktop = options.desktopDriver;
     this.webHttp = new WebHttpClient(join(this.layout.workspace, 'web'));
     this.local = new LocalModelService({ dir: join(this.layout.root, 'local'), events: this.events, settings: () => this.settings.get(), secrets: this.secrets, logger: this.logger, ...(options.localEndpoints ?? {}) });
     this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
@@ -353,8 +360,17 @@ export class Harness {
     await this.mcp.dispose();
     await this.webHttp.dispose();
     await this.local.dispose();
+    await this.desktop?.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
+  }
+
+  /** Assistant UI Automation démarré à la première utilisation ; les fenêtres de Monolith sont exclues. */
+  private desktopDriver(): DesktopDriver | null {
+    if (this.desktop === undefined) {
+      this.desktop = this.options.host === 'desktop' && process.platform === 'win32' ? new UiaDriver(join(this.layout.workspace, 'desktop'), [process.pid, process.ppid]) : null;
+    }
+    return this.desktop;
   }
 
   private withAbort<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {

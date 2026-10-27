@@ -92,6 +92,7 @@ export class SettingsService {
       if (section === 'web' && key === 'httpProxyUrl' && typeof value === 'string') v = checkProxy(value);
       if (section === 'web' && key === 'httpUserAgent' && typeof value === 'string') v = value.replace(/[\r\n]/g, '').slice(0, 300);
       if (section === 'appearance' && key === 'backgroundAnimation' && !['none', 'gradient', 'aurora', 'particles'].includes(String(value))) continue;
+      if (section === 'desktop' && (key === 'keyboardMode' || key === 'mouseMode') && !['auto', 'uia', 'legacy'].includes(String(value))) continue;
       if (section === 'subagents' && key === 'mode' && !['auto', 'forced', 'off'].includes(String(value))) continue;
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));

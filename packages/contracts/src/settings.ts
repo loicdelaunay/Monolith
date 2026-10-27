@@ -18,6 +18,8 @@ export type Language = 'system' | 'fr' | 'en';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ReasoningDisplay = 'none' | 'collapsed' | 'expanded';
 export type Density = 'compact' | 'comfortable';
+/** Contrôle du bureau Windows : automatique (UI Automation d'abord), UI Automation seule, ou saisie physique. */
+export type DesktopInputMode = 'auto' | 'uia' | 'legacy';
 
 export interface Settings {
   general: {
@@ -186,6 +188,16 @@ export interface Settings {
     httpResponseMode: 'smart' | 'legacy';
     httpMaxResponseKb: number;
   };
+  desktop: {
+    /** Contrôle du clavier : auto = UI Automation d'abord ; uia = actions sémantiques seules ; legacy = saisie physique. */
+    keyboardMode: DesktopInputMode;
+    /** Contrôle de la souris (mêmes modes, réglés séparément). */
+    mouseMode: DesktopInputMode;
+    /** En mode automatique, l'IA peut choisir uia ou legacy à chaque appel ; un mode fixe n'est jamais contourné. */
+    allowAiChoose: boolean;
+    /** Repli Legacy automatique (mode automatique) : seulement sur échec de capacité avant toute action, autorisé à part. */
+    legacyFallback: boolean;
+  };
   rag: {
     /** Connexion et modèle d'embeddings (compatibles OpenAI) ; null : recherche lexicale seule. */
     embeddingProviderId: Id | null;
@@ -292,6 +304,8 @@ export const DEFAULT_SETTINGS: Settings = {
       git: true,
       browser: true,
       screenshots: false,
+      keyboard: false,
+      mouse: false,
       memory: true,
       web: true,
       file_index: false,
@@ -369,6 +383,12 @@ export const DEFAULT_SETTINGS: Settings = {
     httpTimeoutSec: 30,
     httpResponseMode: 'smart',
     httpMaxResponseKb: 1024,
+  },
+  desktop: {
+    keyboardMode: 'auto',
+    mouseMode: 'auto',
+    allowAiChoose: true,
+    legacyFallback: false,
   },
   rag: {
     embeddingProviderId: null,

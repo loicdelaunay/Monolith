@@ -66,6 +66,8 @@ export interface PermissionQuery {
   effects: ToolEffect[];
   /** Ressources visées, sous plusieurs formes (absolue, relative, commande…). */
   resources: string[];
+  /** Ressource d'un accord permanent (ex. keyboard:uia) ; absente : l'accord couvre l'outil. */
+  grant?: string;
 }
 
 export interface Evaluation {
@@ -196,7 +198,7 @@ export class PermissionEngine {
         conversationId: ruleScope === 'conversation' ? p.query.conversationId : null,
         tool: p.query.tool,
         family: '*',
-        resource: '',
+        resource: p.query.grant ?? '',
         decision,
         origin: 'prompt',
       });

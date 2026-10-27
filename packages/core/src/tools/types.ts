@@ -26,6 +26,8 @@ export interface ToolContext {
   depth: number;
   /** Mise à jour de l'affichage de l'appel pendant son exécution (sous-agents…). */
   progress(display: ToolDisplay): void;
+  /** Autorisation distincte en cours d'exécution (repli Legacy…) : règles, puis demande à l'utilisateur. */
+  authorize(resources: string[], label: string, reason: string): Promise<boolean>;
 }
 
 export interface ToolResult {
@@ -42,14 +44,21 @@ export interface ToolDefinition {
   family: string;
   /** Skill qui active cet outil. */
   skill: string;
+  /** Autres skills qui l'activent aussi (inspection partagée clavier/souris). */
+  alsoSkills?: string[];
   description: string;
   /** Schéma JSON des arguments. */
   parameters: Record<string, unknown>;
   effects: ToolEffect[];
   /** Hôtes où l'outil fonctionne réellement. */
   hosts?: ('desktop' | 'cli' | 'server')[];
-  /** Cible lisible et ressources pour la correspondance des règles. */
-  target(args: Record<string, unknown>, ctx: ToolContext): { label: string | null; resources: string[] };
+  /** Systèmes pris en charge (process.platform) ; absent : tous. */
+  platforms?: NodeJS.Platform[];
+  /**
+   * Cible lisible et ressources pour la correspondance des règles ; `grant` : ressource enregistrée
+   * avec un accord permanent (sinon l'accord couvre tout l'outil).
+   */
+  target(args: Record<string, unknown>, ctx: ToolContext): { label: string | null; resources: string[]; grant?: string };
   /** Aperçu des changements attendus, montré dans la demande d'autorisation. */
   preview?(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolDisplay | null> | ToolDisplay | null;
   execute(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
