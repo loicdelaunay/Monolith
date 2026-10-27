@@ -41,6 +41,11 @@ function snapshot(p: Provider) {
     streamUsage: p.options.streamUsage,
     temperature: p.options.temperature,
     maxOutputTokens: p.options.maxOutputTokens,
+    google: { ...p.options.google },
+    acpCommand: p.options.acp.command,
+    acpArgs: p.options.acp.args.join('\n'),
+    acpEnv: Object.entries(p.options.acp.env).map(([k, v]) => `${k}=${v}`).join('\n'),
+    composite: JSON.parse(JSON.stringify(p.options.composite)) as Provider['options']['composite'],
     models: p.models.map((m) => ({ ...m, capabilities: { ...m.capabilities } })),
   };
 }
@@ -60,6 +65,37 @@ watch(
 );
 
 const preset = computed(() => store.presets.find((p) => p.id === props.provider.preset));
+const kind = computed(() => props.provider.kind);
+const showBaseUrl = computed(() => !['acp', 'composite', 'opencode', 'local'].includes(kind.value));
+const showKey = computed(() => preset.value?.keyKind !== 'none' && !(kind.value === 'vertex' && form.google.auth === 'adc'));
+const jsonKey = computed(() => kind.value === 'vertex' && form.google.auth === 'service_account');
+const authOptions = computed(() => (['express', 'adc', 'service_account'] as const).map((a) => ({ label: t(`settings.providers.google.auths.${a}`), value: a })));
+
+function parseEnv(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const i = line.indexOf('=');
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
+}
+function kindOptions() {
+  if (kind.value === 'vertex' || kind.value === 'gemini') return { google: { ...form.google } };
+  if (kind.value === 'acp') return { acp: { command: form.acpCommand, args: form.acpArgs.split('\n').map((a) => a.trim()).filter(Boolean), env: parseEnv(form.acpEnv) } };
+  if (kind.value === 'composite') return { composite: form.composite };
+  return {};
+}
+// Modèle composé : connexions et modèles disponibles (hors modèles composés).
+const refProviders = computed(() => store.providers.filter((p) => p.kind !== 'composite').map((p) => ({ label: p.name, value: p.id })));
+const refModels = (providerId: number | null | undefined) => (store.providers.find((p) => p.id === providerId)?.models ?? []).filter((m) => m.enabled).map((m) => ({ label: m.label, value: m.id }));
+function setOrchestrator(providerId: number | null) {
+  form.composite.orchestrator = providerId === null ? null : { providerId, model: refModels(providerId)[0]?.value ?? '' };
+}
+function addSpecialist() {
+  const first = refProviders.value[0]?.value;
+  if (first === undefined) return;
+  form.composite.specialists.push({ name: `specialiste-${form.composite.specialists.length + 1}`, description: '', providerId: first, model: refModels(first)[0]?.value ?? '' });
+}
 const insecureHttp = computed(() => {
   try {
     const u = new URL(form.baseUrl);
@@ -96,6 +132,7 @@ async function save() {
           streamUsage: form.streamUsage,
           temperature: form.temperature,
           maxOutputTokens: form.maxOutputTokens,
+          ...kindOptions(),
         },
       },
     });
@@ -150,7 +187,7 @@ async function test() {
       kind: props.provider.kind,
       baseUrl: form.baseUrl,
       ...(newKey.value.trim() ? { apiKey: newKey.value } : {}),
-      options: { headers: parseHeaders(form.headers), connectTimeoutSec: form.connectTimeoutSec },
+      options: { headers: parseHeaders(form.headers), connectTimeoutSec: form.connectTimeoutSec, ...kindOptions() },
       ...(firstModel ? { model: firstModel } : {}),
       allowCompletion: allowCompletion.value,
     });
@@ -282,17 +319,84 @@ function removeModel(m: ProviderModel) {
             <label :for="`pname-${provider.id}`">{{ t('settings.providers.name') }}</label>
             <InputText :id="`pname-${provider.id}`" v-model="form.name" maxlength="120" fluid />
           </div>
-          <div class="mh-field">
-            <label :for="`purl-${provider.id}`">{{ t('settings.providers.baseUrl') }}</label>
-            <InputText :id="`purl-${provider.id}`" v-model="form.baseUrl" fluid spellcheck="false" />
+          <div v-if="showBaseUrl" class="mh-field">
+            <label :for="`purl-${provider.id}`">{{ kind === 'vertex' ? t('settings.providers.google.endpoint') : t('settings.providers.baseUrl') }}</label>
+            <InputText :id="`purl-${provider.id}`" v-model="form.baseUrl" fluid spellcheck="false" :placeholder="kind === 'vertex' ? t('settings.providers.google.endpointHint') : ''" />
             <Message v-if="insecureHttp" severity="warn" size="small" variant="simple">{{ t('settings.providers.httpWarning') }}</Message>
           </div>
+
+          <!-- Vertex AI : projet, région, authentification -->
+          <fieldset v-if="kind === 'vertex'" class="mh-field plain kind-box">
+            <legend class="mh-label">{{ t('settings.providers.google.title') }}</legend>
+            <div class="mh-field">
+              <label :for="`gauth-${provider.id}`">{{ t('settings.providers.google.auth') }}</label>
+              <Select :input-id="`gauth-${provider.id}`" v-model="form.google.auth" :options="authOptions" option-label="label" option-value="value" fluid />
+              <p v-if="form.google.auth === 'adc'" class="mh-hint">{{ t('settings.providers.google.adcHint') }}</p>
+            </div>
+            <div class="mh-row wrap">
+              <div class="mh-field grow">
+                <label :for="`gproj-${provider.id}`">{{ t('settings.providers.google.project') }}</label>
+                <InputText :id="`gproj-${provider.id}`" v-model="form.google.project" spellcheck="false" fluid :disabled="form.google.auth === 'express'" />
+              </div>
+              <div class="mh-field">
+                <label :for="`gloc-${provider.id}`">{{ t('settings.providers.google.location') }}</label>
+                <InputText :id="`gloc-${provider.id}`" v-model="form.google.location" spellcheck="false" :disabled="form.google.auth === 'express'" />
+              </div>
+            </div>
+            <p class="mh-hint">{{ t('settings.providers.google.projectHint') }}</p>
+          </fieldset>
+
+          <!-- Agent externe ACP -->
+          <fieldset v-if="kind === 'acp'" class="mh-field plain kind-box">
+            <legend class="mh-label">{{ t('settings.providers.acp.title') }}</legend>
+            <p class="mh-hint">{{ t('settings.providers.acp.hint') }}</p>
+            <div class="mh-field">
+              <label :for="`acmd-${provider.id}`">{{ t('settings.providers.acp.command') }}</label>
+              <InputText :id="`acmd-${provider.id}`" v-model="form.acpCommand" spellcheck="false" fluid />
+            </div>
+            <div class="mh-field">
+              <label :for="`aargs-${provider.id}`">{{ t('settings.providers.acp.args') }}</label>
+              <Textarea :id="`aargs-${provider.id}`" v-model="form.acpArgs" rows="2" auto-resize spellcheck="false" fluid class="mono" />
+            </div>
+            <div class="mh-field">
+              <label :for="`aenv-${provider.id}`">{{ t('settings.providers.acp.env') }}</label>
+              <Textarea :id="`aenv-${provider.id}`" v-model="form.acpEnv" rows="2" auto-resize spellcheck="false" fluid class="mono" />
+              <p class="mh-hint">{{ t('settings.providers.acp.envHint') }}</p>
+            </div>
+          </fieldset>
+
+          <!-- Modèle composé -->
+          <fieldset v-if="kind === 'composite'" class="mh-field plain kind-box">
+            <legend class="mh-label">{{ t('settings.providers.composite.title') }}</legend>
+            <p class="mh-hint">{{ t('settings.providers.composite.hint') }}</p>
+            <span class="mh-label">{{ t('settings.providers.composite.orchestrator') }}</span>
+            <div class="mh-row wrap">
+              <Select :model-value="form.composite.orchestrator?.providerId ?? null" :options="refProviders" option-label="label" option-value="value" show-clear :placeholder="t('settings.providers.composite.connection')" :aria-label="t('settings.providers.composite.connection')" class="grow" @update:model-value="setOrchestrator" />
+              <Select v-if="form.composite.orchestrator" v-model="form.composite.orchestrator.model" :options="refModels(form.composite.orchestrator.providerId)" option-label="label" option-value="value" filter :placeholder="t('settings.providers.composite.model')" :aria-label="t('settings.providers.composite.model')" class="grow" />
+            </div>
+            <p class="mh-hint">{{ t('settings.providers.composite.orchestratorHint') }}</p>
+            <span class="mh-label">{{ t('settings.providers.composite.specialists') }}</span>
+            <div v-for="(sp, i) in form.composite.specialists" :key="i" class="spec">
+              <div class="mh-row wrap">
+                <InputText v-model="sp.name" :placeholder="t('settings.providers.composite.specialistName')" :aria-label="t('settings.providers.composite.specialistName')" maxlength="40" class="name" />
+                <Select v-model="sp.providerId" :options="refProviders" option-label="label" option-value="value" :aria-label="t('settings.providers.composite.connection')" class="grow" @update:model-value="(id: number) => (sp.model = refModels(id)[0]?.value ?? '')" />
+                <Select v-model="sp.model" :options="refModels(sp.providerId)" option-label="label" option-value="value" filter :aria-label="t('settings.providers.composite.model')" class="grow" />
+                <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('settings.providers.composite.removeSpecialist')" @click="form.composite.specialists.splice(i, 1)" />
+              </div>
+              <InputText v-model="sp.description" :placeholder="t('settings.providers.composite.specialistDesc')" :aria-label="t('settings.providers.composite.specialistDesc')" maxlength="500" fluid />
+            </div>
+            <Button :label="t('settings.providers.composite.addSpecialist')" icon="pi pi-plus" size="small" severity="secondary" outlined :disabled="!refProviders.length" @click="addSpecialist" />
+            <div class="mh-field top">
+              <label :for="`cmax-${provider.id}`">{{ t('settings.providers.composite.maxConsultations') }}</label>
+              <InputNumber :input-id="`cmax-${provider.id}`" v-model="form.composite.maxConsultations" :min="1" :max="20" show-buttons :allow-empty="false" />
+            </div>
+          </fieldset>
           <div class="mh-switch-row">
             <label :for="`pen-${provider.id}`">{{ t('settings.providers.enabled') }}</label>
             <ToggleSwitch :input-id="`pen-${provider.id}`" v-model="form.enabled" />
           </div>
 
-          <div class="mh-field key">
+          <div v-if="showKey" class="mh-field key">
             <div class="mh-row between">
               <span class="mh-label">{{ t('settings.providers.apiKey') }}</span>
               <span class="mh-badge-immediate"><i class="pi pi-bolt" />{{ t('common.immediate') }}</span>
@@ -306,11 +410,13 @@ function removeModel(m: ProviderModel) {
             </div>
             <template v-else>
               <div class="mh-row">
-                <Password v-model="newKey" :feedback="false" toggle-mask :placeholder="t('settings.providers.keyPlaceholder')" :input-props="{ autocomplete: 'off', spellcheck: false, 'aria-label': t('settings.providers.apiKey') }" class="grow" fluid @keydown.enter.prevent="saveKey" />
+                <Textarea v-if="jsonKey" v-model="newKey" rows="4" spellcheck="false" :placeholder="t('settings.providers.google.serviceAccount')" :aria-label="t('settings.providers.google.serviceAccount')" class="grow mono" fluid />
+                <Password v-else v-model="newKey" :feedback="false" toggle-mask :placeholder="t('settings.providers.keyPlaceholder')" :input-props="{ autocomplete: 'off', spellcheck: false, 'aria-label': t('settings.providers.apiKey') }" class="grow" fluid @keydown.enter.prevent="saveKey" />
                 <Button :label="t('common.save')" :loading="keyBusy" :disabled="!newKey.trim()" @click="saveKey" />
                 <Button v-if="provider.hasKey" :label="t('common.cancel')" severity="secondary" text @click="(replacingKey = false), (newKey = '')" />
               </div>
-              <p v-if="!provider.hasKey" class="mh-hint">{{ preset?.keyRequired ? '' : t('settings.providers.keyOptional') }}</p>
+              <p v-if="jsonKey" class="mh-hint">{{ t('settings.providers.google.serviceAccountHint') }}</p>
+              <p v-else-if="!provider.hasKey" class="mh-hint">{{ preset?.keyRequired ? '' : t('settings.providers.keyOptional') }}</p>
             </template>
             <a v-if="preset?.keyUrl" href="#" class="link small" @click.prevent="host.openExternal(preset.keyUrl)">{{ t('settings.providers.getKey') }} <i class="pi pi-external-link" /></a>
           </div>
@@ -428,6 +534,25 @@ function removeModel(m: ProviderModel) {
 </template>
 
 <style scoped>
+.kind-box {
+  border: 1px solid var(--mh-border);
+  border-radius: var(--mh-radius);
+  padding: 10px 12px;
+}
+.kind-box .spec {
+  border-top: 1px dashed var(--mh-border);
+  padding: 8px 0;
+}
+.kind-box .name {
+  width: 160px;
+}
+.kind-box .top {
+  margin-top: 10px;
+}
+.mono {
+  font-family: var(--mh-font-mono);
+}
+
 .detail {
   display: flex;
   flex-direction: column;

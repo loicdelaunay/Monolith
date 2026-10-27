@@ -16,11 +16,13 @@ import {
   type ProviderPreset,
   type ProviderTestInput,
   type ReasoningLevel,
+  KINDS_WITHOUT_BASE_URL,
 } from '@monolith/contracts';
 import { bool, json, type Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import type { SecretStore } from '../security/secrets.ts';
 import type { ProviderAdapter, ProviderConnection } from '../providers/adapter.ts';
+import { parseServiceAccount } from '../providers/google-auth.ts';
 import { now } from '../util.ts';
 import { documentedLevels } from '../generation/reasoning.ts';
 
@@ -68,6 +70,14 @@ export function validateApiKey(key: unknown): string {
   return k;
 }
 
+/** Secret d'une connexion : clé d'API, ou JSON de compte de service pour Vertex AI. */
+export function validateSecret(kind: ProviderKind, key: unknown): string {
+  if (kind === 'vertex' && typeof key === 'string' && key.trim().startsWith('{')) return parseServiceAccount(key);
+  return validateApiKey(key);
+}
+
+const needsBaseUrl = (kind: ProviderKind) => !(KINDS_WITHOUT_BASE_URL as readonly string[]).includes(kind);
+
 export function validateBaseUrl(url: unknown, required: boolean): string {
   if (typeof url !== 'string') throw new HarnessError('invalid_argument', 'URL invalide');
   const u = url.trim();
@@ -106,6 +116,45 @@ function cleanOptions(input: Partial<ProviderOptions> | undefined, base: Provide
   if (input.streamUsage !== undefined) o.streamUsage = Boolean(input.streamUsage);
   if (input.temperature !== undefined) o.temperature = input.temperature === null ? null : Math.min(2, Math.max(0, Number(input.temperature) || 0));
   if (input.maxOutputTokens !== undefined) o.maxOutputTokens = input.maxOutputTokens === null ? null : num(input.maxOutputTokens, 1, 1_000_000, 4096);
+  const line = (v: unknown, max: number) => (typeof v === 'string' && !/[\r\n\u0000]/.test(v) ? v.trim().slice(0, max) : null);
+  if (input.google && typeof input.google === 'object') {
+    const g = input.google;
+    const project = line(g.project, 100) ?? base.google.project;
+    if (project && !/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(project)) throw new HarnessError('invalid_argument', `Identifiant de projet Google Cloud invalide : ${project}`);
+    const location = line(g.location, 40) ?? base.google.location;
+    if (!/^[a-z0-9-]{2,40}$/.test(location)) throw new HarnessError('invalid_argument', `Région invalide : ${location}`);
+    o.google = { project, location, auth: ['api_key', 'express', 'adc', 'service_account'].includes(g.auth) ? g.auth : base.google.auth };
+  }
+  if (input.acp && typeof input.acp === 'object') {
+    const a = input.acp;
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(a.env ?? {})) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]{0,100}$/.test(k) || line(v, 2000) === null) continue;
+      // Les secrets restent dans la configuration de l'agent : jamais en clair dans la base.
+      if (/(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(k)) throw new HarnessError('invalid_argument', `La variable ${k} ressemble à un secret : configurez-la dans l’agent lui-même, pas ici.`);
+      env[k] = line(v, 2000)!;
+    }
+    o.acp = {
+      command: line(a.command, 500) ?? base.acp.command,
+      args: Array.isArray(a.args) ? a.args.map((x) => line(x, 1000)).filter((x): x is string => x !== null && x !== '').slice(0, 50) : base.acp.args,
+      env,
+    };
+  }
+  if (input.composite && typeof input.composite === 'object') {
+    const c = input.composite;
+    const ref = (r: unknown) => {
+      const x = r as { providerId?: unknown; model?: unknown } | null;
+      return x && typeof x.providerId === 'number' && typeof x.model === 'string' && x.model.trim() ? { providerId: x.providerId, model: x.model.trim().slice(0, 200) } : null;
+    };
+    const specialists = (Array.isArray(c.specialists) ? c.specialists : []).slice(0, 10).map((sp) => {
+      const r = ref(sp);
+      const name = line(sp?.name, 40) ?? '';
+      if (!r || !/^[\w-]{1,40}$/.test(name)) throw new HarnessError('invalid_argument', 'Spécialiste invalide : nom (lettres, chiffres, tirets), connexion et modèle requis.');
+      return { ...r, name, description: line(sp.description, 500) ?? '' };
+    });
+    if (new Set(specialists.map((x) => x.name)).size !== specialists.length) throw new HarnessError('invalid_argument', 'Deux spécialistes portent le même nom.');
+    o.composite = { orchestrator: c.orchestrator === null ? null : (ref(c.orchestrator) ?? base.composite.orchestrator), specialists, maxConsultations: num(c.maxConsultations, 1, 20, base.composite.maxConsultations) };
+  }
   return o;
 }
 
@@ -155,9 +204,9 @@ export class ProviderService {
       throw new HarnessError('unavailable', preset.unavailableReason ?? 'Ce type de connexion n’est pas encore disponible');
     }
     const name = (input.name ?? '').trim().slice(0, 120) || preset.name;
-    const baseUrl = validateBaseUrl(input.baseUrl ?? preset.baseUrl, true);
-    const options = cleanOptions(input.options, DEFAULT_PROVIDER_OPTIONS);
-    const apiKey = input.apiKey ? validateApiKey(input.apiKey) : null;
+    const baseUrl = validateBaseUrl(input.baseUrl ?? preset.baseUrl, needsBaseUrl(preset.kind));
+    const options = cleanOptions({ ...preset.defaults, ...input.options }, DEFAULT_PROVIDER_OPTIONS);
+    const apiKey = input.apiKey ? validateSecret(preset.kind, input.apiKey) : null;
     const t = now();
     const max = this.db.get<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM providers')?.m ?? 0;
     const { lastInsertRowid: id } = this.db.run(
@@ -180,6 +229,12 @@ export class ProviderService {
         throw error;
       }
     }
+    // Agent externe et modèle composé : un modèle unique, activé d'office pour apparaître dans le chat.
+    if (preset.kind === 'acp' || preset.kind === 'composite') {
+      const conn: ProviderConnection = { kind: preset.kind, baseUrl, apiKey: null, options };
+      const [m] = await this.adapters.get(preset.kind)!.listModels(conn, AbortSignal.timeout(5000));
+      if (m) return this.setModels(id, [{ id: m.id, label: m.label, enabled: true, contextWindow: null, maxOutputTokens: null, source: 'catalog', capabilities: m.capabilities }]);
+    }
     this.changed();
     return this.get(id);
   }
@@ -190,7 +245,7 @@ export class ProviderService {
     this.db.run(
       'UPDATE providers SET name = ?, base_url = ?, enabled = ?, options_json = ?, updated_at = ? WHERE id = ?',
       patch.name !== undefined ? patch.name.trim().slice(0, 120) || row.name : row.name,
-      patch.baseUrl !== undefined ? validateBaseUrl(patch.baseUrl, true) : row.base_url,
+      patch.baseUrl !== undefined ? validateBaseUrl(patch.baseUrl, needsBaseUrl(row.kind as ProviderKind)) : row.base_url,
       patch.enabled !== undefined ? (patch.enabled ? 1 : 0) : row.enabled,
       JSON.stringify(cleanOptions(patch.options, current.options)),
       now(),
@@ -235,7 +290,7 @@ export class ProviderService {
 
   async setKey(id: Id, apiKey: string): Promise<Provider> {
     this.row(id);
-    await this.storeKey(id, validateApiKey(apiKey));
+    await this.storeKey(id, validateSecret(this.get(id).kind, apiKey));
     this.changed();
     return this.get(id);
   }
@@ -299,14 +354,14 @@ export class ProviderService {
   async test(input: ProviderTestInput, signal: AbortSignal): Promise<ConnectionTestResult> {
     const adapter = this.adapters.get(input.kind);
     if (!adapter) throw new HarnessError('unavailable', 'Type de connexion indisponible');
-    let apiKey: string | null = input.apiKey ? validateApiKey(input.apiKey) : null;
+    let apiKey: string | null = input.apiKey ? validateSecret(input.kind, input.apiKey) : null;
     let options = cleanOptions(input.options, DEFAULT_PROVIDER_OPTIONS);
     if (input.providerId !== undefined) {
       const row = this.row(input.providerId);
       if (!apiKey && row.secret_id) apiKey = await this.secrets.get(row.secret_id);
       options = cleanOptions(input.options, this.get(input.providerId).options);
     }
-    const conn: ProviderConnection = { kind: input.kind, baseUrl: validateBaseUrl(input.baseUrl, true), apiKey, options };
+    const conn: ProviderConnection = { kind: input.kind, baseUrl: validateBaseUrl(input.baseUrl, needsBaseUrl(input.kind)), apiKey, options };
     return adapter.test(conn, { ...(input.model ? { model: input.model } : {}), allowCompletion: input.allowCompletion === true }, signal);
   }
 

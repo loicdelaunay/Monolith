@@ -7,9 +7,13 @@ export const DEFAULT_PROVIDER_OPTIONS: ProviderOptions = {
   streamUsage: true,
   temperature: null,
   maxOutputTokens: null,
+  google: { project: '', location: 'global', auth: 'api_key' },
+  acp: { command: '', args: [], env: {} },
+  composite: { orchestrator: null, specialists: [], maxConsultations: 6 },
 };
 
-const T5 = 'Adaptateur natif prévu en tranche T5 ; utilisez en attendant le préréglage compatible OpenAI lorsqu’il existe.';
+/** Types de connexion sans URL de base (processus local, assemblage ou URL calculée). */
+export const KINDS_WITHOUT_BASE_URL = ['vertex', 'acp', 'opencode', 'composite', 'local'] as const;
 
 /**
  * Préréglages de connexion. Les URL sont celles documentées publiquement par chaque fournisseur.
@@ -28,11 +32,13 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'lmstudio', kind: 'openai-compatible', name: 'LM Studio (local)', baseUrl: 'http://127.0.0.1:1234/v1', keyRequired: false, keyUrl: null, docsUrl: 'https://lmstudio.ai/docs/app/api/endpoints/openai', available: true },
   { id: 'llamacpp', kind: 'openai-compatible', name: 'llama.cpp server (local)', baseUrl: 'http://127.0.0.1:8080/v1', keyRequired: false, keyUrl: null, docsUrl: 'https://github.com/ggml-org/llama.cpp/tree/master/tools/server', available: true },
   { id: 'custom', kind: 'openai-compatible', name: 'Compatible OpenAI (personnalisé)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: true },
-  { id: 'gemini', kind: 'gemini', name: 'Google AI Studio / Gemini (natif)', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyRequired: true, keyUrl: 'https://aistudio.google.com/apikey', docsUrl: 'https://ai.google.dev/gemini-api/docs', available: false, unavailableReason: T5 },
-  { id: 'vertex', kind: 'vertex', name: 'Vertex AI', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://cloud.google.com/vertex-ai/generative-ai/docs', available: false, unavailableReason: T5 },
-  { id: 'opencode', kind: 'opencode', name: 'OpenCode', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://opencode.ai/docs', available: false, unavailableReason: T5 },
-  { id: 'acp', kind: 'acp', name: 'Agent externe (ACP)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://agentclientprotocol.com/', available: false, unavailableReason: T5 },
-  { id: 'composite', kind: 'composite', name: 'Modèle composé', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: false, unavailableReason: T5 },
+  { id: 'gemini', kind: 'gemini', name: 'Google AI Studio / Gemini (natif)', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyRequired: true, keyUrl: 'https://aistudio.google.com/apikey', docsUrl: 'https://ai.google.dev/gemini-api/docs', available: true },
+  { id: 'vertex', kind: 'vertex', name: 'Vertex AI', baseUrl: '', keyRequired: false, keyUrl: 'https://console.cloud.google.com/vertex-ai', docsUrl: 'https://cloud.google.com/vertex-ai/generative-ai/docs', available: true, defaults: { google: { project: '', location: 'global', auth: 'adc' } }, keyKind: 'json' },
+  { id: 'opencode', kind: 'acp', name: 'OpenCode (ACP)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://opencode.ai/docs/acp/', available: true, defaults: { acp: { command: 'opencode', args: ['acp'], env: {} } }, keyKind: 'none' },
+  { id: 'gemini-cli', kind: 'acp', name: 'Gemini CLI (ACP)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://github.com/google-gemini/gemini-cli', available: true, defaults: { acp: { command: 'gemini', args: ['--experimental-acp'], env: {} } }, keyKind: 'none' },
+  { id: 'claude-code', kind: 'acp', name: 'Claude Code (ACP)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://github.com/zed-industries/claude-code-acp', available: true, defaults: { acp: { command: 'npx', args: ['-y', '@zed-industries/claude-code-acp'], env: {} } }, keyKind: 'none' },
+  { id: 'acp', kind: 'acp', name: 'Agent externe (ACP, personnalisé)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: 'https://agentclientprotocol.com/', available: true, keyKind: 'none' },
+  { id: 'composite', kind: 'composite', name: 'Modèle composé (orchestrateur + spécialistes)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: true, keyKind: 'none' },
   { id: 'local', kind: 'local', name: 'Modèle local intégré (GGUF)', baseUrl: '', keyRequired: false, keyUrl: null, docsUrl: null, available: false, unavailableReason: 'Moteur d’inférence intégré prévu en tranche T10. Les serveurs locaux compatibles OpenAI (Ollama, LM Studio, llama.cpp) fonctionnent déjà.' },
 ];
 

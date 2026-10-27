@@ -61,6 +61,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: unknown;
+  /** Corps `application/x-www-form-urlencoded` (échanges de jetons OAuth). */
+  form?: Record<string, string>;
   signal: AbortSignal;
   /** Délai jusqu'aux en-têtes de réponse. */
   connectTimeoutMs: number;
@@ -83,8 +85,8 @@ export class HttpClient {
     try {
       response = await fetch(url, {
         method: options.method ?? 'GET',
-        headers: { ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...options.headers },
-        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+        headers: { ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}), ...options.headers },
+        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : options.form ? { body: new URLSearchParams(options.form).toString() } : {}),
         signal,
       });
     } catch (error) {

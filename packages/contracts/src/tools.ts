@@ -103,6 +103,10 @@ export interface ToolCallRecord {
   permission: PermissionRecord | null;
   startedAt: string | null;
   finishedAt: string | null;
+  /** Données du fournisseur à renvoyer telles quelles (ex. signature de réflexion Gemini). */
+  meta?: Record<string, string>;
+  /** Exécuté hors du moteur (agent ACP, spécialiste d'un modèle composé) : affiché, jamais rejoué. */
+  external?: boolean;
 }
 
 export interface PermissionRule {

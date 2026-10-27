@@ -340,7 +340,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 }
 
-function failure(error: unknown, started: number, usedCompletion: boolean): ConnectionTestResult {
+export function failure(error: unknown, started: number, usedCompletion: boolean): ConnectionTestResult {
   const pe = error instanceof ProviderError ? error : null;
   const he = error instanceof HarnessError ? error : null;
   return {

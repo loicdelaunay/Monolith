@@ -4,11 +4,13 @@ import { HarnessError, type ModelCapabilities, type ReasoningLevel, type Reasoni
  * Transport du niveau de réflexion selon la connexion :
  *  - `reasoning_effort` : paramètre OpenAI (repris par Google AI Studio, Groq…) ;
  *  - `openrouter` : objet `reasoning` d'OpenRouter (`effort` ou `enabled`) ;
- *  - `thinking` : interrupteur `thinking.type` (Z.ai), sans intensités.
+ *  - `thinking` : interrupteur `thinking.type` (Z.ai), sans intensités ;
+ *  - `gemini` : `thinkingConfig` natif (budget ou niveau selon la génération du modèle).
  */
-export type ReasoningTransport = 'reasoning_effort' | 'openrouter' | 'thinking';
+export type ReasoningTransport = 'reasoning_effort' | 'openrouter' | 'thinking' | 'gemini';
 
 export function transportFor(preset: string): ReasoningTransport {
+  if (preset === 'gemini' || preset === 'vertex') return 'gemini';
   if (preset === 'openrouter') return 'openrouter';
   if (preset === 'zai') return 'thinking';
   return 'reasoning_effort';
@@ -32,6 +34,10 @@ const DOCUMENTED: DocumentedRule[] = [
   { presets: ['gemini-openai'], model: /^gemini-2\.5-flash/, levels: ['none', 'low', 'medium', 'high'] },
   { presets: ['gemini-openai'], model: /^gemini-2\.5-pro/, levels: ['low', 'medium', 'high'] },
   { presets: ['groq'], model: /gpt-oss/, levels: ['low', 'medium', 'high'] },
+  { presets: ['gemini', 'vertex'], model: /^gemini-2\.5-pro/, levels: ['low', 'medium', 'high'] },
+  { presets: ['gemini', 'vertex'], model: /^gemini-2\.5-flash/, levels: ['none', 'low', 'medium', 'high'] },
+  { presets: ['gemini', 'vertex'], model: /^gemini-3(\.\d+)?-pro/, levels: ['low', 'high'] },
+  { presets: ['gemini', 'vertex'], model: /^gemini-3(\.\d+)?-flash/, levels: ['minimal', 'low', 'medium', 'high'] },
   { presets: ['zai'], model: /^glm-(4\.[5-9]|[5-9])/, levels: ['none', 'on'] },
 ];
 
@@ -64,6 +70,10 @@ function payload(level: ReasoningLevel, transport: ReasoningTransport): { body: 
     case 'thinking':
       if (level === 'none') return { body: { thinking: { type: 'disabled' } }, parameter: 'thinking.type=disabled' };
       return { body: { thinking: { type: 'enabled' } }, parameter: 'thinking.type=enabled' };
+    case 'gemini':
+      // Traduit par l'adaptateur Gemini en thinkingBudget (2.5) ou thinkingLevel (3).
+      if (level === 'on') return null;
+      return { body: { gemini_thinking: level }, parameter: level === 'none' ? 'thinkingConfig.thinkingBudget=0' : `thinkingConfig (${level})` };
   }
 }
 

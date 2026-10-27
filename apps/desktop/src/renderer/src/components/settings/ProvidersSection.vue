@@ -12,6 +12,7 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import type { MenuItem } from 'primevue/menuitem';
 import type { Id, Provider, ProviderPreset, Settings } from '@monolith/contracts';
+import { KINDS_WITHOUT_BASE_URL } from '@monolith/contracts';
 import { api, errorMessage } from '../../api.ts';
 import { store } from '../../stores/app.ts';
 import { uiState } from '../../ui-state.ts';
@@ -81,7 +82,7 @@ async function addFromPreset(preset: ProviderPreset) {
   if (!preset.available) return;
   presetPicker.value = false;
   try {
-    const p = await api.call('providers.create', { name: preset.name, kind: preset.kind, preset: preset.id, baseUrl: preset.baseUrl || 'http://127.0.0.1:8080/v1' });
+    const p = await api.call('providers.create', { name: preset.name, kind: preset.kind, preset: preset.id, baseUrl: preset.baseUrl || ((KINDS_WITHOUT_BASE_URL as readonly string[]).includes(preset.kind) ? '' : 'http://127.0.0.1:8080/v1') });
     store.providers = store.providers.some((x) => x.id === p.id) ? store.providers : [...store.providers, p];
     selectedId.value = p.id;
     showDetailOnSmall.value = true;

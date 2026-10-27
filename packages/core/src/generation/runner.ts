@@ -34,7 +34,7 @@ import type { UsageService } from '../services/usage.ts';
 import type { QueueService } from '../services/queue.ts';
 import type { AttachmentService } from '../services/attachments.ts';
 import type { CompactionService } from '../services/compactions.ts';
-import type { ChatMessage, ChatRequest, ProviderAdapter, ProviderConnection, StreamEvent, ToolCallRequest } from '../providers/adapter.ts';
+import type { AdapterContext, ChatMessage, ChatRequest, ExternalToolEvent, ProviderAdapter, ProviderConnection, StreamEvent, ToolCallRequest } from '../providers/adapter.ts';
 import type { ToolRegistry, Host } from '../tools/registry.ts';
 import { modeAllows } from '../tools/registry.ts';
 import type { ToolContext, ToolDefinition } from '../tools/types.ts';
@@ -383,6 +383,54 @@ export class GenerationRunner {
     };
   }
 
+  /**
+   * Services offerts aux agents externes (ACP) : fichiers dans la portée, autorisations soumises
+   * aux règles et à l'utilisateur, mode de la conversation respecté.
+   */
+  private adapterContext(job: Job, ctx: JobContext, messageId: Id): AdapterContext {
+    const { permissions, providers } = this.deps;
+    const allowed: Record<string, string[]> = { chat: ['read'], plan: ['read'], propose: ['read'], execute: ['read', 'write', 'exec', 'network'] };
+    const effects = ctx.snapshot.mode === 'chat' ? allowed.chat! : allowed[ctx.snapshot.agentMode]!;
+    const history = this.deps.messages
+      .list(job.conversationId)
+      .filter((m) => m.id !== messageId && m.status !== 'streaming')
+      .slice(0, -1)
+      .map((m) => `${m.role === 'user' ? 'Utilisateur' : 'Assistant'} : ${transcriptText(m).trim()}`)
+      .filter((l) => !l.endsWith(': '));
+    const transcript = history.join('\n\n');
+    return {
+      conversationId: job.conversationId,
+      cwd: ctx.scope.roots[0] ?? process.cwd(),
+      roots: ctx.scope.roots,
+      transcript: transcript.length > 60_000 ? `…${transcript.slice(-60_000)}` : transcript,
+      resolvePath: (path, write) => {
+        if (write && !effects.includes('write')) throw new HarnessError('permission_denied', `Écriture refusée : mode ${ctx.snapshot.mode === 'chat' ? 'Chat' : ctx.snapshot.agentMode} (passez en mode Agent · Exécution).`);
+        return ctx.scope.resolve(path, { write });
+      },
+      requestPermission: async (req, signal) => {
+        const nowIso = new Date().toISOString();
+        const query = { conversationId: job.conversationId, projectId: ctx.conversation.projectId, tool: req.toolName, family: req.family, effects: req.effects, resources: req.resources };
+        const blocked = req.effects.find((e) => !effects.includes(e));
+        let permission: NonNullable<ToolCallRecord['permission']>;
+        if (blocked) {
+          permission = { decision: 'deny', source: 'mode', ruleId: null, scope: null, reason: `Effet « ${blocked} » non autorisé dans ce mode.`, decidedAt: nowIso };
+        } else {
+          const evaluation = permissions.evaluate(query, ctx.settings.permissions.policy);
+          if (evaluation.decision === 'ask') {
+            const resp = await permissions.request({ conversationId: job.conversationId, messageId, tool: req.toolName, family: req.family, effects: req.effects, target: req.title, arguments: req.arguments, preview: null, reason: evaluation.reason }, query, signal);
+            permission = { decision: resp.decision, source: 'user', ruleId: null, scope: resp.scope, reason: resp.reason, decidedAt: nowIso };
+          } else permission = { decision: evaluation.decision, source: evaluation.source, ruleId: evaluation.ruleId, scope: evaluation.scope, reason: evaluation.reason, decidedAt: nowIso };
+        }
+        permissions.log(job.conversationId, req.toolName, req.title, permission);
+        return { allow: permission.decision === 'allow', always: permission.scope !== null && permission.scope !== 'once' };
+      },
+      connection: async (id) => {
+        const r = await providers.connection(id);
+        return { adapter: r.adapter, conn: r.conn, providerName: r.provider.name };
+      },
+    };
+  }
+
   private async runTurn(job: Job, ctx: JobContext, messageId: Id): Promise<MessageStatus> {
     const { events, messages, usage, logger, providers, queue } = this.deps;
     const signal = job.controller.signal;
@@ -446,13 +494,41 @@ export class GenerationRunner {
       persist(true);
     };
 
+    /** Action exécutée hors du moteur : créée puis mise à jour à chaque événement. */
+    const upsertExternal = (e: ExternalToolEvent) => {
+      const index = parts.findIndex((p) => p.type === 'tool' && p.call.id === e.id && p.call.external);
+      const prev = index >= 0 ? (parts[index] as Extract<MessagePart, { type: 'tool' }>).call : null;
+      const nowIso = new Date().toISOString();
+      const call: ToolCallRecord = {
+        id: e.id,
+        name: e.name,
+        family: e.family,
+        effects: [],
+        arguments: e.arguments,
+        target: e.title,
+        status: e.status,
+        result: e.result,
+        display: e.display ?? null,
+        permission: prev?.permission ?? null,
+        startedAt: prev?.startedAt ?? nowIso,
+        finishedAt: e.status === 'running' ? null : nowIso,
+        external: true,
+      };
+      if (index >= 0) setPart(index, { type: 'tool', call });
+      else {
+        parts.push({ type: 'tool', call });
+        queueDelta({ kind: 'part', partIndex: parts.length - 1, part: structuredClone(parts.at(-1)!) });
+        persist(true);
+      }
+    };
+
     if (ctx.snapshot.reasoning?.fallback) notice('info', 'reasoning_fallback', `Réflexion : ${ctx.snapshot.reasoning.fallback} ; requête envoyée en Auto.`);
     let reasoningRetried = false;
     let droppedNoticeShown = false;
 
     rounds: for (let round = 0; ; round++) {
       const built = this.buildRequest(ctx, messageId, parts);
-      let request = built.request;
+      let request = ctx.provider.kind === 'acp' || ctx.provider.kind === 'composite' ? { ...built.request, context: this.adapterContext(job, ctx, messageId) } : built.request;
       lastRequest = request;
       if (built.droppedImages && !droppedNoticeShown) {
         droppedNoticeShown = true;
@@ -480,6 +556,10 @@ export class GenerationRunner {
               case 'tool_call':
                 calls.push(ev.call);
                 break;
+              case 'external_tool':
+                roundFirst ??= performance.now() - roundStarted;
+                upsertExternal(ev.call);
+                break;
               case 'usage':
                 apiUsage = ev;
                 break;
@@ -493,7 +573,8 @@ export class GenerationRunner {
           }
           break;
         } catch (e) {
-          const outputStarted = parts.slice(roundStart).some((p) => p.type === 'text' || p.type === 'reasoning');
+          // Une action externe (agent ACP, spécialiste) a pu avoir un effet : jamais de nouvelle tentative.
+          const outputStarted = parts.slice(roundStart).some((p) => p.type === 'text' || p.type === 'reasoning' || p.type === 'tool');
           if (signal.aborted || (e instanceof HarnessError && e.code === 'cancelled')) {
             status = 'cancelled';
             roundStatus = 'cancelled';
@@ -639,7 +720,7 @@ export class GenerationRunner {
     const { permissions, proposals, questions, loopGate, events, terminals } = this.deps;
     const signal = job.controller.signal;
     const nowIso = () => new Date().toISOString();
-    const record: ToolCallRecord = { id: call.id, name: call.name, family: 'inconnu', effects: [], arguments: call.arguments, target: null, status: 'pending', result: null, display: null, permission: null, startedAt: nowIso(), finishedAt: null };
+    const record: ToolCallRecord = { id: call.id, name: call.name, family: 'inconnu', effects: [], arguments: call.arguments, target: null, status: 'pending', result: null, display: null, permission: null, startedAt: nowIso(), finishedAt: null, ...(call.meta ? { meta: call.meta } : {}) };
     const end = (patch: Partial<ToolCallRecord>) => {
       Object.assign(record, patch, { finishedAt: nowIso() });
       if (record.result) record.result = limit(record.result, ctx.settings.agent.maxResultChars);
@@ -805,6 +886,8 @@ export class GenerationRunner {
       target = await this.deps.providers.connection(s.chat.namingProviderId);
       model = s.chat.namingModel;
     }
+    // Un agent externe ne sert pas aux requêtes auxiliaires : sans modèle de nommage dédié, pas de titre automatique.
+    if (target.provider.kind === 'acp') return;
     const excerpt = (t: string) => (t.length > 1500 ? `${t.slice(0, 1500)}…` : t);
     const request: ChatRequest = {
       model,
@@ -859,7 +942,7 @@ export class GenerationRunner {
 
   private async maybeAutoCompact(job: Job, ctx: JobContext, assistantId: Id): Promise<void> {
     const s = ctx.settings.chat;
-    if (!s.autoCompact || !ctx.contextWindow) return;
+    if (!s.autoCompact || !ctx.contextWindow || ctx.provider.kind === 'acp') return;
     const reserve = ctx.snapshot.maxOutputTokens ?? Math.min(8192, Math.round(ctx.contextWindow * 0.2));
     const budget = Math.max(1024, ctx.contextWindow - reserve);
     const { tokens } = this.measure(ctx, assistantId);

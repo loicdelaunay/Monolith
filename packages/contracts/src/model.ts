@@ -205,6 +205,54 @@ export interface ProviderOptions {
   streamUsage: boolean;
   temperature: number | null;
   maxOutputTokens: number | null;
+  /** Google : Gemini natif et Vertex AI. */
+  google: GoogleOptions;
+  /** Agent externe ACP (OpenCode, Gemini CLI, Claude Code…). */
+  acp: AcpOptions;
+  /** Modèle composé : un orchestrateur consulte des spécialistes. */
+  composite: CompositeOptions;
+}
+
+/**
+ * Authentification Google :
+ *  - `api_key` : clé Google AI Studio (Gemini natif) ;
+ *  - `express` : clé Vertex AI en mode Express ;
+ *  - `adc` : identifiants par défaut de l'application (gcloud auth application-default login, GOOGLE_APPLICATION_CREDENTIALS) ;
+ *  - `service_account` : fichier JSON de compte de service, enregistré chiffré dans le champ Clé.
+ */
+export type GoogleAuthMode = 'api_key' | 'express' | 'adc' | 'service_account';
+
+export interface GoogleOptions {
+  project: string;
+  location: string;
+  auth: GoogleAuthMode;
+}
+
+export interface AcpOptions {
+  /** Exécutable de l'agent (dans le PATH ou chemin absolu). */
+  command: string;
+  args: string[];
+  /** Variables d'environnement non secrètes ajoutées au processus. */
+  env: Record<string, string>;
+}
+
+export interface ModelRef {
+  providerId: Id;
+  model: string;
+}
+
+export interface CompositeSpecialist extends ModelRef {
+  /** Nom court utilisé par l'orchestrateur (lettres, chiffres, tirets). */
+  name: string;
+  /** Domaine de compétence décrit à l'orchestrateur. */
+  description: string;
+}
+
+export interface CompositeOptions {
+  orchestrator: ModelRef | null;
+  specialists: CompositeSpecialist[];
+  /** Consultations maximum par réponse. */
+  maxConsultations: number;
 }
 
 export interface ProviderPreset {
@@ -218,6 +266,10 @@ export interface ProviderPreset {
   /** Disponible dans cette version ; sinon `unavailableReason` explique pourquoi. */
   available: boolean;
   unavailableReason?: string;
+  /** Options pré-remplies (commande d'un agent ACP, mode d'authentification…). */
+  defaults?: Partial<ProviderOptions>;
+  /** Champ Clé : libellé spécifique (ex. JSON de compte de service). */
+  keyKind?: 'api_key' | 'json' | 'none';
 }
 
 export interface ConnectionTestResult {

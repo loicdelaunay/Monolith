@@ -143,7 +143,7 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
     let group: ToolCallRecord[] = [];
     const flushGroup = () => {
       if (group.length === 0) return;
-      out.push({ role: 'assistant', parts: text.trim() ? [{ type: 'text', text }] : [], toolCalls: group.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments || '{}' })) });
+      out.push({ role: 'assistant', parts: text.trim() ? [{ type: 'text', text }] : [], toolCalls: group.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments || '{}', ...(c.meta ? { meta: c.meta } : {}) })) });
       for (const c of group) out.push({ role: 'tool', toolCallId: c.id, parts: [{ type: 'text', text: toolResultText(c) }] });
       // Images produites par un outil (captures) : jointes dans un message utilisateur, si le modèle a la vision.
       const images = group.filter((c) => c.display?.kind === 'image' && c.status === 'done');
@@ -162,7 +162,12 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
       group = [];
     };
     for (const p of m.parts) {
-      if (p.type === 'tool') group.push(p.call);
+      // Actions externes (agent ACP, spécialistes) : résumées dans le texte, jamais rejouées comme appels.
+      if (p.type === 'tool' && p.call.external) {
+        if (group.length) flushGroup();
+        const r = p.call.result ? `\n${p.call.result.length > 4000 ? `${p.call.result.slice(0, 4000)}…` : p.call.result}` : '';
+        text += `\n[${p.call.target ?? p.call.name} → ${p.call.status}]${r}\n`;
+      } else if (p.type === 'tool') group.push(p.call);
       else if (p.type === 'text') {
         if (group.length) flushGroup();
         text += p.text;

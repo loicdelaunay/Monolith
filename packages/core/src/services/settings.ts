@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, HarnessError, SETTINGS_BOUNDS, type Settings, type SettingsPatch, type SettingsSection } from '@monolith/contracts';
+import { DEFAULT_SETTINGS, HarnessError, SETTINGS_BOUNDS, type Settings, type SettingsPatch, type SettingsSection, sanitizeShortcuts } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 
@@ -81,6 +81,8 @@ export class SettingsService {
       const def = defaults[key];
       if (!compatible(def, value)) continue;
       let v = value;
+      // Listes structurées : validées élément par élément.
+      if (section === 'shortcuts' && key === 'items') v = sanitizeShortcuts(value);
       const bounds = (SETTINGS_BOUNDS as Record<string, readonly [number, number]>)[`${section}.${key}`];
       if (bounds && typeof v === 'number') v = Math.min(bounds[1], Math.max(bounds[0], v));
       dest[key] = clone(v);

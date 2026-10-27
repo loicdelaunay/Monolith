@@ -23,6 +23,7 @@ import SkillsSection from './SkillsSection.vue';
 import AgentsSection from './AgentsSection.vue';
 import PermissionsSection from './PermissionsSection.vue';
 import LoopSection from './LoopSection.vue';
+import ShortcutsSection from './ShortcutsSection.vue';
 
 const { t, tm } = useI18n();
 const confirm = useConfirm();
@@ -40,6 +41,7 @@ const SECTIONS: { id: SettingsSectionId; icon: string; tranche?: string }[] = [
   { id: 'memory', icon: 'pi-database', tranche: 'T6' },
   { id: 'permissions', icon: 'pi-shield' },
   { id: 'loop', icon: 'pi-replay' },
+  { id: 'shortcuts', icon: 'pi-key' },
   { id: 'notifications', icon: 'pi-bell', tranche: 'T9' },
   { id: 'server', icon: 'pi-cloud', tranche: 'T13' },
   { id: 'advanced', icon: 'pi-microchip', tranche: 'T9' },
@@ -196,6 +198,7 @@ function onVisible(v: boolean) {
         <AgentsSection v-else-if="current.id === 'agents'" :draft="draft.value" />
         <PermissionsSection v-else-if="current.id === 'permissions'" :draft="draft.value" />
         <LoopSection v-else-if="current.id === 'loop'" :draft="draft.value" />
+        <ShortcutsSection v-else-if="current.id === 'shortcuts'" :draft="draft.value" />
         <ResetSection v-else-if="current.id === 'reset'" />
         <AboutSection v-else-if="current.id === 'about'" />
         <PlannedSection v-else :tranche="current.tranche ?? ''" />

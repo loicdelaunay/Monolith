@@ -13,7 +13,7 @@ import ActionsCard from './ActionsCard.vue';
 const props = defineProps<{ call: ToolCallRecord; conversationId: Id; messageId: Id }>();
 const { t, te } = useI18n();
 
-const ICONS: Record<string, string> = { sources: 'pi-folder-open', edit: 'pi-pencil', terminal: 'pi-desktop', info: 'pi-info-circle', questions: 'pi-question-circle', actions: 'pi-bolt', planning: 'pi-list-check', mcp: 'pi-link', web: 'pi-globe', memory: 'pi-database', git: 'pi-sitemap', browser: 'pi-globe', desktop: 'pi-camera' };
+const ICONS: Record<string, string> = { sources: 'pi-folder-open', edit: 'pi-pencil', terminal: 'pi-desktop', info: 'pi-info-circle', questions: 'pi-question-circle', actions: 'pi-bolt', planning: 'pi-list-check', mcp: 'pi-link', web: 'pi-globe', memory: 'pi-database', git: 'pi-sitemap', browser: 'pi-globe', desktop: 'pi-camera', acp: 'pi-android', composite: 'pi-users' };
 const icon = computed(() => ICONS[props.call.family] ?? 'pi-wrench');
 const active = computed(() => ['pending', 'running', 'awaiting_permission'].includes(props.call.status));
 const open = ref(false);

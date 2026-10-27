@@ -1,6 +1,6 @@
 {
   "name": "monolith-harness",
-  "version": "3.0.0-alpha.4",
+  "version": "3.0.0-alpha.5",
   "private": true,
   "description": "Monolith Harness — espace de travail IA portable (desktop, CLI, serveur optionnel)",
   "license": "MIT",

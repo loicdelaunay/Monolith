@@ -1,4 +1,17 @@
-import type { Id, ReasoningLevel, ResponseStyle } from './model.ts';
+import type { AgentMode, ConversationMode, Id, ReasoningLevel, ResponseStyle } from './model.ts';
+
+/** Raccourci clavier : applique un fournisseur, un modèle, un mode et/ou un niveau de réflexion. */
+export interface ShortcutItem {
+  id: string;
+  /** Combinaison normalisée, ex. « Alt+1 », « Ctrl+Shift+K ». */
+  keys: string;
+  label: string;
+  providerId: Id | null;
+  model: string | null;
+  mode: ConversationMode | null;
+  agentMode: AgentMode | null;
+  reasoningLevel: ReasoningLevel | null;
+}
 import type { PermissionPolicy } from './tools.ts';
 
 export type Language = 'system' | 'fr' | 'en';
@@ -95,6 +108,11 @@ export interface Settings {
     htmlPreview: boolean;
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
+  };
+  shortcuts: {
+    items: ShortcutItem[];
+    /** Ctrl+Shift+M : mode suivant ; Ctrl+Shift+R : niveau de réflexion suivant. */
+    builtin: boolean;
   };
   layout: {
     panelOpen: boolean;
@@ -194,6 +212,10 @@ export const DEFAULT_SETTINGS: Settings = {
     latex: true,
     htmlPreview: true,
     fileBadges: true,
+  },
+  shortcuts: {
+    items: [],
+    builtin: true,
   },
   layout: {
     panelOpen: false,

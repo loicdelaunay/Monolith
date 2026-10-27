@@ -5,9 +5,9 @@ import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import ProgressSpinner from 'primevue/progressspinner';
 import { useToast } from 'primevue/usetoast';
-import { resolveLocale, type Settings } from '@monolith/contracts';
+import { comboFromEvent, nextMode, nextReasoning, resolveLocale, shortcutPatch, type Settings } from '@monolith/contracts';
 import { api, host, errorMessage } from './api.ts';
-import { initStore, store } from './stores/app.ts';
+import { activeConversation, initStore, store } from './stores/app.ts';
 import { applyAppearance } from './theme/themes.ts';
 import { setCodeTheme, setRenderOptions } from './lib/markdown.ts';
 import WorkPanel from './components/panel/WorkPanel.vue';
@@ -54,12 +54,41 @@ const customTitleBar = computed(() => store.renderer?.customTitleBar ?? false);
 const layout = computed(() => store.settings?.layout);
 watch(() => store.settings?.render, (r) => r && setRenderOptions({ ...r }), { deep: true, immediate: true });
 
-// Ctrl+J : afficher ou masquer le panneau de travail.
+// Raccourcis : Ctrl+J (panneau), intégrés (mode, réflexion) et personnalisés (fournisseur, modèle, mode, réflexion).
 function onKey(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j' && store.settings) {
+  const s = store.settings;
+  if (!s || uiState.settingsOpen) return;
+  const combo = comboFromEvent(e);
+  if (!combo) return;
+  if (combo === 'Ctrl+J') {
     e.preventDefault();
-    void api.call('settings.update', { layout: { panelOpen: !store.settings.layout.panelOpen } });
+    void api.call('settings.update', { layout: { panelOpen: !s.layout.panelOpen } });
+    return;
   }
+  const c = activeConversation.value;
+  if (!c) return;
+  const apply = (patch: Record<string, unknown>, label: string) => {
+    e.preventDefault();
+    api
+      .call('conversations.update', { id: c.id, patch })
+      .then(() => toast.add({ severity: 'info', summary: t('settings.shortcutsSettings.applied', { label }), life: 1800 }))
+      .catch((err) => toast.add({ severity: 'error', summary: errorMessage(err), life: 5000 }));
+  };
+  if (s.shortcuts.builtin && combo === 'Ctrl+Shift+M') {
+    const next = nextMode(c.mode, c.agentMode);
+    apply(next, next.mode === 'chat' ? t('modes.chat') : t(`modes.${next.agentMode}`));
+    return;
+  }
+  if (s.shortcuts.builtin && combo === 'Ctrl+Shift+R') {
+    const p = store.providers.find((x) => x.id === (c.providerId ?? s.chat.defaultProviderId));
+    const m = p?.models.find((x) => x.id === (c.providerId !== null ? c.model : s.chat.defaultModel));
+    const levels = m ? m.capabilities.reasoningLevels.filter((l) => !m.capabilities.rejectedLevels.includes(l)) : [];
+    const level = nextReasoning(c.reasoningLevel, levels);
+    apply({ reasoningLevel: level }, t(`reasoningLevels.${level}`));
+    return;
+  }
+  const item = s.shortcuts.items.find((i) => i.keys === combo);
+  if (item) apply(shortcutPatch(item), item.label || item.keys);
 }
 
 // Erreurs signalées par le moteur hors d'un appel (ex. élément de file non envoyé).

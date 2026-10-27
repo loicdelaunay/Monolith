@@ -155,7 +155,7 @@ describe('fournisseurs et secrets', () => {
 
   it('refuse un type de connexion non encore implémenté avec une explication', async () => {
     const { harness } = setup();
-    await expect(harness.call('providers.create', { name: 'V', kind: 'vertex', preset: 'vertex', baseUrl: '' })).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(harness.call('providers.create', { name: 'L', kind: 'local', preset: 'local', baseUrl: '' })).rejects.toMatchObject({ code: 'unavailable' });
   });
 
   it('teste la connexion et importe le catalogue', async () => {

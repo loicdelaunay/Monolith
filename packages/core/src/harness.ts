@@ -41,6 +41,10 @@ import { browserTools, type HostBridge } from './tools/browser.ts';
 import { WorkspaceFiles } from './services/workspace.ts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
+import { GeminiAdapter } from './providers/gemini.ts';
+import { GoogleAuth } from './providers/google-auth.ts';
+import { AcpAdapter } from './providers/acp.ts';
+import { CompositeAdapter } from './providers/composite.ts';
 import type { ProviderAdapter } from './providers/adapter.ts';
 import { GenerationRunner } from './generation/runner.ts';
 
@@ -78,6 +82,7 @@ export class Harness {
   readonly conversations: ConversationService;
   readonly messages: MessageService;
   readonly providers: ProviderService;
+  private readonly adapters: Map<ProviderKind, ProviderAdapter>;
   readonly usage: UsageService;
   readonly attachments: AttachmentService;
   readonly queue: QueueService;
@@ -115,16 +120,27 @@ export class Harness {
     });
 
     const http = new HttpClient(this.logger);
+    const googleAuth = new GoogleAuth(http);
+    const composite = new CompositeAdapter();
     const adapters = new Map<ProviderKind, ProviderAdapter>([
       ['openai-compatible', new OpenAICompatibleAdapter('openai-compatible', http)],
       ['deepseek', new OpenAICompatibleAdapter('deepseek', http)],
+      ['gemini', new GeminiAdapter('gemini', http, googleAuth)],
+      ['vertex', new GeminiAdapter('vertex', http, googleAuth)],
+      ['acp', new AcpAdapter()],
+      ['composite', composite],
     ]);
+    this.adapters = adapters;
 
     this.settings = new SettingsService(this.db, this.events);
     this.projects = new ProjectService(this.db, this.events);
     this.conversations = new ConversationService(this.db, this.events);
     this.messages = new MessageService(this.db);
     this.providers = new ProviderService(this.db, this.events, this.secrets, adapters);
+    composite.resolver = async (id) => {
+      const r = await this.providers.connection(id);
+      return { adapter: r.adapter, conn: r.conn, providerName: r.provider.name };
+    };
     this.usage = new UsageService(this.db);
     this.attachments = new AttachmentService(this.db, this.layout.attachments);
     this.queue = new QueueService(this.db, this.events);
@@ -230,6 +246,8 @@ export class Harness {
     this.terminals.killAll();
     for (const c of this.testControllers) c.abort();
     await this.generation.idle();
+    // Processus d'agents externes (ACP) arrêtés avec le moteur.
+    for (const a of this.adapters.values()) await a.dispose?.();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
   }

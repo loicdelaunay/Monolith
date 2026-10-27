@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.5 — 2026-10-27
+
+Tranche T5 : fournisseurs étendus.
+
+- **Gemini natif** (Google AI Studio) : flux natif, instructions système, outils, images, réflexion adaptée à la génération du modèle (budget pour 2.5, niveau pour 3) avec pensées affichées, signatures de réflexion conservées et renvoyées lors des appels d'outils, catalogue de modèles.
+- **Vertex AI** : clé en mode Express, identifiants par défaut de gcloud (ADC) ou compte de service (JSON chiffré comme une clé, jeton signé localement), projet et région configurables.
+- **Agents externes ACP** : OpenCode, Gemini CLI, Claude Code ou tout agent compatible, lancé sur ce poste dans le dossier de la conversation. Réflexion, plan et actions de l'agent affichés dans la réponse ; ses demandes d'autorisation passent par vos règles et par le mode de la conversation ; il ne lit et n'écrit des fichiers que dans les ressources de la conversation.
+- **Modèles composés** : un orchestrateur consulte des spécialistes (autres connexions et modèles) ; chaque consultation est affichée et comptée dans la consommation.
+- **Raccourcis** : Ctrl+Maj+M (mode suivant), Ctrl+Maj+R (niveau de réflexion suivant) et raccourcis personnalisés appliquant fournisseur, modèle, mode et réflexion (Réglages › Raccourcis) ; CLI : `/shortcut` et Alt+chiffre.
+
 ## 3.0.0-alpha.4 — 2026-10-27
 
 Tranche T4 : panneaux de travail, Git, navigateur intégré et rendu enrichi.

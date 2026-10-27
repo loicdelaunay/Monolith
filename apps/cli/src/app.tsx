@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { Box, Static, Text, useApp, useInput, usePaste, useStdout, useWindowSize } from 'ink';
 import {
+  shortcutPatch,
   APP_VERSION,
   HarnessError,
   translate,
@@ -565,6 +566,16 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         else return note('chat | plan | propose | execute', 'error');
         return note(`${t('modes.label')} : ${arg === 'chat' ? t('modes.chat') : t(`modes.${arg}`)} — ${t(`modes.hint.${arg}`)}`, 'success');
       }
+      case 'shortcut': {
+        const conv = needConversation();
+        const items = (await client.call('settings.get')).shortcuts.items;
+        if (!items.length) return note(t('settings.shortcutsSettings.empty'));
+        if (!arg) return note(items.map((i, n) => `  ${n + 1}. ${i.keys}  ${sanitize(i.label || '—')}  ${[i.model, i.agentMode ?? i.mode, i.reasoningLevel].filter(Boolean).join(' · ')}`).join('\n'));
+        const item = items[Number(arg) - 1] ?? items.find((i) => i.label.toLowerCase() === arg.toLowerCase() || i.keys.toLowerCase() === arg.toLowerCase());
+        if (!item) return note(t('settings.shortcutsSettings.empty'), 'error');
+        await client.call('conversations.update', { id: conv.id, patch: shortcutPatch(item) });
+        return note(t('settings.shortcutsSettings.applied', { label: item.label || item.keys }), 'success');
+      }
       case 'resources': {
         const conv = needConversation();
         const [sub, ...rest] = arg.split(/\s+/);
@@ -690,6 +701,16 @@ export function App({ client, locale, dataDir, changelog }: Props) {
       if (!decision) return;
       setLoops((list) => list.slice(1));
       void client.call('loop.resolve', { conversationId: loop.conversationId, decision });
+      return;
+    }
+    // Raccourcis personnalisés Alt+chiffre (les combinaisons Ctrl+Maj ne sont pas transmises par les terminaux).
+    if (key.meta && /^[0-9]$/.test(input) && activeRef.current) {
+      const conv = activeRef.current;
+      void client.call('settings.get').then((s) => {
+        const item = s.shortcuts.items.find((i) => i.keys === `Alt+${input}`);
+        if (!item) return;
+        return client.call('conversations.update', { id: conv.id, patch: shortcutPatch(item) }).then(() => note(t('settings.shortcutsSettings.applied', { label: item.label || item.keys }), 'success'));
+      }).catch((e) => note(errorText(locale, e), 'error'));
       return;
     }
     if (question && key.escape) {

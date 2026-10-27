@@ -39,6 +39,7 @@ export const COMMANDS: CommandSpec[] = [
   { name: 'detach', help: 'cli.cmd.detach' },
   { name: 'reasoning', args: '[niveau]', help: 'cli.cmd.reasoning' },
   { name: 'mode', args: '[chat | plan | propose | execute]', help: 'cli.cmd.mode' },
+  { name: 'shortcut', args: '[n° | nom]', help: 'cli.cmd.shortcut' },
   { name: 'resources', args: '[add <dossier> | file <fichier> | reset]', help: 'cli.cmd.resources' },
   { name: 'rules', help: 'cli.cmd.rules' },
   { name: 'allow', args: '<outil> [ressource]', help: 'cli.cmd.allow' },

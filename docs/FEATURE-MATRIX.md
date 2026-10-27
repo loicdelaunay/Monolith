@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T4 (3.0.0-alpha.4).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T5 (3.0.0-alpha.5).**
 
 ## 1. Fondations
 
@@ -95,20 +95,20 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | --- | --- | --- | --- | --- | --- | --- |
 | M-01 | OpenAI-compatible | ✅ | ✅ | ⬜ | T1 | |
 | M-02 | DeepSeek | ✅ | ✅ | ⬜ | T1 | `reasoning_content` et `prompt_cache_hit_tokens` pris en charge. |
-| M-03 | Google AI Studio / Gemini | ⬜ | ⬜ | ⬜ | T5 | |
-| M-04 | Vertex AI (ADC/OAuth, clé, Express) | ⬜ | ⬜ | ⬜ | T5 | |
-| M-05 | OpenRouter, Z.ai, Groq, Mistral, NVIDIA | 🟡 | 🟡 | ⬜ | T5 | Préréglages compatibles OpenAI disponibles ; non vérifiés contre les services réels ; adaptateurs dédiés en T5. |
-| M-06 | OpenCode | ⬜ | ⬜ | ⬜ | T5 | |
-| M-07 | Agents externes ACP | ⬜ | ⬜ | ⬜ | T5 | |
+| M-03 | Google AI Studio / Gemini | ✅ | 🟡 | ⬜ | T5 | Adaptateur natif : `streamGenerateContent` SSE, `systemInstruction`, outils (`parametersJsonSchema`), images, réflexion (`thinkingBudget` 2.5 / `thinkingLevel` 3, pensées affichées), signatures de réflexion conservées et renvoyées, catalogue paginé (tests contre serveur simulé). Non vérifié contre l'API réelle sur ce poste (pas de clé). CLI : utilisable, configuration dans l'interface desktop. |
+| M-04 | Vertex AI (ADC/OAuth, clé, Express) | 🟡 | 🟡 | ⬜ | T5 | Clé Express, ADC (connexion gcloud ou compte de service via GOOGLE_APPLICATION_CREDENTIALS) et JSON de compte de service chiffré (JWT RS256 signé localement, test avec serveur de jetons simulé). Flux OAuth interactif dans l'application : non fait (utiliser `gcloud auth application-default login`). Liste de modèles documentée (le catalogue Vertex n'expose pas les limites). Non vérifié contre Google Cloud réel. |
+| M-05 | OpenRouter, Z.ai, Groq, Mistral, NVIDIA | 🟡 | 🟡 | ⬜ | T5 | Préréglages compatibles OpenAI avec transports de réflexion dédiés (OpenRouter `reasoning`, Z.ai `thinking`) ; non vérifiés contre les services réels (pas de clés). |
+| M-06 | OpenCode | 🟡 | 🟡 | ⬜ | T5 | Via ACP (`opencode acp`), préréglage prêt. OpenCode n'est pas installé sur ce poste : non vérifié avec le vrai binaire. |
+| M-07 | Agents externes ACP | ✅ | 🟡 | ⬜ | T5 | Client ACP (JSON-RPC stdio) : session par conversation, réflexion, plan, actions affichées, demandes d'autorisation soumises aux règles et au mode, lecture/écriture de fichiers limitées à la portée, annulation, arrêt de l'arbre de processus. Préréglages OpenCode, Gemini CLI, Claude Code. Vérifié avec un agent ACP de test ; agents réels non installés ici. |
 | M-08 | Modèles locaux (GGUF, HF, llama.cpp) | ⬜ | ⬜ | ⬜ | T10 | |
-| M-09 | Modèles composés (orchestrateur + spécialistes) | ⬜ | ⬜ | ⬜ | T5 | |
+| M-09 | Modèles composés (orchestrateur + spécialistes) | ✅ | 🟡 | ⬜ | T5 | Outil `consult_specialist`, consultations parallèles affichées, consommation cumulée, imbrication refusée, limite de consultations (test). CLI : utilisable, configuration dans l'interface desktop. |
 | M-10 | Connexions multiples indépendantes du même fournisseur | ✅ | ✅ | ⬜ | T1 | Duplication avec clé recopiée. |
 | M-11 | Écran liste/détail, logos locaux, onglets Connexion/Modèles/Avancé | ✅ | ➖ | ⬜ | T1 | CLI : `/providers` (lecture seule). |
 | M-12 | Clé masquée, remplacement explicite, validation non restrictive | ✅ | ✅ | ⬜ | T1 | Aucune règle de préfixe ; seuls espaces, contrôles et non-ASCII refusés. |
 | M-13 | Test de connexion (résultat sous le bouton) | ✅ | ⬜ | ⬜ | T1 | Résultat sous le bouton ; test par génération seulement si autorisé. |
 | M-14 | Import catalogue, recherche, sélection, pagination, ajout manuel | ✅ | ⬜ | ⬜ | T1 | |
 | M-15 | Sélecteur fournisseur puis modèle dans le chat | ✅ | 🟡 | ➖ | T1 | CLI : `/model [connexion/]modèle`. |
-| M-16 | Raccourcis fournisseur/modèle/mode/réflexion | ⬜ | ⬜ | ➖ | T5 | |
+| M-16 | Raccourcis fournisseur/modèle/mode/réflexion | ✅ | 🟡 | ➖ | T5 | Desktop : Ctrl+Maj+M (mode), Ctrl+Maj+R (réflexion), raccourcis personnalisés enregistrables (Réglages › Raccourcis). CLI : `/shortcut` et Alt+chiffre (les terminaux ne transmettent pas Ctrl+Maj). |
 | M-17 | Génération d'images (locale ou distante) | ⬜ | ⬜ | ⬜ | T8 | |
 
 ## 7. Réflexion, contexte, fiabilité
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 74 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 83 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |

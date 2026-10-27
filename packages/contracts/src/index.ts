@@ -8,3 +8,4 @@ export * from './presets.ts';
 export * from './i18n/index.ts';
 export * from './version.ts';
 export * from './rpc-client.ts';
+export * from './shortcuts.ts';

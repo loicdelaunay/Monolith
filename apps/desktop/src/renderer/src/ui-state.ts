@@ -12,6 +12,7 @@ export type SettingsSectionId =
   | 'memory'
   | 'permissions'
   | 'loop'
+  | 'shortcuts'
   | 'notifications'
   | 'server'
   | 'advanced'
