@@ -39,6 +39,13 @@ import type { ActionProposal, GitStatusInfo, Message, MessagePart } from '@monol
 import { GIT_TOOLS, gitFileVersions, gitStatus, hasGit, repoRoot, runGit } from './tools/git.ts';
 import { browserTools, type HostBridge } from './tools/browser.ts';
 import { WorkspaceFiles } from './services/workspace.ts';
+import { MemoryService } from './services/memory.ts';
+import { RagService } from './services/rag.ts';
+import { McpService } from './mcp/service.ts';
+import { memoryTools } from './tools/memory.ts';
+import { FILE_INDEX_TOOLS } from './tools/file-index.ts';
+import { WEB_TOOLS } from './tools/web.ts';
+import { discoverSkills, PYTHON_TOOLS, ragTools, skillTools } from './tools/knowledge.ts';
 import { HttpClient } from './providers/http.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
 import { GeminiAdapter } from './providers/gemini.ts';
@@ -97,6 +104,9 @@ export class Harness {
   readonly loopGate: LoopGate;
   readonly proposals: ProposalService;
   readonly files = new WorkspaceFiles();
+  readonly memory: MemoryService;
+  readonly rag: RagService;
+  readonly mcp: McpService;
   hostBridge: HostBridge | null;
   readonly generation: GenerationRunner;
   private readonly handlers: Handlers;
@@ -157,7 +167,16 @@ export class Harness {
         () => this.hostBridge,
         (_ctx, name, data) => this.attachments.storeImage(name, data).id,
       ),
+      ...memoryTools(() => this.memory),
+      ...FILE_INDEX_TOOLS,
+      ...WEB_TOOLS,
+      ...ragTools(() => this.rag),
+      ...skillTools(this.layout.skills),
+      ...PYTHON_TOOLS,
     ]);
+    this.memory = new MemoryService(this.db, this.events);
+    this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get());
+    this.mcp = new McpService(this.db, this.events, this.secrets, this.tools, this.logger, (_ctx, name, data) => this.attachments.storeImage(name, data).id);
     // Outils du navigateur et des captures : seulement si l'hôte les fournit réellement.
     this.tools.hostFilter = (t) => !(t.family === 'browser' || t.family === 'desktop') || this.hostBridge !== null;
     this.terminals = new TerminalManager(this.events);
@@ -184,6 +203,9 @@ export class Harness {
       loopGate: this.loopGate,
       proposals: this.proposals,
       host: options.host,
+      memory: this.memory,
+      mcp: this.mcp,
+      customSkills: (roots, settings) => discoverSkills(this.layout.skills, roots, settings),
     });
     this.history = new HistoryService({
       db: this.db,
@@ -246,8 +268,9 @@ export class Harness {
     this.terminals.killAll();
     for (const c of this.testControllers) c.abort();
     await this.generation.idle();
-    // Processus d'agents externes (ACP) arrêtés avec le moteur.
+    // Processus d'agents externes (ACP) et serveurs MCP arrêtés avec le moteur.
     for (const a of this.adapters.values()) await a.dispose?.();
+    await this.mcp.dispose();
     this.db.close();
     this.logger.info('app', 'Moteur arrêté');
   }
@@ -497,6 +520,37 @@ export class Harness {
         const lines = r.stdout.split('\n').filter(Boolean);
         return { current: lines.find((l) => l.startsWith('*'))?.slice(1) ?? null, branches: lines.map((l) => l.slice(1)) };
       },
+      'memory.list': (p) => this.memory.list(p ?? {}),
+      'memory.get': (p) => this.memory.get(p.id),
+      'memory.save': (p) => this.memory.save(p, { source: 'user' }),
+      'memory.delete': (p) => this.memory.delete(p.id),
+
+      'mcp.list': () => this.mcp.list(),
+      'mcp.create': (p) => this.mcp.create(p),
+      'mcp.update': (p) => this.mcp.update(p.id, p.patch),
+      'mcp.delete': (p) => this.mcp.delete(p.id),
+      'mcp.previewImport': (p) => this.mcp.previewImport(String(p.json ?? '')),
+      'mcp.import': (p) => this.mcp.import(String(p.json ?? '')),
+      'mcp.connect': (p) => this.mcp.connect(p.id),
+      'mcp.disconnect': (p) => this.mcp.disconnect(p.id),
+      'mcp.tools': (p) => this.mcp.get(p.id).tools,
+      'mcp.conversation': (p) => this.mcp.conversation(p.conversationId),
+      'mcp.setConversation': (p) => this.mcp.setConversation(p.conversationId, p.serverId, p.enabled === true),
+
+      'rag.status': (p) => this.rag.status(p.conversationId, this.resources.scope(p.conversationId).scope.roots),
+      'rag.index': (p) => this.rag.index(p.conversationId, this.resources.scope(p.conversationId).scope.roots),
+      'rag.cancel': (p) => this.rag.cancel(p.conversationId),
+      'rag.clear': (p) => {
+        const roots = this.resources.scope(p.conversationId).scope.roots;
+        this.rag.clear(roots);
+        return this.rag.status(p.conversationId, roots);
+      },
+
+      'skills.custom': (p) => {
+        const roots = p?.projectId ? this.projects.get(p.projectId).folders.map((f) => f.path) : [];
+        return discoverSkills(this.layout.skills, roots, this.settings.get());
+      },
+
       'git.run': async (p) => {
         const root = await this.requireGitRoot(p.conversationId);
         const { scope } = this.resources.scope(p.conversationId);

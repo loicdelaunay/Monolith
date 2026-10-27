@@ -22,6 +22,7 @@ import {
   type Settings,
   type ToolCallRecord,
   type UsageRecord,
+  type CustomSkill,
 } from '@monolith/contracts';
 import type { EventBus } from '../events.ts';
 import type { Logger } from '../log/logger.ts';
@@ -36,6 +37,7 @@ import type { AttachmentService } from '../services/attachments.ts';
 import type { CompactionService } from '../services/compactions.ts';
 import type { AdapterContext, ChatMessage, ChatRequest, ExternalToolEvent, ProviderAdapter, ProviderConnection, StreamEvent, ToolCallRequest } from '../providers/adapter.ts';
 import type { ToolRegistry, Host } from '../tools/registry.ts';
+import type { MemoryService } from '../services/memory.ts';
 import { modeAllows } from '../tools/registry.ts';
 import type { ToolContext, ToolDefinition } from '../tools/types.ts';
 import { limit } from '../tools/types.ts';
@@ -81,6 +83,8 @@ interface JobContext {
   scope: ResourceScope;
   loop: LoopDetector;
   instructionFiles: { scope: string; path: string; content: string }[];
+  /** Serveurs MCP qui n'ont pas pu être connectés (signalés dans la réponse). */
+  mcpErrors: string[];
 }
 
 export interface GenerationDeps {
@@ -103,6 +107,10 @@ export interface GenerationDeps {
   loopGate: LoopGate;
   proposals: ProposalService;
   host: Host;
+  memory?: MemoryService;
+  /** Serveurs MCP : connexion avant génération et filtrage des outils par conversation. */
+  mcp?: { allows(tool: ToolDefinition, conversationId: Id): boolean; ensureConnected(conversationId: Id, cwd: string): Promise<string[]> };
+  customSkills?: (roots: string[], settings: Settings) => CustomSkill[];
 }
 
 /**
@@ -196,8 +204,10 @@ export class GenerationRunner {
     const limits = providers.modelLimits(provider.id, model);
     const plan = planReasoning(conversation.reasoningLevel, caps, transportFor(provider.preset));
     const project = conversation.projectId !== null ? projects.get(conversation.projectId) : null;
-    const tools = this.deps.tools.available(s, conversation.mode, conversation.agentMode, this.deps.host);
     const { scope } = this.deps.resources.scope(conversationId);
+    // Serveurs MCP actifs pour la conversation : connectés avant de figer la liste des outils.
+    const mcpErrors = this.deps.mcp && conversation.mode === 'agent' && (s.skills.enabled.mcp ?? true) ? await this.deps.mcp.ensureConnected(conversationId, scope.roots[0] ?? process.cwd()) : [];
+    const tools = this.deps.tools.available(s, conversation.mode, conversation.agentMode, this.deps.host).filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId));
     const instructionFiles = conversation.mode === 'agent' && s.agent.readInstructionFiles ? this.deps.resources.instructionFiles(scope.roots) : [];
     const snapshot: GenerationSnapshot = {
       providerId: provider.id,
@@ -230,6 +240,7 @@ export class GenerationRunner {
       scope,
       loop: new LoopDetector(s.loop),
       instructionFiles,
+      mcpErrors,
     };
   }
 
@@ -346,6 +357,7 @@ export class GenerationRunner {
       project: ctx.project,
       goal: conversation.goal,
       compactionSummary: latest?.summary ?? null,
+      extra: this.extraSections(ctx, conversation.id),
       agent:
         ctx.snapshot.mode === 'agent'
           ? {
@@ -381,6 +393,52 @@ export class GenerationRunner {
         ...(ctx.tools.length ? { tools: ctx.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) } : {}),
       },
     };
+  }
+
+  /** Mémoires (lecture initiale forcée) et skills personnalisés disponibles, présentés comme des données. */
+  private extraSections(ctx: JobContext, conversationId: Id): string[] {
+    const out: string[] = [];
+    const s = ctx.settings;
+    if (this.deps.memory && s.memory.forcedRead && (s.skills.enabled.memory ?? true)) {
+      out.push(this.deps.memory.promptBlock(this.deps.memory.visible(conversationId, ctx.conversation.projectId, null, s.memory.forcedReadCount)));
+    }
+    if (this.deps.customSkills && ctx.snapshot.mode === 'agent' && (s.skills.enabled.custom_skills ?? true) && ctx.tools.some((t) => t.name === 'load_skill')) {
+      const skills = this.deps.customSkills(ctx.scope.roots, s).filter((k) => k.enabled);
+      if (skills.length) out.push(`Skills personnalisés disponibles (chargez-les avec load_skill avant de les appliquer) :\n${skills.map((k) => `- ${k.name} : ${k.description}`).join('\n')}`);
+    }
+    return out;
+  }
+
+  /** Écriture forcée : extraction de faits durables après une réponse (requête dédiée, comptabilisée). */
+  private async forcedMemory(ctx: JobContext, messageId: Id): Promise<void> {
+    const memory = this.deps.memory;
+    if (!memory) return;
+    const list = this.deps.messages.list(ctx.conversation.id);
+    const reply = list.find((m) => m.id === messageId);
+    const user = [...list].reverse().find((m) => m.role === 'user' && m.seq < (reply?.seq ?? 0));
+    if (!reply || !user) return;
+    const request: ChatRequest = {
+      model: ctx.snapshot.model,
+      messages: [
+        { role: 'system', content: 'Tu extrais des faits durables (préférences, décisions, contexte stable) utiles pour de futures conversations. Réponds uniquement par un tableau JSON [{"title": "...", "content": "...", "scope": "project" | "global" | "user"}], ou [] si rien ne mérite d’être retenu. Jamais de secrets.' },
+        { role: 'user', content: `Utilisateur :\n${transcriptText(user).slice(0, 4000)}\n\nAssistant :\n${transcriptText(reply).slice(0, 6000)}` },
+      ],
+      reasoningLevel: 'auto',
+      temperature: null,
+      maxOutputTokens: null,
+    };
+    try {
+      const raw = await this.collect(ctx, request, 'memory', ctx.conversation, AbortSignal.timeout(60_000));
+      const json = /\[[\s\S]*\]/.exec(raw)?.[0];
+      const items = json ? (JSON.parse(json) as { title?: string; content?: string; scope?: string }[]) : [];
+      for (const it of items.slice(0, 5)) {
+        if (!it.title || !it.content) continue;
+        const scope = it.scope === 'user' || it.scope === 'global' ? it.scope : ctx.conversation.projectId !== null ? 'project' : 'global';
+        memory.save({ scope, projectId: ctx.conversation.projectId, title: it.title, content: it.content }, { source: 'forced', conversationId: ctx.conversation.id, messageId });
+      }
+    } catch (e) {
+      this.deps.logger.info('memory', 'Écriture forcée ignorée', { error: (e as Error).message });
+    }
   }
 
   /**
@@ -522,6 +580,7 @@ export class GenerationRunner {
       }
     };
 
+    for (const e of ctx.mcpErrors) notice('warning', 'mcp_unavailable', `Serveur MCP indisponible pour cette réponse — ${e}`);
     if (ctx.snapshot.reasoning?.fallback) notice('info', 'reasoning_fallback', `Réflexion : ${ctx.snapshot.reasoning.fallback} ; requête envoyée en Auto.`);
     let reasoningRetried = false;
     let droppedNoticeShown = false;
@@ -708,6 +767,7 @@ export class GenerationRunner {
       job.final = status;
       this.release(job);
     }
+    if (status === 'complete' && ctx.settings.memory.forcedWrite && (ctx.settings.skills.enabled.memory ?? true) && ctx.provider.kind !== 'acp') void this.forcedMemory(ctx, messageId);
     if (final) events.emit('message.updated', { message: final });
     return status;
   }

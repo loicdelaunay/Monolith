@@ -2,6 +2,19 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.6 — 2026-10-27
+
+Tranche T6 : mémoire, index, RAG, skills, MCP et web. Nouvelle zone de saisie.
+
+- **Zone de saisie** repensée : bouton « + » (pièces jointes, modèles de messages), mode en un clic, sélecteur unique Fournisseur / Modèle à deux colonnes avec recherche, réflexion, bouton d'envoi rond ; utilisation du contexte (avec pourcentage) et vitesse (en direct pendant la génération, mesurée ensuite) affichées par défaut.
+- **Mémoire** : portées conversation, projet, générale et utilisateur, versions et provenance ; outils de l'agent (chercher, lire, enregistrer, supprimer) ; Réglages › Mémoire (recherche, filtre, tri, pagination, édition, versions) ; lecture initiale forcée et écriture forcée, désactivées par défaut.
+- **Index de fichiers `index.ohm`** : inventaire portable avec résumés et explications, rapproché à chaque lecture ; une explication dont le fichier a changé est marquée à revoir.
+- **RAG** : indexation des ressources de la conversation (incrémentale, annulable), recherche lexicale et, si une connexion d'embeddings est choisie, vectorielle ; fichiers modifiés depuis l'indexation signalés (bouton Ressources).
+- **Web** : recherche (DuckDuckGo ou votre instance SearXNG), lecture de pages et requêtes d'API ; adresses privées refusées à chaque redirection.
+- **Skills personnalisés `SKILL.md`** : globaux ou de projet, listés dans les instructions, chargés à la demande, créables par l'agent.
+- **MCP** : serveurs stdio et HTTP, import JSON prévisualisé (secrets chiffrés), connexion, découverte des outils, activation par conversation (bouton Ressources), `/mcp` dans le CLI.
+- **Python** : exécution de scripts avec le Python 3 du poste.
+
 ## 3.0.0-alpha.5 — 2026-10-27
 
 Tranche T5 : fournisseurs étendus.

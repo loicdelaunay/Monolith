@@ -265,6 +265,98 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 4,
+    name: 'memory-rag-mcp',
+    sql: /* sql */ `
+      -- Mémoire : portée conversation / projet / générale / utilisateur, versions et provenance.
+      CREATE TABLE memories (
+        id INTEGER PRIMARY KEY,
+        scope TEXT NOT NULL,
+        project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+        conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        source_conversation_id INTEGER,
+        source_message_id INTEGER,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX memories_scope ON memories(scope, project_id, conversation_id);
+      CREATE VIRTUAL TABLE memories_fts USING fts5(title, content, tags, content='memories', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
+      CREATE TRIGGER memories_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memories_fts(rowid, title, content, tags) VALUES (new.id, new.title, new.content, new.tags);
+      END;
+      CREATE TRIGGER memories_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, title, content, tags) VALUES ('delete', old.id, old.title, old.content, old.tags);
+      END;
+      CREATE TRIGGER memories_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, title, content, tags) VALUES ('delete', old.id, old.title, old.content, old.tags);
+        INSERT INTO memories_fts(rowid, title, content, tags) VALUES (new.id, new.title, new.content, new.tags);
+      END;
+      CREATE TABLE memory_versions (
+        id INTEGER PRIMARY KEY,
+        memory_id INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      -- RAG : sources indexées (empreinte pour détecter un index périmé) et fragments.
+      CREATE TABLE rag_sources (
+        id INTEGER PRIMARY KEY,
+        root TEXT NOT NULL,
+        path TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        mtime_ms INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        embedding_model TEXT,
+        indexed_at TEXT NOT NULL,
+        UNIQUE (root, path)
+      );
+      CREATE TABLE rag_chunks (
+        id INTEGER PRIMARY KEY,
+        source_id INTEGER NOT NULL REFERENCES rag_sources(id) ON DELETE CASCADE,
+        ord INTEGER NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        embedding BLOB
+      );
+      CREATE INDEX rag_chunks_source ON rag_chunks(source_id, ord);
+      CREATE VIRTUAL TABLE rag_fts USING fts5(text, content='rag_chunks', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
+      CREATE TRIGGER rag_chunks_ai AFTER INSERT ON rag_chunks BEGIN
+        INSERT INTO rag_fts(rowid, text) VALUES (new.id, new.text);
+      END;
+      CREATE TRIGGER rag_chunks_ad AFTER DELETE ON rag_chunks BEGIN
+        INSERT INTO rag_fts(rag_fts, rowid, text) VALUES ('delete', old.id, old.text);
+      END;
+
+      -- MCP : serveurs (configuration non secrète ; secrets dans la table secrets) et activation par conversation.
+      CREATE TABLE mcp_servers (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        transport TEXT NOT NULL,
+        config_json TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE mcp_conversation (
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        server_id INTEGER NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+        enabled INTEGER NOT NULL,
+        PRIMARY KEY (conversation_id, server_id)
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

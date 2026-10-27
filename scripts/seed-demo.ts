@@ -21,7 +21,7 @@ await h.call('providers.setModels', {
   id: p.id,
   models: ['mock-fast', 'mock-reasoner'].map((id) => ({ id, label: id, enabled: true, contextWindow: 32768, maxOutputTokens: null, source: 'catalog' as const, capabilities: { reasoningLevels: [], vision: null, tools: null } })),
 });
-await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'mock-reasoner', showThroughput: true } });
+await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'mock-reasoner', showThroughput: true, showContextUsage: true } });
 const project = await h.call('projects.create', { name: 'Site vitrine', icon: 'globe', color: '#1D6FC8', instructions: 'Réponds avec des exemples concrets.' });
 // Dossier de démonstration pour les outils (jamais un dossier de l'utilisateur).
 const { mkdirSync, writeFileSync } = await import('node:fs');

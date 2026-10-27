@@ -46,6 +46,7 @@ import type {
   GitStatusInfo,
 } from './tools.ts';
 import type { PlatformCapabilities } from './platform.ts';
+import type { CustomSkill, McpImportPreview, McpServer, McpServerInput, McpToolInfo, Memory, MemoryInput, MemoryQuery, MemoryVersion, RagStatus } from './knowledge.ts';
 
 export interface AppInfo {
   name: string;
@@ -266,6 +267,30 @@ export interface HarnessApi {
   'git.log': { params: { conversationId: Id; limit?: number }; result: GitCommit[] };
   'git.branches': { params: { conversationId: Id }; result: { current: string | null; branches: string[] } };
   'git.run': { params: { conversationId: Id; action: GitAction; paths?: string[]; message?: string; branch?: string }; result: { output: string } };
+
+  'memory.list': { params: MemoryQuery; result: { items: Memory[]; total: number } };
+  'memory.get': { params: { id: Id }; result: Memory & { versions: MemoryVersion[] } };
+  'memory.save': { params: MemoryInput; result: Memory };
+  'memory.delete': { params: { id: Id }; result: void };
+
+  'mcp.list': { params: void; result: McpServer[] };
+  'mcp.create': { params: McpServerInput; result: McpServer };
+  'mcp.update': { params: { id: Id; patch: Partial<McpServerInput> }; result: McpServer };
+  'mcp.delete': { params: { id: Id }; result: void };
+  'mcp.previewImport': { params: { json: string }; result: McpImportPreview };
+  'mcp.import': { params: { json: string }; result: McpServer[] };
+  'mcp.connect': { params: { id: Id }; result: McpServer };
+  'mcp.disconnect': { params: { id: Id }; result: McpServer };
+  'mcp.tools': { params: { id: Id }; result: McpToolInfo[] };
+  'mcp.conversation': { params: { conversationId: Id }; result: { serverId: Id; enabled: boolean }[] };
+  'mcp.setConversation': { params: { conversationId: Id; serverId: Id; enabled: boolean }; result: void };
+
+  'rag.status': { params: { conversationId: Id }; result: RagStatus };
+  'rag.index': { params: { conversationId: Id }; result: RagStatus };
+  'rag.cancel': { params: { conversationId: Id }; result: void };
+  'rag.clear': { params: { conversationId: Id }; result: RagStatus };
+
+  'skills.custom': { params: { projectId?: Id | null }; result: CustomSkill[] };
   'conversations.search': { params: { query: string; limit?: number }; result: SearchHit[] };
 
   'messages.list': { params: { conversationId: Id }; result: Message[] };
@@ -321,6 +346,9 @@ export interface HarnessEvents {
   'terminal.output': { terminalId: string; conversationId: Id; chunk: string };
   'terminal.changed': { terminal: TerminalInfo };
   'rules.changed': { rules: PermissionRule[] };
+  'memory.changed': { id: Id | null };
+  'mcp.changed': { servers: McpServer[] };
+  'rag.progress': { conversationId: Id; status: RagStatus };
   'log.error': { message: string; code: string };
 }
 

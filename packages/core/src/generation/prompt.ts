@@ -26,6 +26,8 @@ export interface PromptContext {
     notes: string[];
     hasTools: boolean;
   } | null;
+  /** Sections supplémentaires : mémoires (lecture forcée), skills personnalisés disponibles. */
+  extra?: string[];
 }
 
 const AGENT_MODE: Record<AgentMode, string> = {
@@ -65,6 +67,7 @@ export function buildSystemPrompt(ctx: PromptContext): string {
       sections.push(`Instructions du fichier ${f.path} (portée : ${f.scope} et ses sous-dossiers uniquement) :\n${f.content.trim()}`);
     }
   }
+  for (const extra of ctx.extra ?? []) if (extra.trim()) sections.push(extra.trim());
   if (ctx.compactionSummary?.trim()) {
     sections.push(`Résumé des échanges antérieurs de cette discussion (compactés pour tenir dans le contexte ; l’historique complet reste consultable par l’utilisateur) :\n${ctx.compactionSummary.trim()}`);
   }

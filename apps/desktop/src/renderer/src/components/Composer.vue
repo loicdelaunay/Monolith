@@ -4,14 +4,16 @@ import { useI18n } from 'vue-i18n';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import Popover from 'primevue/popover';
+import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
 import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage } from '@monolith/contracts';
 import { api, errorCode, errorMessage } from '../api.ts';
-import { store } from '../stores/app.ts';
+import { messagesOf, store } from '../stores/app.ts';
 import { uploadFiles, formatSize } from '../lib/attachments.ts';
 import { chatActions } from '../lib/chat-actions.ts';
-import { formatTokens } from '../lib/format.ts';
+import { formatTokens, throughput } from '../lib/format.ts';
 import ModelPicker from './ModelPicker.vue';
+import ModeSelect from './ModeSelect.vue';
 import AttachmentChip from './AttachmentChip.vue';
 import TemplatesDialog from './TemplatesDialog.vue';
 
@@ -239,6 +241,46 @@ async function refreshContext() {
 watch(() => [props.conversation.id, props.conversation.generating, props.conversation.model, props.conversation.providerId, showContext.value, store.compactions.get(props.conversation.id)?.length], refreshContext, { immediate: true });
 const contextPercent = computed(() => (context.value?.contextWindow ? Math.min(100, Math.round((context.value.tokens / context.value.contextWindow) * 100)) : null));
 
+// ---------- Vitesse (réglage « Afficher le débit ») ----------
+// Pendant la génération : estimation en direct (≈ 4 caractères par token) ; ensuite : débit mesuré de la dernière réponse.
+const showSpeed = computed(() => store.settings?.chat.showThroughput ?? false);
+const liveSpeed = ref<number | null>(null);
+const lastSpeed = computed(() => {
+  void generating.value;
+  const last = [...messagesOf(props.conversation.id).value].reverse().find((m) => m.role === 'assistant' && m.status !== 'streaming');
+  return last ? throughput(last) : null;
+});
+let speedTimer: ReturnType<typeof setInterval> | undefined;
+watch(
+  () => [generating.value, showSpeed.value, props.conversation.id] as const,
+  ([gen, show]) => {
+    clearInterval(speedTimer);
+    liveSpeed.value = null;
+    if (!gen || !show) return;
+    let start: number | null = null;
+    speedTimer = setInterval(() => {
+      const m = messagesOf(props.conversation.id).value.at(-1);
+      if (!m || m.role !== 'assistant' || m.status !== 'streaming') return;
+      const chars = m.parts.reduce((n, p) => n + (p.type === 'text' || p.type === 'reasoning' ? p.text.length : 0), 0);
+      if (!chars) return;
+      start ??= performance.now();
+      const sec = (performance.now() - start) / 1000;
+      if (sec > 0.5) liveSpeed.value = chars / 4 / sec;
+    }, 500);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => clearInterval(speedTimer));
+const speed = computed(() => (generating.value ? liveSpeed.value : lastSpeed.value));
+
+// ---------- Menu « + » : pièces jointes et modèles de messages ----------
+const plusMenu = ref<InstanceType<typeof Menu> | null>(null);
+const plusBtn = ref<HTMLElement | null>(null);
+const plusItems = computed(() => [
+  { label: t('composer.attach'), icon: 'pi pi-paperclip', command: () => fileInput.value?.click() },
+  { label: t('templates.title'), icon: 'pi pi-bookmark', command: () => setTimeout(() => templatesPop.value?.show({ currentTarget: plusBtn.value } as unknown as Event, plusBtn.value ?? undefined), 0) },
+]);
+
 async function openExpanded() {
   expanded.value = true;
   await nextTick();
@@ -280,33 +322,29 @@ defineExpose({ focus: () => textarea.value?.focus() });
 
       <div class="toolbar">
         <div class="left">
-          <button type="button" class="mh-icon-btn" :aria-label="t('composer.attach')" v-tooltip.top="t('composer.attachHint', { image: formatSize(ATTACHMENT_LIMITS.imageBytes), text: formatSize(ATTACHMENT_LIMITS.textBytes) })" @click="fileInput?.click()">
-            <i class="pi pi-paperclip" />
+          <button ref="plusBtn" type="button" class="round-btn" :aria-label="t('composer.more')" aria-haspopup="menu" v-tooltip.top="t('composer.attachHint', { image: formatSize(ATTACHMENT_LIMITS.imageBytes), text: formatSize(ATTACHMENT_LIMITS.textBytes) })" @click="plusMenu?.toggle($event)">
+            <i class="pi pi-plus" />
           </button>
+          <Menu ref="plusMenu" :model="plusItems" popup />
           <input ref="fileInput" type="file" multiple hidden @change="onPick" />
-          <button type="button" class="mh-icon-btn" :aria-label="t('templates.title')" v-tooltip.top="t('templates.title')" @click="templatesPop?.toggle($event)">
-            <i class="pi pi-bookmark" />
-          </button>
-          <ModelPicker :conversation="conversation" />
+          <ModeSelect :conversation="conversation" />
         </div>
-        <div class="send-zone">
-          <span v-if="showContext && context" class="context" :class="{ warn: (contextPercent ?? 0) >= 80 }" v-tooltip.top="context.source === 'estimate' ? t('chat.estimatedHint') : undefined">
-            {{ t('chat.contextUsage', { used: formatTokens(context.tokens), total: context.contextWindow ? formatTokens(context.contextWindow) : '?' }) }}{{ context.source === 'estimate' ? ` (${t('chat.estimated')})` : '' }}
+        <div class="right">
+          <span v-if="(showContext && context) || (showSpeed && speed)" class="stats">
+            <span v-if="showContext && context" class="stat" :class="{ warn: (contextPercent ?? 0) >= 80 }" v-tooltip.top="context.source === 'estimate' ? t('chat.estimatedHint') : t('chat.contextTitle')">
+              <i class="pi pi-chart-pie" />{{ formatTokens(context.tokens) }} / {{ context.contextWindow ? formatTokens(context.contextWindow) : '?' }}<template v-if="contextPercent !== null"> · {{ contextPercent }} %</template><template v-if="context.source === 'estimate'">*</template>
+            </span>
+            <span v-if="showSpeed && speed" class="stat" v-tooltip.top="generating ? t('chat.speedLive') : t('chat.speedLast')">
+              <i class="pi pi-gauge" />{{ t('chat.throughput', { value: speed.toFixed(speed < 10 ? 1 : 0) }) }}
+            </span>
           </span>
+          <ModelPicker :conversation="conversation" />
           <template v-if="generating">
-            <Button severity="secondary" text rounded :disabled="!canSend" :aria-label="t('queue.steer')" v-tooltip.top="t('queue.steerHint')" @click="send('steer')">
-              <template #icon><i class="pi pi-bolt" /></template>
-            </Button>
-            <Button severity="secondary" text rounded :disabled="!canSend" :aria-label="t('queue.enqueue')" v-tooltip.top="t('queue.enqueueHint')" @click="send('queue')">
-              <template #icon><i class="pi pi-list" /></template>
-            </Button>
-            <Button severity="secondary" rounded :aria-label="t('chat.stop')" v-tooltip.top="t('chat.stop')" @click="stop">
-              <template #icon><i class="pi pi-stop-circle" /></template>
-            </Button>
+            <button type="button" class="round-btn" :disabled="!canSend" :aria-label="t('queue.steer')" v-tooltip.top="t('queue.steerHint')" @click="send('steer')"><i class="pi pi-bolt" /></button>
+            <button type="button" class="round-btn" :disabled="!canSend" :aria-label="t('queue.enqueue')" v-tooltip.top="t('queue.enqueueHint')" @click="send('queue')"><i class="pi pi-list" /></button>
+            <button type="button" class="send stop" :aria-label="t('chat.stop')" v-tooltip.top="t('chat.stop')" @click="stop"><i class="pi pi-stop" /></button>
           </template>
-          <Button v-else rounded :disabled="!canSend" :aria-label="t('chat.send')" v-tooltip.top="t('chat.send')" @click="send('send')">
-            <template #icon><i class="pi pi-arrow-up" /></template>
-          </Button>
+          <button v-else type="button" class="send" :disabled="!canSend" :aria-label="t('chat.send')" v-tooltip.top="t('chat.send')" @click="send('send')"><i class="pi pi-arrow-up" /></button>
         </div>
       </div>
     </div>
@@ -342,14 +380,14 @@ defineExpose({ focus: () => textarea.value?.focus() });
   position: relative;
   max-width: 900px;
   margin: 0 auto;
-  border: 1px solid var(--mh-border);
-  border-radius: 16px;
-  background: var(--mh-surface);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 18px rgb(0 0 0 / 4%);
+  border: 1px solid color-mix(in srgb, var(--mh-border) 60%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--mh-text) 5%, var(--mh-surface));
+  box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
   transition: border-color var(--mh-transition);
 }
 .box:focus-within {
-  border-color: color-mix(in srgb, var(--mh-accent) 55%, var(--mh-border));
+  border-color: color-mix(in srgb, var(--mh-accent) 40%, var(--mh-border));
 }
 .chips {
   display: flex;
@@ -364,7 +402,7 @@ defineExpose({ focus: () => textarea.value?.focus() });
   border: 0;
   outline: none;
   background: transparent;
-  padding: 14px 44px 6px 16px;
+  padding: 16px 44px 4px 20px;
   font-family: var(--mh-font-input);
   font-size: var(--mh-reading-size);
   line-height: 1.5;
@@ -383,30 +421,89 @@ defineExpose({ focus: () => textarea.value?.focus() });
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px 8px 8px;
+  gap: 6px;
+  padding: 4px 10px 10px 10px;
   flex-wrap: wrap;
 }
-.left {
+.left,
+.right {
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
-  flex-wrap: wrap;
 }
-.send-zone {
+.right {
   margin-left: auto;
-  flex: none;
-  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.round-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mh-text);
+  cursor: pointer;
+  transition: background var(--mh-transition);
 }
-.context {
-  font-size: 11.5px;
-  color: var(--mh-muted);
+.round-btn:hover:not(:disabled) {
+  background: var(--mh-hover);
+}
+.round-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.round-btn .pi-plus {
+  font-size: 15px;
+}
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mh-accent);
+  color: var(--mh-accent-text);
+  cursor: pointer;
+  transition: opacity var(--mh-transition), transform var(--mh-transition);
+}
+.send:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+.send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.send.stop {
+  background: var(--mh-text);
+  color: var(--mh-bg);
+}
+.stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   margin-right: 6px;
+  font-size: 12px;
+  color: var(--mh-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.context.warn {
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.stat .pi {
+  font-size: 11px;
+}
+.stat.warn {
   color: var(--mh-warning);
 }
 .slash {

@@ -241,7 +241,12 @@ function registerIpc(): void {
   });
 }
 
-if (!app.requestSingleInstanceLock()) {
+// Tests visuels : profil Chromium séparé et pas de verrou d'instance unique, pour ne jamais
+// interférer avec une instance ouverte par l'utilisateur.
+const smoke = !!process.env.MONOLITH_SMOKE_SHOT;
+if (smoke) app.setPath('userData', join(app.getPath('temp'), `monolith-smoke-${process.pid}`));
+
+if (!smoke && !app.requestSingleInstanceLock()) {
   // Une seule instance par profil : la base et les générations en cours appartiennent à la première.
   app.quit();
 } else {

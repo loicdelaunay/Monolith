@@ -109,6 +109,25 @@ export interface Settings {
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
   };
+  memory: {
+    /** Lecture initiale forcée : mémoires pertinentes injectées en début de génération. */
+    forcedRead: boolean;
+    forcedReadCount: number;
+    /** Écriture forcée : extraction automatique de souvenirs après chaque réponse (requête dédiée). */
+    forcedWrite: boolean;
+  };
+  web: {
+    searchProvider: 'duckduckgo' | 'searxng';
+    searxngUrl: string;
+    maxPageChars: number;
+  };
+  rag: {
+    /** Connexion et modèle d'embeddings (compatibles OpenAI) ; null : recherche lexicale seule. */
+    embeddingProviderId: Id | null;
+    embeddingModel: string | null;
+    chunkLines: number;
+    topK: number;
+  };
   shortcuts: {
     items: ShortcutItem[];
     /** Ctrl+Shift+M : mode suivant ; Ctrl+Shift+R : niveau de réflexion suivant. */
@@ -137,8 +156,8 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultReasoningLevel: 'auto',
     responseStyle: 'default',
     reasoningDisplay: 'collapsed',
-    showThroughput: false,
-    showContextUsage: false,
+    showThroughput: true,
+    showContextUsage: true,
     codeLineNumbers: true,
     customInstructions: '',
     autoNaming: true,
@@ -204,6 +223,13 @@ export const DEFAULT_SETTINGS: Settings = {
       git: true,
       browser: true,
       screenshots: false,
+      memory: true,
+      web: true,
+      file_index: false,
+      rag: false,
+      python: false,
+      custom_skills: true,
+      mcp: true,
     },
     info: { date: true, system: true, conversation: true },
   },
@@ -212,6 +238,22 @@ export const DEFAULT_SETTINGS: Settings = {
     latex: true,
     htmlPreview: true,
     fileBadges: true,
+  },
+  memory: {
+    forcedRead: false,
+    forcedReadCount: 20,
+    forcedWrite: false,
+  },
+  web: {
+    searchProvider: 'duckduckgo',
+    searxngUrl: '',
+    maxPageChars: 40_000,
+  },
+  rag: {
+    embeddingProviderId: null,
+    embeddingModel: null,
+    chunkLines: 60,
+    topK: 8,
   },
   shortcuts: {
     items: [],
@@ -249,4 +291,8 @@ export const SETTINGS_BOUNDS = {
   'agent.maxResultChars': [2000, 200_000],
   'loop.threshold': [2, 20],
   'loop.window': [3, 100],
+  'memory.forcedReadCount': [1, 100],
+  'web.maxPageChars': [2000, 200_000],
+  'rag.chunkLines': [10, 400],
+  'rag.topK': [1, 50],
 } as const satisfies Record<string, readonly [number, number]>;

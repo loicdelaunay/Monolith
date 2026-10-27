@@ -576,6 +576,30 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         await client.call('conversations.update', { id: conv.id, patch: shortcutPatch(item) });
         return note(t('settings.shortcutsSettings.applied', { label: item.label || item.keys }), 'success');
       }
+      case 'mcp': {
+        const conv = needConversation();
+        const [sub, n] = arg.split(/\s+/);
+        const servers = await client.call('mcp.list');
+        const target = servers[Number(n) - 1];
+        if (sub && !target) return note(t('settings.mcpSettings.empty'), 'error');
+        if (sub === 'connect') await client.call('mcp.connect', { id: target!.id });
+        else if (sub === 'disconnect') await client.call('mcp.disconnect', { id: target!.id });
+        else if (sub === 'on' || sub === 'off') await client.call('mcp.setConversation', { conversationId: conv.id, serverId: target!.id, enabled: sub === 'on' });
+        const now = await client.call('mcp.list');
+        const active = new Map((await client.call('mcp.conversation', { conversationId: conv.id })).map((c) => [c.serverId, c.enabled]));
+        if (!now.length) return note(t('settings.mcpSettings.empty'));
+        return note(now.map((m, i) => `  ${i + 1}. ${active.get(m.id) ? '●' : '○'} ${sanitize(m.name)} — ${t(`settings.mcpSettings.status.${m.status}`)}${m.status === 'connected' ? ` · ${t('settings.mcpSettings.tools', { count: m.tools.length })}` : ''}${m.error ? ` · ${sanitize(m.error)}` : ''}`).join('\n'));
+      }
+      case 'memory': {
+        const r = await client.call('memory.list', { ...(arg ? { query: arg } : {}), limit: 20 });
+        if (!r.items.length) return note(t('settings.memorySettings.empty'));
+        return note(r.items.map((m) => `  #${m.id} [${t(`settings.memorySettings.scopes.${m.scope}`)}] ${sanitize(m.title)} — ${sanitize(m.content.slice(0, 100))}`).join('\n'));
+      }
+      case 'rag': {
+        const conv = needConversation();
+        const status = arg === 'index' ? await client.call('rag.index', { conversationId: conv.id }) : arg === 'clear' ? await client.call('rag.clear', { conversationId: conv.id }) : await client.call('rag.status', { conversationId: conv.id });
+        return note(status.roots.map((r) => `  ${sanitize(r.root)} : ${r.files ? t('resources.ragStatus', { files: r.files, chunks: r.chunks }) : t('resources.ragNever')}${r.stale ? ` · ${t('resources.ragStale', { count: r.stale })}` : ''}`).join('\n') || t('resources.ragNever'));
+      }
       case 'resources': {
         const conv = needConversation();
         const [sub, ...rest] = arg.split(/\s+/);

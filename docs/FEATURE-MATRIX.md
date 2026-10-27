@@ -5,7 +5,7 @@ Colonnes : **D** desktop (Windows/Linux), **C** CLI, **S** serveur. **T** = tran
 
 Un ✅ signifie que l'action est réellement exécutée par le moteur et couverte par un test ou une vérification manuelle documentée ; jamais une interface sans traitement.
 
-**Dernière mise à jour : 2026-10-27, fin de la tranche T5 (3.0.0-alpha.5).**
+**Dernière mise à jour : 2026-10-27, fin de la tranche T6 (3.0.0-alpha.6).**
 
 ## 1. Fondations
 
@@ -149,20 +149,20 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | K-03 | Sources : lister, lire, glob, grep | ✅ | ✅ | ⬜ | T3 | list_files, read_file, glob_files, grep_files dans la portée. |
 | K-04 | Création/édition de fichiers, patch multi-fichiers prévisualisé | ✅ | ✅ | ⬜ | T3 | write_file, edit_file, apply_patch atomique avec aperçu (tests). |
 | K-05 | Git (état, diff, log, branches, staging, commit, sync) | ✅ | 🟡 | ⬜ | T4 | Outils agent (lecture auto, écriture et réseau soumis aux autorisations, push/pull/fetch = effet réseau) + panneau Git (tests). CLI : outils de l'agent, sans commande `/git` dédiée. |
-| K-06 | Index `index.ohm` | ⬜ | ⬜ | ⬜ | T6 | |
-| K-07 | RAG local/distant | ⬜ | ⬜ | ⬜ | T6 | |
+| K-06 | Index `index.ohm` | ✅ | ✅ | ⬜ | T6 | file_index_create/read/describe/update : JSON portable, exclusions, bornes (10 000 entrées, 16 Mio), empreintes, explications du modèle marquées à revoir si le contenu change, rapprochement à chaque lecture, jamais d'écriture en mode Plan (test). Maintenance immédiate après une écriture d'outil : au prochain accès. |
+| K-07 | RAG local/distant | ✅ | ✅ | ⬜ | T6 | Index des ressources (FTS5) + embeddings facultatifs via une connexion compatible OpenAI, fusion des classements, indexation incrémentale annulable (test avec embeddings simulés). |
 | K-08 | Terminaux asynchrones | ✅ | 🟡 | ⬜ | T3–T4 | Outils run_command / read_terminal / kill_terminal ; panneau Terminal (sortie en direct, arrêt, commandes lancées par l'utilisateur). CLI : outils de l'agent. |
-| K-09 | Scripts Python | ⬜ | ⬜ | ⬜ | T6 | Nécessite un Python fourni ou détecté. |
-| K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ⬜ | ⬜ | ⬜ | T6 | |
+| K-09 | Scripts Python | 🟡 | 🟡 | ⬜ | T6 | python_info / python_run (Python 3 du poste détecté : py, python3, python ; délai, sortie, code de retour). Aucun Python embarqué ; non testé automatiquement (dépend du poste). |
+| K-10 | Recherche web et lecture de pages/API (artefacts, SSRF bloqué) | ✅ | ✅ | ⬜ | T6 | web_search (DuckDuckGo sans clé ou SearXNG), web_fetch (HTML → texte, JSON, texte), http_request ; adresses privées refusées à chaque redirection, 5 Mo max, contenu marqué non fiable (tests d'extraction et de garde ; pas d'appel Internet dans les tests). |
 | K-11 | Navigateur intégré et DOM | ✅ | ➖ | ➖ | T4 | browser_open/read/dom/click/type : monde JS isolé, refus des champs mot de passe, adresses privées refusées à l'agent (SSRF). Parcours visuel. CLI/serveur : via MCP si configuré (T6). |
 | K-12 | Captures d'écran | ✅ | ➖ | ➖ | T4 | Capture du navigateur intégré, de l'écran ou d'une fenêtre, jointe à la conversation et transmise aux modèles avec vision. Skill désactivé par défaut. |
 | K-13 | Contrôle applications/souris/clavier | ⬜ | ➖ | ➖ | T11 | |
 | K-14 | Vision dédiée | ⬜ | ⬜ | ⬜ | T8 | |
 | K-15 | Générateur d'assets (skill) | ⬜ | ⬜ | ⬜ | T8 | |
-| K-16 | Mémoire | ⬜ | ⬜ | ⬜ | T6 | |
+| K-16 | Mémoire | ✅ | ✅ | ⬜ | T6 | memory_search / read / save / delete ; outils et administration (tests). |
 | K-17 | Planification, synthèse, revue de code, conception complète | 🟡 | 🟡 | ⬜ | T3 | Plan : outil update_plan. Synthèse, revue de code et conception : skills d’instructions (sans outil dédié). |
-| K-18 | Skills personnalisés `SKILL.md` (global/projet), création/chargement | ⬜ | ⬜ | ⬜ | T6 | |
-| K-19 | MCP : gestion, import JSON prévisualisé, connexion, découverte, activation par conversation, `/mcp` | ⬜ | ⬜ | ⬜ | T6 | |
+| K-18 | Skills personnalisés `SKILL.md` (global/projet), création/chargement | ✅ | ✅ | ⬜ | T6 | Dossier skills de l'application et `.monolith/skills` / `.claude/skills` des ressources ; liste dans les instructions, load_skill, read_skill_resource, create_skill, activation individuelle (test). |
+| K-19 | MCP : gestion, import JSON prévisualisé, connexion, découverte, activation par conversation, `/mcp` | ✅ | ✅ | ⬜ | T6 | stdio et HTTP streamable (session, flux SSE), secrets chiffrés (variables, en-têtes), import `mcpServers`/`servers` avec aperçu, effets déduits des annotations, activation par conversation, `/mcp` (tests stdio et HTTP). Transport SSE historique non pris en charge. |
 
 ## 10. Autorisations et isolation
 
@@ -189,11 +189,11 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 
 | ID | Fonctionnalité | D | C | S | T | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Y-01 | Mémoire conversation / projet / générale / utilisateur, versions, provenance | ⬜ | ⬜ | ⬜ | T6 | |
-| Y-02 | Vue administrative filtrable, triable, paginée | ⬜ | ⬜ | ⬜ | T6 | |
-| Y-03 | Lecture initiale forcée (bornée) et écriture forcée (désactivées par défaut) | ⬜ | ⬜ | ⬜ | T6 | |
-| Y-04 | Index portable `index.ohm` | ⬜ | ⬜ | ⬜ | T6 | |
-| Y-05 | RAG : ressources autorisées, embeddings locaux/distants, index périmé, annulable | ⬜ | ⬜ | ⬜ | T6 | |
+| Y-01 | Mémoire conversation / projet / générale / utilisateur, versions, provenance | ✅ | ✅ | ⬜ | T6 | Versions conservées à chaque modification, provenance (vous, agent, écriture forcée), visibilité par portée (test). |
+| Y-02 | Vue administrative filtrable, triable, paginée | ✅ | 🟡 | ⬜ | T6 | Réglages › Mémoire : recherche plein texte, filtre de portée, tri, pagination, édition, versions, suppression. CLI : `/memory` (liste et recherche). |
+| Y-03 | Lecture initiale forcée (bornée) et écriture forcée (désactivées par défaut) | ✅ | ✅ | ⬜ | T6 | Lecture forcée bornée (1–100, 20 par défaut) dans les instructions (test) ; écriture forcée par requête dédiée comptabilisée. |
+| Y-04 | Index portable `index.ohm` | ✅ | ✅ | ⬜ | T6 | Voir K-06. |
+| Y-05 | RAG : ressources autorisées, embeddings locaux/distants, index périmé, annulable | 🟡 | 🟡 | ⬜ | T6 | Ressources de la conversation, embeddings distants (connexion compatible OpenAI, y compris serveurs locaux Ollama/llama.cpp), fichiers modifiés signalés, annulation. Modèle d'embeddings intégré (sans serveur) : avec les modèles locaux (T10). |
 
 ## 13. Panneaux et outils dédiés
 
@@ -265,4 +265,4 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | B-03 | Paquets Windows/Linux, archives sans données, SHA-256 | ⬜ | T14 | |
 | B-04 | Licences des dépendances | ✅ | T0 | `npm run licenses` : 128 paquets, échec sur licence incompatible ; PrimeVue figé en 4.5 MIT. |
 | B-05 | Mise à jour vérifiée avec sauvegarde | ⬜ | T14 | |
-| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 83 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
+| B-06 | Tests unitaires / intégration / parcours / visuels / accessibilité / perf | 🟡 | continu | 90 tests (unitaires, intégration, parcours CLI) et captures de la fenêtre réelle ; accessibilité et performances reproductibles en T14. |
