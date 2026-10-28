@@ -1,8 +1,11 @@
-# Préparation de release : déclenchement MANUEL uniquement (workflow_dispatch).
-# Produit les paquets Windows/Linux, le bundle CLI, les licences et SHA256SUMS.txt,
-# et, seulement si `draft_release` est coché, une release GitHub en BROUILLON.
-name: Release (brouillon)
+# Release : déclenchée par un tag de version (v*) poussé à la demande du mainteneur, ou
+# manuellement (workflow_dispatch, release en BROUILLON uniquement si `draft_release` est coché).
+# Produit les paquets Windows/Linux, le bundle CLI, les licences et SHA256SUMS.txt.
+# Une préversion (3.0.0-alpha.N…) est publiée comme pre-release ; les notes viennent du CHANGELOG.
+name: Release
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       draft_release:
@@ -16,16 +19,21 @@ permissions:
 jobs:
   package:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             target: dist:win
+            optional: false
           - os: ubuntu-latest
             target: dist:linux
+            # Paquets Linux pas encore vérifiés : un échec ne bloque pas la release Windows.
+            optional: true
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: npm
@@ -52,22 +60,34 @@ jobs:
           path: upload/
           if-no-files-found: error
 
-  draft:
-    if: ${{ inputs.draft_release }}
+  release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.draft_release }}
     needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: dist-all
-      - name: Créer la release en brouillon
+      - name: Créer la release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "${TAG}" ]; then
+            echo "Le tag ${GITHUB_REF_NAME} ne correspond pas à la version ${VERSION} du package.json." >&2
+            exit 1
+          fi
           mkdir -p upload && find dist-all -type f ! -name SHA256SUMS.txt -exec cp {} upload/ \;
+          test -n "$(find upload -name '*-win-x64.zip')" || { echo 'Paquet Windows absent.' >&2; exit 1; }
           node scripts/prepare-release.mjs upload
-          gh release create "v${VERSION}" upload/* --draft --title "Monolith Harness ${VERSION}" --notes "Brouillon préparé par le workflow ; à vérifier avant publication manuelle."
+          # Notes : section de la version dans le CHANGELOG.
+          awk -v v="## ${VERSION} " 'index($0, v) == 1 { on = 1; next } /^## / && on { exit } on { print }' CHANGELOG.md > notes.md
+          printf '\n---\nWindows : archive portable (zip, données dans data/ à côté de Monolith.exe) ou installateur (exe). Empreintes : SHA256SUMS.txt.\n' >> notes.md
+          FLAGS=""
+          case "${VERSION}" in *-*) FLAGS="--prerelease" ;; esac
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then FLAGS="--draft"; fi
+          gh release create "${TAG}" upload/* --title "Monolith Harness ${VERSION}" --notes-file notes.md ${FLAGS}

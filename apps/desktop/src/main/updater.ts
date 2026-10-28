@@ -57,7 +57,9 @@ function launch(job: UpdateJob, exeDir: string, relaunch: boolean): void {
   const powershell = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', job.script, '-WaitPid', String(process.pid), '-Zip', job.zip, '-Sha256', job.sha256, '-Target', exeDir, '-Exe', basename(process.execPath), '-Version', job.version];
   if (relaunch) args.push('-Relaunch');
-  spawn(powershell, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  // PSModulePath hérité de PowerShell 7 : il masquerait les modules de Windows PowerShell 5.1.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toLowerCase() !== 'psmodulepath'));
+  spawn(powershell, args, { detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
 }
 
 function sha256(file: string): Promise<string> {

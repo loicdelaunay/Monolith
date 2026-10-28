@@ -87,7 +87,10 @@ const goalText = ref('');
 const goalAnchor = ref<HTMLElement | null>(null);
 function openGoal(event?: Event) {
   goalText.value = activeConversation.value?.goal ?? '';
-  goalPop.value?.show(event ?? ({ currentTarget: goalAnchor.value, target: goalAnchor.value } as unknown as Event), goalAnchor.value ?? undefined);
+  // Ouverture après le clic (menu « … », puce, commande /goal) : sinon ce même clic, remonté au
+  // document, est pris pour un clic extérieur et referme aussitôt le popover.
+  const anchor = ((event?.currentTarget as HTMLElement | null) ?? goalAnchor.value) || undefined;
+  setTimeout(() => goalPop.value?.show({ currentTarget: anchor, target: anchor } as unknown as Event, anchor), 0);
 }
 async function saveGoal() {
   const c = activeConversation.value;

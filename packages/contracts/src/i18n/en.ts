@@ -233,6 +233,8 @@ export const en: Messages = {
       global: '(all conversations)',
       skills: 'Skills',
       allSkills: 'All skill settings…',
+      shortcutMode: 'Ctrl+Shift+M',
+      shortcutReasoning: 'Ctrl+Shift+R',
     },
   },
   actions: {

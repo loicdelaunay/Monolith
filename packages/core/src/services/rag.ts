@@ -1,3 +1,4 @@
+import { canonical } from '../tools/scope.ts';
 import type { LocalAiService } from '../local/ai-runtime.ts';
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
@@ -217,7 +218,9 @@ export class RagService {
   }
 
   /** Recherche hybride : BM25 (FTS5) et, si l'index a des embeddings, similarité cosinus ; fusion par rangs (RRF). */
-  async search(roots: string[], query: string, topK: number, signal: AbortSignal): Promise<RagHit[]> {
+  async search(rawRoots: string[], query: string, topK: number, signal: AbortSignal): Promise<RagHit[]> {
+    // Index construits sur les racines canoniques de la portée : même forme pour la recherche.
+    const roots = rawRoots.map(canonical);
     if (!roots.length) return [];
     const marks = roots.map(() => '?').join(',');
     type Row = { id: number; path: string; root: string; start_line: number; end_line: number; text: string; embedding: Uint8Array | null };

@@ -91,7 +91,7 @@ export interface HarnessOptions {
   /** IA locale auxiliaire (LANCET Nano, MiniLM) : adresses et Python imposé (tests). */
   localAi?: Omit<LocalAiOptions, 'dir' | 'events' | 'logger'>;
   /** Mises à jour : vérification automatique (version installée) et adresses (tests). */
-  updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean };
+  updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean; platform?: NodeJS.Platform };
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -293,6 +293,7 @@ export class Harness {
       ...(options.updates?.apiBase ? { apiBase: options.updates.apiBase } : {}),
       ...(options.updates?.downloadBase ? { downloadBase: options.updates.downloadBase } : {}),
       ...(options.updates?.repository ? { repository: options.updates.repository } : {}),
+      ...(options.updates?.platform ? { platform: options.updates.platform } : {}),
     });
     if (options.updates?.autoCheck) this.updates.start();
     this.scheduler = new SchedulerService({ db: this.db, events: this.events, conversations: this.conversations, generation: () => this.generation, notifications: this.notifications, notify: () => this.settings.get().notifications.onScheduled, logger: this.logger });

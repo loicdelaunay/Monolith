@@ -96,7 +96,7 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
     <div class="qs" role="dialog" :aria-label="t('composer.quick.title')">
       <div class="col">
         <section>
-          <h4>{{ t('modes.label') }} <span class="mh-hint">(Ctrl+Maj+M)</span></h4>
+          <h4>{{ t('modes.label') }} <span class="mh-hint">({{ t('composer.quick.shortcutMode') }})</span></h4>
           <div class="options" role="radiogroup" :aria-label="t('modes.label')">
             <button v-for="m in MODES" :key="m.key" type="button" class="opt" role="radio" :aria-checked="m.key === mode" :class="{ active: m.key === mode }" @click="setMode(m.key)">
               <i class="pi" :class="m.icon" />

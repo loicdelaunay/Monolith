@@ -4,6 +4,11 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 ## 3.0.0-alpha.16 — 2026-10-28
 
+Première version publiée de la v3 (réécriture complète en TypeScript) ; l'ensemble des nouveautés depuis 3.0.0-alpha.1 est décrit dans les sections suivantes du [CHANGELOG](https://github.com/loicdelaunay/Monolith/blob/main/CHANGELOG.md).
+
+- **Objectif de la discussion** : la fenêtre d'édition ne se referme plus aussitôt après son ouverture (menu « … », puce de l'objectif, commande /goal).
+- **Mise à jour intégrée** : vérification de l'empreinte et extraction du paquet par .NET, indépendamment des modules PowerShell installés.
+- Raccourcis affichés dans la langue de l'interface (Ctrl+Shift+M / Ctrl+Maj+M).
 - **Vertex AI / Gemini 3 et suivants (dont Gemini 4)** : correction de l'erreur « Requests ending with a model turn are not supported » après une capture d'écran par un outil. Les images rendues par un outil sont désormais placées dans la réponse de fonction, comme l'exige Google ; chaque tour d'outils est rejoué séparément avec sa signature de réflexion ; les niveaux de réflexion de Gemini 4 sont reconnus.
 - **Plan épinglé** : le plan de l'agent s'affiche au-dessus de la zone de saisie (dernière version, progression, repliable) au lieu de cartes répétées dans la conversation.
 - **Sélecteur de modèle** : il reste ouvert après le choix d'un modèle (pour régler la réflexion juste après) et se ferme par un clic à l'extérieur.

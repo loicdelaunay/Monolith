@@ -62,7 +62,8 @@ function harness(base: string, root = mkdtempSync(join(tmpdir(), 'mh-upd-'))) {
     keyProtector: new MemoryProtector(),
     changelog: '',
     hostBridge: { request: async (method: string, params: Record<string, unknown>) => (jobs.push({ method, ...params }), { scheduled: true }) as never },
-    updates: { apiBase: base, downloadBase: base, installable: true },
+    // Paquet portable Windows recherché quel que soit le système qui exécute les tests.
+    updates: { apiBase: base, downloadBase: base, installable: true, platform: 'win32' },
   });
   cleanups.push(() => rmSync(root, { recursive: true, force: true }));
   cleanups.push(() => h.close());
@@ -128,6 +129,9 @@ describe('mises à jour', () => {
   });
 });
 
+// Windows PowerShell avec ses modules par défaut (un PSModulePath hérité de PowerShell 7 les masque).
+const psEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toLowerCase() !== 'psmodulepath'));
+
 describe.skipIf(process.platform !== 'win32')('installateur Windows (PowerShell)', () => {
   function setup() {
     const dir = mkdtempSync(join(tmpdir(), 'mh-inst-'));
@@ -151,11 +155,11 @@ describe.skipIf(process.platform !== 'win32')('installateur Windows (PowerShell)
       else rmSync(join(pkg, 'Monolith.exe'), { force: true });
       const out = join(target, 'data', 'updates', 'MonolithHarness-v9.9.9-win-x64.zip');
       rmSync(out, { force: true });
-      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Compress-Archive -Path '${join(dir, 'pkg', 'win-unpacked')}' -DestinationPath '${out}'`]);
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::CreateFromDirectory('${join(dir, 'pkg', 'win-unpacked')}', '${out}', 'Optimal', $true)`], { env: psEnv });
       return { out, sha: createHash('sha256').update(readFileSync(out)).digest('hex') };
     };
     const run = (z: { out: string; sha: string }, sha = z.sha) => {
-      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Zip', z.out, '-Sha256', sha, '-Target', target, '-Version', '9.9.9']);
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Zip', z.out, '-Sha256', sha, '-Target', target, '-Version', '9.9.9'], { env: psEnv });
       return JSON.parse(readFileSync(join(target, 'data', 'updates', 'update-result.json'), 'utf8')) as { ok: boolean; message: string };
     };
     const read = (rel: string) => (existsSync(join(target, rel)) ? readFileSync(join(target, rel), 'utf8') : null);

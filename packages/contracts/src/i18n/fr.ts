@@ -231,6 +231,8 @@ export const fr = {
       global: '(toutes les conversations)',
       skills: 'Skills',
       allSkills: 'Tous les réglages des skills…',
+      shortcutMode: 'Ctrl+Maj+M',
+      shortcutReasoning: 'Ctrl+Maj+R',
     },
   },
   actions: {

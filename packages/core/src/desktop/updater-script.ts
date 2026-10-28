@@ -7,6 +7,14 @@
 export const UPDATER_SCRIPT = String.raw`
 param([int]$WaitPid = 0, [string]$Zip, [string]$Sha256, [string]$Target, [string]$Exe = 'Monolith.exe', [string]$Version = '', [switch]$Relaunch)
 $ErrorActionPreference = 'Stop'
+# .NET plutôt que Get-FileHash / Expand-Archive : ces modules peuvent manquer selon PSModulePath.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+function Get-Sha256([string]$path) {
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($path)
+  try { return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant() }
+  finally { $stream.Dispose(); $sha.Dispose() }
+}
 $work = Split-Path -Parent $Zip
 $result = Join-Path $work 'update-result.json'
 $keep = @('data', 'monolith.location.json')
@@ -28,12 +36,12 @@ try {
     if ($p -and -not $p.WaitForExit(120000)) { throw "Monolith ne s'est pas fermé : mise à jour abandonnée." }
   }
   Start-Sleep -Milliseconds 800
-  $hash = (Get-FileHash -LiteralPath $Zip -Algorithm SHA256).Hash.ToLowerInvariant()
+  $hash = Get-Sha256 $Zip
   if ($hash -ne $Sha256.ToLowerInvariant()) { throw 'Empreinte SHA-256 du paquet incorrecte : mise à jour abandonnée.' }
 
   $stage = Join-Path $work 'staging'
   if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
-  Expand-Archive -LiteralPath $Zip -DestinationPath $stage
+  [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip, $stage)
   $root = $stage
   $top = @(Get-ChildItem -LiteralPath $stage -Force)
   if ($top.Count -eq 1 -and $top[0].PSIsContainer) { $root = $top[0].FullName }

@@ -105,7 +105,7 @@ const levelLabel = computed(() => t(`reasoningLevels.${props.conversation.reason
         </div>
       </div>
       <div class="reasoning">
-        <span class="r-title"><i class="pi pi-sparkles" /> {{ t('chat.reasoning') }} <span class="mh-hint">(Ctrl+Maj+R)</span></span>
+        <span class="r-title"><i class="pi pi-sparkles" /> {{ t('chat.reasoning') }} <span class="mh-hint">({{ t('composer.quick.shortcutReasoning') }})</span></span>
         <div v-if="!reasoningUnknown" class="levels" role="radiogroup" :aria-label="t('chat.reasoning')">
           <button v-for="l in levels" :key="l" type="button" role="radio" :aria-checked="l === conversation.reasoningLevel" :class="{ active: l === conversation.reasoningLevel }" @click="update({ reasoningLevel: l })">
             {{ t(`reasoningLevels.${l}`) }}

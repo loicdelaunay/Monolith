@@ -165,7 +165,8 @@ export class UiaDriver implements DesktopDriver {
     if (this.ready) return this.ready;
     const proc = spawn(this.exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Mta', '-ExecutionPolicy', 'Bypass', '-File', this.script], {
       windowsHide: true,
-      env: { ...process.env, MH_BLOCKED_PIDS: this.blockedPids.join(',') },
+      // PSModulePath hérité de PowerShell 7 : retiré pour garder les modules de Windows PowerShell 5.1.
+      env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toLowerCase() !== 'psmodulepath')), MH_BLOCKED_PIDS: this.blockedPids.join(',') },
     });
     this.proc = proc;
     let started!: { resolve: (p: ChildProcessWithoutNullStreams) => void; reject: (e: Error) => void };
