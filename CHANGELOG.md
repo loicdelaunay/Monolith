@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **File d'attente : bouton « Orienter »** sur chaque message en attente : il est pris en compte dans la réflexion en cours, à sa prochaine étape, sans attendre la fin de la génération ; si rien ne génère, il part tout de suite, avant le reste de la file. Un message orienté peut être remis en file. Une orientation arrivée juste après la dernière étape est envoyée en tête de file plutôt que perdue.
+
 ## 3.0.0-alpha.23 — 2026-10-28
 
 - **Nouvelles commandes /** : /chat, /plan, /proposal, /execute changent le mode de la conversation ; /effort-auto, /effort-low… /effort-max règlent la réflexion (niveaux du modèle quand ils sont connus) ; /orchestration force la délégation à des sous-agents dans cette conversation (même si les sous-agents sont désactivés dans les réglages), et la désactive à la commande suivante.

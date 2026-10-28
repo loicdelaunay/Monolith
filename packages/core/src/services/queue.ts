@@ -66,6 +66,15 @@ export class QueueService {
     return this.get(id);
   }
 
+  /** Type d'un élément : `steer` (orientation de la génération en cours) ou `queue` (envoi après elle). */
+  setKind(id: Id, kind: 'queue' | 'steer'): QueuedInput {
+    const item = this.get(id);
+    if (item.kind === kind) return item;
+    this.db.run('UPDATE queued_inputs SET kind = ? WHERE id = ?', kind, id);
+    this.changed(item.conversationId);
+    return this.get(id);
+  }
+
   remove(id: Id): void {
     const item = this.get(id);
     this.db.run('DELETE FROM queued_inputs WHERE id = ?', id);
@@ -87,9 +96,12 @@ export class QueueService {
     return items;
   }
 
-  /** Fin d'une génération interrompue : les instructions non consommées deviennent des envois en file. */
-  demoteSteers(conversationId: Id): void {
-    const r = this.db.run("UPDATE queued_inputs SET kind = 'queue' WHERE conversation_id = ? AND kind = 'steer'", conversationId);
+  /**
+   * Fin de génération : les orientations non consommées deviennent des envois en file, à leur place
+   * (génération interrompue) ou en tête de file (`front` : orientation arrivée après la dernière étape).
+   */
+  demoteSteers(conversationId: Id, front = false): void {
+    const r = this.db.run(`UPDATE queued_inputs SET kind = 'queue'${front ? ', sort_order = sort_order - 1000000' : ''} WHERE conversation_id = ? AND kind = 'steer'`, conversationId);
     if (r.changes) this.changed(conversationId);
   }
 

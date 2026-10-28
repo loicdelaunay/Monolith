@@ -637,6 +637,10 @@ export class Harness {
       'queue.list': (p) => this.queue.list(p.conversationId),
       'queue.update': (p) => this.queue.update(p.id, p.text),
       'queue.remove': (p) => this.queue.remove(p.id),
+      'queue.setKind': async (p) => {
+        if (p.kind === 'steer') await this.generation.orientQueued(p.id);
+        else this.queue.setKind(p.id, 'queue');
+      },
       'queue.reorder': (p) => this.queue.reorder(p.conversationId, p.ids),
       'queue.sendNext': (p) => this.generation.sendNext(p.conversationId),
 

@@ -221,6 +221,22 @@ export class GenerationRunner {
     return result;
   }
 
+  /**
+   * File d'attente, « Orienter » : le message rejoint la génération en cours à sa prochaine étape
+   * (frontière contrôlée) ; si rien ne génère, il est envoyé tout de suite, avant le reste de la file.
+   */
+  async orientQueued(id: Id): Promise<void> {
+    const item = this.deps.queue.get(id);
+    if (item.kind === 'steer') return;
+    if (this.active.has(item.conversationId) || this.starting.has(item.conversationId)) {
+      this.deps.queue.setKind(id, 'steer');
+      return;
+    }
+    const others = this.deps.queue.list(item.conversationId).filter((i) => i.kind === 'queue' && i.id !== id).map((i) => i.id);
+    this.deps.queue.reorder(item.conversationId, [id, ...others]);
+    await this.sendNext(item.conversationId);
+  }
+
   cancel(conversationId: Id): boolean {
     const job = this.active.get(conversationId);
     if (!job) return false;
@@ -375,6 +391,8 @@ export class GenerationRunner {
   private afterJob(job: Job, ctx: JobContext): void {
     this.release(job);
     if (job.final !== 'complete') return;
+    // Orientation arrivée après la dernière étape : envoyée en tête de file plutôt que perdue.
+    this.deps.queue.demoteSteers(job.conversationId, true);
     void this.maybeName(ctx).catch((e: unknown) => this.deps.logger.warn('naming', 'Nommage automatique impossible', { error: (e as Error).message }));
     if (this.deps.queue.peekNext(job.conversationId)) {
       const next = this.sendNext(job.conversationId).catch((e: unknown) => {

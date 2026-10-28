@@ -92,6 +92,50 @@ describe('file d’attente et instructions pendant la génération', () => {
     expect(last.messages.at(-1)).toEqual({ role: 'user', content: 'précise en français' });
   });
 
+  it('« Orienter » un message en file : pris en compte dans la génération en cours, sinon envoyé tout de suite', async () => {
+    const mock = await smartMock({ delayMs: 10 });
+    const { h, c } = await setup(mock.url);
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'tâche longue' } });
+    const q = await h.call('chat.send', { conversationId: c.id, input: { text: 'ajoute des tests', mode: 'queue' } });
+    const later = await h.call('chat.send', { conversationId: c.id, input: { text: 'ensuite la doc', mode: 'queue' } });
+    await h.call('queue.setKind', { id: q.queuedId!, kind: 'steer' });
+    expect((await h.call('queue.list', { conversationId: c.id })).map((i) => [i.text, i.kind])).toEqual([['ajoute des tests', 'steer'], ['ensuite la doc', 'queue']]);
+    await h.generation.idle();
+    const list = await h.call('messages.list', { conversationId: c.id });
+    // Orientation : intégrée à la génération en cours ; le message en file part après elle.
+    expect(list.filter((m) => m.role === 'user').map((m) => `${(m.parts[0] as { text: string }).text}:${m.origin}`)).toEqual(['tâche longue:direct', 'ajoute des tests:steer', 'ensuite la doc:queue']);
+    expect(await h.call('queue.list', { conversationId: c.id })).toEqual([]);
+    void later;
+  });
+
+  it('« Orienter » quand rien ne génère : le message part en premier', async () => {
+    const mock = await smartMock({
+      onChat: async (_b, res) => {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(sseChunk({ content: 'début ' }));
+        await new Promise((r) => setTimeout(r, 4000));
+        res.end();
+        return true;
+      },
+    });
+    const { h, c } = await setup(mock.url);
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'a' } });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'b', mode: 'queue' } });
+    const urgent = await h.call('chat.send', { conversationId: c.id, input: { text: 'urgent', mode: 'queue' } });
+    await new Promise<void>((resolve) => {
+      const off = h.events.on('message.delta', () => (off(), resolve()));
+    });
+    await h.call('chat.cancel', { conversationId: c.id });
+    await h.generation.idle();
+    // File en pause après l'annulation : « Orienter » envoie ce message tout de suite, avant « b ».
+    await h.call('queue.setKind', { id: urgent.queuedId!, kind: 'steer' });
+    const users = (await h.call('messages.list', { conversationId: c.id })).filter((m) => m.role === 'user');
+    expect(users.map((m) => (m.parts[0] as { text: string }).text)).toEqual(['a', 'urgent']);
+    expect((await h.call('queue.list', { conversationId: c.id })).map((i) => i.text)).toEqual(['b']);
+    await h.call('chat.cancel', { conversationId: c.id });
+    await h.generation.idle();
+  });
+
   it('suspend la file après une annulation et convertit les instructions non consommées', async () => {
     const mock = await smartMock({
       onChat: async (_b, res) => {

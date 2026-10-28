@@ -224,6 +224,8 @@ export interface HarnessApi {
   'queue.list': { params: { conversationId: Id }; result: QueuedInput[] };
   'queue.update': { params: { id: Id; text: string }; result: QueuedInput };
   'queue.remove': { params: { id: Id }; result: void };
+  /** Orienter (steer) : rejoint la génération en cours, ou part tout de suite si rien ne génère ; queue : remis en file. */
+  'queue.setKind': { params: { id: Id; kind: 'queue' | 'steer' }; result: void };
   'queue.reorder': { params: { conversationId: Id; ids: Id[] }; result: void };
   /** Envoie le premier élément de la file (reprise après une annulation ou une erreur). */
   'queue.sendNext': { params: { conversationId: Id }; result: SendResult };

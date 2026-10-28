@@ -356,6 +356,10 @@ export const fr = {
     down: 'Descendre',
     originSteer: 'Transmis pendant la génération',
     originQueue: 'Depuis la file d’attente',
+    orient: 'Orienter',
+    orientHint: 'Prendre ce message en compte dans la réflexion en cours (à sa prochaine étape), sans attendre la fin de la génération.',
+    orientNowHint: 'Envoyer ce message tout de suite, avant le reste de la file.',
+    unorient: 'Remettre en file (envoyé après la génération en cours)',
   },
   templates: {
     title: 'Modèles de messages',

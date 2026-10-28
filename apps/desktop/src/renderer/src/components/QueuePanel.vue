@@ -37,6 +37,10 @@ async function move(item: QueuedInput, delta: number) {
   list.splice(to, 0, item.id);
   await api.call('queue.reorder', { conversationId: props.conversation.id, ids: list }).catch(fail);
 }
+/** Orienter : le message rejoint la réflexion en cours (ou part tout de suite si rien ne génère). */
+async function setKind(item: QueuedInput, kind: 'queue' | 'steer') {
+  await api.call('queue.setKind', { id: item.id, kind }).catch(fail);
+}
 async function sendNext() {
   await api.call('queue.sendNext', { conversationId: props.conversation.id }).catch(fail);
 }
@@ -60,6 +64,10 @@ async function sendNext() {
           {{ item.text || item.attachments.map((a) => a.name).join(', ') }}
           <span v-if="item.attachments.length && item.text" class="mh-hint"> · 📎 {{ item.attachments.length }}</span>
         </button>
+        <button v-if="item.kind === 'queue'" type="button" class="orient" :aria-label="t('queue.orient')" v-tooltip.top="conversation.generating ? t('queue.orientHint') : t('queue.orientNowHint')" @click="setKind(item, 'steer')">
+          <i class="pi pi-bolt" /> {{ t('queue.orient') }}
+        </button>
+        <button v-else type="button" class="mh-icon-btn small" :aria-label="t('queue.unorient')" v-tooltip.top="t('queue.unorient')" @click="setKind(item, 'queue')"><i class="pi pi-clock" /></button>
         <button type="button" class="mh-icon-btn small" :aria-label="t('queue.up')" @click="move(item, -1)"><i class="pi pi-arrow-up" /></button>
         <button type="button" class="mh-icon-btn small" :aria-label="t('queue.down')" @click="move(item, 1)"><i class="pi pi-arrow-down" /></button>
         <button type="button" class="mh-icon-btn small" :aria-label="t('common.delete')" @click="api.call('queue.remove', { id: item.id }).catch(fail)"><i class="pi pi-times" /></button>
@@ -69,6 +77,23 @@ async function sendNext() {
 </template>
 
 <style scoped>
+.orient {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--mh-accent) 45%, var(--mh-border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mh-accent);
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.orient:hover {
+  background: color-mix(in srgb, var(--mh-accent) 10%, transparent);
+}
 .queue {
   max-width: 900px;
   margin: 0 auto 8px;

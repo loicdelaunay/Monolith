@@ -358,6 +358,10 @@ export const en: Messages = {
     down: 'Move down',
     originSteer: 'Sent during generation',
     originQueue: 'From the queue',
+    orient: 'Steer',
+    orientHint: 'Take this message into account in the current reasoning (at its next step), without waiting for the generation to end.',
+    orientNowHint: 'Send this message now, before the rest of the queue.',
+    unorient: 'Put back in the queue (sent after the current generation)',
   },
   templates: {
     title: 'Message templates',
