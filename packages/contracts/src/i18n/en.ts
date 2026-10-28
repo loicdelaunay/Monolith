@@ -139,6 +139,7 @@ export const en: Messages = {
     reasoningOnlyAuto: 'Reasoning capabilities unknown for this model: only Auto is offered.',
     thinking: 'Reasoning…',
     reasoningBlock: 'Reasoning',
+    toolCount: '{n} tool | {n} tools',
     retrying: 'Retry {attempt} in {seconds} s ({reason})',
     status: {
       streaming: 'Running',
@@ -971,6 +972,8 @@ export const en: Messages = {
       customInstructions: 'Custom instructions',
       customInstructionsHint: 'Added before project instructions, for every conversation.',
       defaultModel: 'Default model for new conversations',
+      rememberLastModel: 'Reuse the last model used',
+      rememberLastModelHint: 'A new conversation reuses the last provider, model and reasoning level used; the default model above applies if it is no longer available.',
       retry: 'Retries',
       retryAttempts: 'Maximum attempts',
       retryDelay: 'Base delay (ms)',

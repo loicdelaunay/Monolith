@@ -197,6 +197,8 @@ export class GenerationRunner {
     const mode = input?.mode ?? 'send';
     if (!['send', 'queue', 'steer'].includes(mode)) throw new HarnessError('invalid_argument', 'Mode d’envoi inconnu');
     this.deps.conversations.get(conversationId);
+    // Modèle réellement utilisé : repris par les prochaines conversations.
+    this.deps.conversations.rememberModel(conversationId);
 
     if (this.active.has(conversationId) || this.starting.has(conversationId)) {
       if (mode === 'send') throw new HarnessError('busy', 'Une génération est déjà en cours dans cette conversation');

@@ -166,7 +166,28 @@ export class ConversationService {
     if (sets.length === 0) return c;
     set('updated_at', now());
     this.db.run(`UPDATE conversations SET ${sets.join(', ')} WHERE id = ?`, ...params, id);
+    if (patch.providerId !== undefined || patch.model !== undefined || patch.reasoningLevel !== undefined) this.rememberModel(id);
     return this.changed(id);
+  }
+
+  /** Dernier fournisseur / modèle / niveau de réflexion choisi ou utilisé (conversations de l'utilisateur). */
+  rememberModel(id: Id): void {
+    const c = this.get(id);
+    if (c.depth > 0 || c.providerId === null || !c.model) return;
+    const value = JSON.stringify({ providerId: c.providerId, model: c.model, reasoningLevel: c.reasoningLevel });
+    this.db.run('INSERT INTO app_state (key, value_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at', 'lastModel', value, now());
+  }
+
+  lastModel(): { providerId: Id; model: string; reasoningLevel: ReasoningLevel } | null {
+    const r = this.db.get<{ value_json: string }>("SELECT value_json FROM app_state WHERE key = 'lastModel'");
+    if (!r) return null;
+    try {
+      const v = JSON.parse(r.value_json) as { providerId?: unknown; model?: unknown; reasoningLevel?: unknown };
+      if (typeof v.providerId !== 'number' || typeof v.model !== 'string' || !REASONING.includes(v.reasoningLevel as ReasoningLevel)) return null;
+      return { providerId: v.providerId, model: v.model, reasoningLevel: v.reasoningLevel as ReasoningLevel };
+    } catch {
+      return null;
+    }
   }
 
   /** Titre automatique : ne remplace jamais un titre choisi par l'utilisateur. */

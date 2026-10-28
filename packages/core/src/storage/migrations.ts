@@ -436,6 +436,18 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 9,
+    name: 'app-state',
+    sql: /* sql */ `
+      -- État interne de l'application (ex. dernier modèle utilisé), distinct des réglages.
+      CREATE TABLE app_state (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

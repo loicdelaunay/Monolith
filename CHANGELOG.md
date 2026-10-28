@@ -2,6 +2,12 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Diagrammes Mermaid** : de nouveau affichés comme diagrammes dans le chat (Mermaid 12 utilisait par défaut une disposition non incluse ; la disposition standard est imposée).
+- **Réflexion et outils regroupés** : la réflexion et les appels d'outils qui se suivent forment un seul bloc repliable (« Réflexion · 3 outils »), avec l'outil en cours affiché pendant la génération. Restent visibles : autorisations en attente, propositions à valider, questions et suggestions.
+- **Nouvelle conversation** : reprend le dernier fournisseur, modèle et niveau de réflexion utilisés (réglable dans Réglages › Chat ; le modèle par défaut sert s'il n'est plus disponible).
+
 ## 3.0.0-alpha.21 — 2026-10-28
 
 - **Pièces jointes : dossiers et fichiers jusqu’à 100 Mo**, dans le chat (« + › Joindre un dossier », glisser-déposer) et dans les projets. Un dossier est copié dans Monolith, sans dépendances, .git ni caches. Tous les types de fichiers sont acceptés : les images (jusqu’à 10 Mo) et le texte sont transmis au modèle (début du texte au-delà de 1 Mo ; arborescence et fichiers courts pour un dossier) ; le contenu complet est lisible par les outils en mode Agent, sans pouvoir être modifié.

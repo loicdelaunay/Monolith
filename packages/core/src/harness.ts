@@ -427,6 +427,18 @@ export class Harness {
     this.logger.info('app', 'Moteur arrêté');
   }
 
+  /** Dernier modèle utilisé, s'il est toujours proposé (connexion active, modèle activé). */
+  private usableLastModel(): ReturnType<ConversationService['lastModel']> {
+    const last = this.conversations.lastModel();
+    if (!last) return null;
+    try {
+      const provider = this.providers.get(last.providerId);
+      return provider.enabled && provider.models.some((m) => m.id === last.model && m.enabled) ? last : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Installation des mises à jour : version portable Windows lancée par l'interface de bureau. */
   private updateInstallable(): { ok: boolean; reason: string | null } {
     if (this.options.updates?.installable !== undefined) return { ok: this.options.updates.installable, reason: this.options.updates.installable ? null : 'Installation désactivée.' };
@@ -599,10 +611,11 @@ export class Harness {
       'conversations.get': (p) => this.conversations.get(p.id),
       'conversations.create': (p) => {
         const s = this.settings.get();
+        const last = s.chat.rememberLastModel ? this.usableLastModel() : null;
         return this.conversations.create(p.projectId, p.title, {
-          providerId: s.chat.defaultProviderId,
-          model: s.chat.defaultModel,
-          reasoningLevel: s.chat.defaultReasoningLevel,
+          providerId: last?.providerId ?? s.chat.defaultProviderId,
+          model: last?.model ?? s.chat.defaultModel,
+          reasoningLevel: last?.reasoningLevel ?? s.chat.defaultReasoningLevel,
           mode: s.chat.defaultMode,
         });
       },

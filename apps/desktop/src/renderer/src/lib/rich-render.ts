@@ -22,7 +22,8 @@ export async function renderMermaid(root: HTMLElement): Promise<void> {
   const theme = document.documentElement.classList.contains('mh-dark') ? 'dark' : 'default';
   if (theme !== mermaidTheme) {
     mermaidTheme = theme;
-    m.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'inherit' });
+    // Mermaid 12 utilise « elk » par défaut ; elkjs n'est pas embarqué (voir stubs/elk.ts) : disposition dagre.
+    m.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'inherit', layout: 'dagre' });
   }
   for (const node of nodes) {
     if (!node.isConnected || node.dataset.rendered) continue;
@@ -34,6 +35,7 @@ export async function renderMermaid(root: HTMLElement): Promise<void> {
         result = (await m.render(`mh-mermaid-${++seq}`, source)).svg;
       } catch (e) {
         result = e instanceof Error ? e : new Error(String(e));
+        console.warn('Mermaid : diagramme non rendu —', result.message.slice(0, 300));
       }
       // Les éléments temporaires créés par Mermaid en cas d'erreur sont retirés.
       document.getElementById(`dmh-mermaid-${seq}`)?.remove();

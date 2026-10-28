@@ -46,6 +46,13 @@ function setProvider(id: number | null) {
       <Select v-model="draft.chat.defaultModel" :options="modelOptions" option-label="label" option-value="value" filter :placeholder="t('chat.chooseModel')" :aria-label="t('chat.model')" :disabled="!draft.chat.defaultProviderId" class="sel" />
     </div>
   </div>
+  <div class="mh-switch-row">
+    <div class="text">
+      <label for="remember-model">{{ t('settings.chat.rememberLastModel') }}</label>
+      <p class="mh-hint">{{ t('settings.chat.rememberLastModelHint') }}</p>
+    </div>
+    <ToggleSwitch input-id="remember-model" v-model="draft.chat.rememberLastModel" />
+  </div>
 
   <div class="mh-field">
     <label for="default-mode">{{ t('settings.chat.defaultMode') }}</label>

@@ -34,6 +34,8 @@ export interface Settings {
     defaultProviderId: Id | null;
     defaultModel: string | null;
     defaultReasoningLevel: ReasoningLevel;
+    /** Nouvelle conversation : reprendre le dernier fournisseur / modèle / réflexion utilisé (sinon les valeurs par défaut ci-dessus). */
+    rememberLastModel: boolean;
     /** Mode d'une nouvelle conversation : Chat, ou Agent en Plan / Proposition / Exécution. */
     defaultMode: 'chat' | AgentMode;
     responseStyle: ResponseStyle;
@@ -252,6 +254,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultProviderId: null,
     defaultModel: null,
     defaultReasoningLevel: 'auto',
+    rememberLastModel: true,
     defaultMode: 'propose',
     responseStyle: 'default',
     reasoningDisplay: 'collapsed',

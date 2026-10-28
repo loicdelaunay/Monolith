@@ -137,6 +137,7 @@ export const fr = {
     reasoningOnlyAuto: 'Capacités de réflexion inconnues pour ce modèle : seul Auto est proposé.',
     thinking: 'Raisonnement…',
     reasoningBlock: 'Réflexion',
+    toolCount: '{n} outil | {n} outils',
     retrying: 'Nouvelle tentative {attempt} dans {seconds} s ({reason})',
     status: {
       streaming: 'En cours',
@@ -969,6 +970,8 @@ export const fr = {
       customInstructions: 'Instructions personnalisées',
       customInstructionsHint: 'Ajoutées avant les instructions de projet, pour toutes les conversations.',
       defaultModel: 'Modèle par défaut des nouvelles conversations',
+      rememberLastModel: 'Reprendre le dernier modèle utilisé',
+      rememberLastModelHint: 'Une nouvelle conversation reprend le fournisseur, le modèle et le niveau de réflexion utilisés en dernier ; le modèle par défaut ci-dessus sert s’il n’est plus disponible.',
       retry: 'Nouvelles tentatives',
       retryAttempts: 'Tentatives maximum',
       retryDelay: 'Délai de base (ms)',

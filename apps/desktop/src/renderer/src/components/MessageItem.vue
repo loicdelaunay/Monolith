@@ -70,6 +70,44 @@ const finishedPlan = computed(() => {
   }
   return null;
 });
+
+/**
+ * Réflexion et appels d'outils consécutifs : regroupés dans un seul bloc repliable (« activité »).
+ * Restent visibles hors du bloc ce qui attend l'utilisateur ou lui est destiné : autorisation en
+ * attente, proposition à valider, question, suggestions d'actions, plan exécuté.
+ */
+type ToolPart = Extract<MessagePart, { type: 'tool' }>;
+type Segment = { kind: 'activity'; key: number; items: { part: MessagePart; index: number }[]; tools: ToolPart['call'][]; reasoning: boolean } | { kind: 'part'; key: number; part: MessagePart; index: number };
+const standalone = (call: ToolPart['call']) => call.status === 'awaiting_permission' || call.status === 'proposed' || call.display?.kind === 'question' || call.display?.kind === 'actions';
+const segments = computed<Segment[]>(() => {
+  const out: Segment[] = [];
+  let group: Extract<Segment, { kind: 'activity' }> | null = null;
+  parts.value.forEach((part, index) => {
+    if (part.type === 'tool' && pinnedPlan(part.call) && part.call.id !== finishedPlan.value?.id) return; // plan épinglé : rien dans le fil
+    const grouped = (part.type === 'reasoning' && display.value !== 'none') || (part.type === 'tool' && part.call.id !== finishedPlan.value?.id && !standalone(part.call));
+    if (part.type === 'reasoning' && display.value === 'none') return;
+    if (!grouped) {
+      group = null;
+      out.push({ kind: 'part', key: index, part, index });
+      return;
+    }
+    if (!group) {
+      group = { kind: 'activity', key: index, items: [], tools: [], reasoning: false };
+      out.push(group);
+    }
+    group.items.push({ part, index });
+    if (part.type === 'tool') group.tools.push(part.call);
+    else group.reasoning = true;
+  });
+  return out;
+});
+const activityLabel = (s: Extract<Segment, { kind: 'activity' }>) =>
+  [s.reasoning ? t('chat.reasoningBlock') : null, s.tools.length ? t('chat.toolCount', { n: s.tools.length }) : null].filter(Boolean).join(' · ');
+/** Pendant la génération : outil en cours, affiché dans l'en-tête du bloc replié. */
+const activityNow = (s: Extract<Segment, { kind: 'activity' }>) => {
+  const running = s.tools.findLast((c) => c.status === 'running' || c.status === 'pending');
+  return running ? (te(`tools.names.${running.name}`) ? t(`tools.names.${running.name}`) : running.name) : null;
+};
 </script>
 
 <template>
@@ -94,21 +132,27 @@ const finishedPlan = computed(() => {
 
     <template v-else>
       <div class="assistant-body">
-        <template v-for="(part, i) in parts" :key="i">
-          <details v-if="part.type === 'reasoning' && display !== 'none'" class="reasoning" :open="display === 'expanded'">
+        <template v-for="seg in segments" :key="seg.key">
+          <details v-if="seg.kind === 'activity'" class="reasoning activity" :open="display === 'expanded'">
             <summary>
-              <i class="pi pi-sparkles" />
-              <span>{{ t('chat.reasoningBlock') }}</span>
-              <ProgressSpinner v-if="streaming && i === parts.length - 1" class="tiny" stroke-width="6" />
+              <i class="pi" :class="seg.reasoning ? 'pi-sparkles' : 'pi-wrench'" />
+              <span>{{ activityLabel(seg) }}</span>
+              <span v-if="streaming && activityNow(seg)" class="now">— {{ activityNow(seg) }}</span>
+              <ProgressSpinner v-if="streaming && seg === segments.at(-1)" class="tiny" stroke-width="6" />
             </summary>
-            <div class="reasoning-text">{{ part.text }}</div>
+            <div class="activity-body">
+              <template v-for="item in seg.items" :key="item.index">
+                <div v-if="item.part.type === 'reasoning'" class="reasoning-text">{{ item.part.text }}</div>
+                <ToolCallBubble v-else-if="item.part.type === 'tool'" :call="item.part.call" :conversation-id="message.conversationId" :message-id="message.id" />
+              </template>
+            </div>
           </details>
-          <MarkdownView v-else-if="part.type === 'text'" :text="part.text" :conversation-id="message.conversationId" />
-          <PlanHistory v-else-if="part.type === 'tool' && part.call.id === finishedPlan?.id" :items="finishedPlan.items" />
-          <ToolCallBubble v-else-if="part.type === 'tool' && !pinnedPlan(part.call)" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
-          <div v-else-if="part.type === 'notice'" class="notice" :class="part.level" role="note">
-            <i class="pi" :class="part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />
-            <span>{{ part.text }}</span>
+          <MarkdownView v-else-if="seg.part.type === 'text'" :text="seg.part.text" :conversation-id="message.conversationId" />
+          <PlanHistory v-else-if="seg.part.type === 'tool' && seg.part.call.id === finishedPlan?.id" :items="finishedPlan.items" />
+          <ToolCallBubble v-else-if="seg.part.type === 'tool'" :call="seg.part.call" :conversation-id="message.conversationId" :message-id="message.id" />
+          <div v-else-if="seg.part.type === 'notice'" class="notice" :class="seg.part.level" role="note">
+            <i class="pi" :class="seg.part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />
+            <span>{{ seg.part.text }}</span>
           </div>
         </template>
 
@@ -258,6 +302,21 @@ const finishedPlan = computed(() => {
 }
 .reasoning[open] summary {
   border-bottom: 1px solid var(--mh-border);
+}
+.activity .now {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+.activity-body .reasoning-text {
+  padding: 2px 4px;
 }
 .reasoning-text {
   padding: 10px 14px;
