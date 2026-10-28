@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.23 — 2026-10-28
 
 - **Nouvelles commandes /** : /chat, /plan, /proposal, /execute changent le mode de la conversation ; /effort-auto, /effort-low… /effort-max règlent la réflexion (niveaux du modèle quand ils sont connus) ; /orchestration force la délégation à des sous-agents dans cette conversation (même si les sous-agents sont désactivés dans les réglages), et la désactive à la commande suivante.
 - **AI Info** (panneau de travail, ouvert d'un clic sur l'anneau de contexte ou la vitesse) : modèle et réflexion, contexte de la prochaine requête détaillé par poste (instructions, outils, messages, pièces jointes, résultats d'outils, images…), vitesses minimum / moyenne / maximum / dernière, premier token et tokens consommés de la conversation. L'estimation du contexte compte désormais les définitions d'outils. Panneau étroit : onglets en icônes, sauf l'onglet actif.

@@ -1,6 +1,6 @@
 {
   "name": "@monolith/core",
-  "version": "3.0.0-alpha.22",
+  "version": "3.0.0-alpha.23",
   "private": true,
   "type": "module",
   "description": "Moteur Monolith Harness : stockage, projets, conversations, fournisseurs, génération, outils et autorisations.",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@monolith/contracts": "3.0.0-alpha.22",
+    "@monolith/contracts": "3.0.0-alpha.23",
     "undici": "7.30.1"
   }
 }
