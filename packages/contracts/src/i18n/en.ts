@@ -55,6 +55,7 @@ export const en: Messages = {
     personal: 'Personal space',
     projects: 'Projects',
     newProject: 'New project',
+    subagents: '{n} subagent | {n} subagents',
     noConversations: 'No conversations',
     showArchived: 'Show archived',
     hideArchived: 'Hide archived',

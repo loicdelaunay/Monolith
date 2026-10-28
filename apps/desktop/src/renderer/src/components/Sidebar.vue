@@ -14,6 +14,7 @@ import { useToast } from 'primevue/usetoast';
 import type { MenuItem } from 'primevue/menuitem';
 import type { Conversation, Id, Project, SearchHit } from '@monolith/contracts';
 import { api, errorMessage, host } from '../api.ts';
+import SubagentRows from './SubagentRows.vue';
 import { activeConversation, conversationsIn, openConversation, store } from '../stores/app.ts';
 import { chatActions } from '../lib/chat-actions.ts';
 import NotificationsBell from './NotificationsBell.vue';
@@ -384,6 +385,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
                 </button>
                 <button type="button" class="mh-icon-btn small more" :aria-label="t('sidebar.actions')" @click.stop="openMenu($event, conversationMenu(c))"><i class="pi pi-ellipsis-h" /></button>
               </div>
+              <SubagentRows :parent="c" />
             </li>
             <li v-if="conversationsIn(null, showArchived).length === 0" class="empty compact">{{ t('sidebar.noConversations') }}</li>
           </ul>
@@ -433,6 +435,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
                 </button>
                 <button type="button" class="mh-icon-btn small more" :aria-label="t('sidebar.actions')" @click.stop="openMenu($event, conversationMenu(c))"><i class="pi pi-ellipsis-h" /></button>
               </div>
+              <SubagentRows :parent="c" />
             </li>
             <li v-if="conversationsIn(p.id, showArchived).length === 0" class="empty compact">{{ t('sidebar.noConversations') }}</li>
           </ul>

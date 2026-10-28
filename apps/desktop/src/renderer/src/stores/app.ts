@@ -68,6 +68,11 @@ export function conversationsIn(projectId: Id | null, includeArchived: boolean):
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.sortOrder - b.sortOrder || b.id - a.id);
 }
 
+/** Sous-conversations des agents délégués par une conversation, dans l'ordre de création. */
+export function subagentsOf(parentId: Id): Conversation[] {
+  return [...store.conversations.values()].filter((c) => c.parentId === parentId).sort((a, b) => a.id - b.id);
+}
+
 export async function loadMessages(conversationId: Id): Promise<void> {
   const ref = messagesOf(conversationId);
   store.loadingMessages = true;
@@ -186,7 +191,7 @@ export async function reloadAll(): Promise<void> {
     api.call('projects.list'),
     api.call('providers.list'),
     api.call('providers.presets'),
-    api.call('conversations.list', { includeArchived: true }),
+    api.call('conversations.list', { includeArchived: true, includeSubagents: true }),
     api.call('chat.active'),
     api.call('templates.list'),
   ]);

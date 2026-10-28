@@ -64,8 +64,8 @@ export class ConversationService {
       params.push(query.projectId);
     }
     if (!query.includeArchived) where.push('archived = 0');
-    // Les sous-agents ne figurent pas dans les listes : ils s'ouvrent depuis leur conversation parente.
-    where.push('parent_id IS NULL');
+    // Les sous-agents ne figurent dans les listes qu'à la demande (affichés sous leur conversation parente).
+    if (!query.includeSubagents) where.push('parent_id IS NULL');
     const sql = `SELECT * FROM conversations ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY pinned DESC, sort_order, id DESC`;
     return this.db.all<ConversationRow>(sql, ...params).map((r) => this.map(r));
   }

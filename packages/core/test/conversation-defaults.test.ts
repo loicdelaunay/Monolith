@@ -45,4 +45,15 @@ describe('mode des nouvelles conversations', () => {
     await h.call('providers.setModels', { id: b.id, models: [model('b1'), model('b2', false)] });
     expect(await h.call('conversations.create', { projectId: null })).toMatchObject({ providerId: a.id, model: 'a1' });
   });
+
+  it('sous-agents : absents des listes par défaut, inclus sur demande (affichés sous leur parente)', async () => {
+    const t = tempHarness();
+    cleanups.push(t.cleanup);
+    const h = t.harness;
+    const parent = await h.call('conversations.create', { projectId: null });
+    const child = h.conversations.create(null, 'Analyse', undefined, { parent: { id: parent.id, depth: 1, role: 'explorer', budget: { maxRounds: 4, maxOutputTokens: 1000, timeoutSec: 60 } } });
+    expect((await h.call('conversations.list', {})).map((c) => c.id)).toEqual([parent.id]);
+    const all = await h.call('conversations.list', { includeSubagents: true });
+    expect(all.find((c) => c.id === child.id)).toMatchObject({ parentId: parent.id, role: 'explorer', depth: 1 });
+  });
 });

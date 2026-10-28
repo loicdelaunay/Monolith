@@ -87,6 +87,8 @@ export interface ConversationListQuery {
   /** `null` : espace personnel ; absent : toutes. */
   projectId?: Id | null;
   includeArchived?: boolean;
+  /** Inclure les conversations des sous-agents (affichées sous leur conversation parente). */
+  includeSubagents?: boolean;
 }
 
 export interface ConversationPatch {

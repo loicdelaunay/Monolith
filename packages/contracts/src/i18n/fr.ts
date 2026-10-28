@@ -53,6 +53,7 @@ export const fr = {
     personal: 'Espace personnel',
     projects: 'Projets',
     newProject: 'Nouveau projet',
+    subagents: '{n} sous-agent | {n} sous-agents',
     noConversations: 'Aucune conversation',
     showArchived: 'Afficher les archives',
     hideArchived: 'Masquer les archives',

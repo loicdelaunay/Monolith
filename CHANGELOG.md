@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Sous-agents dans la barre latérale** : les conversations des agents délégués s'affichent sous leur conversation parente (« 3 sous-agents », repliable, avec le rôle de chaque agent et un indicateur d'activité) ; le groupe s'ouvre de lui-même quand un sous-agent travaille ou est affiché.
+
 ## 3.0.0-alpha.24 — 2026-10-28
 
 - **File d'attente : bouton « Orienter »** sur chaque message en attente : il est pris en compte dans la réflexion en cours, à sa prochaine étape, sans attendre la fin de la génération ; si rien ne génère, il part tout de suite, avant le reste de la file. Un message orienté peut être remis en file. Une orientation arrivée juste après la dernière étape est envoyée en tête de file plutôt que perdue.
