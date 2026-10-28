@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.22 — 2026-10-28
 
 - **Diagrammes Mermaid** : de nouveau affichés comme diagrammes dans le chat (Mermaid 12 utilisait par défaut une disposition non incluse ; la disposition standard est imposée).
 - **Réflexion et outils regroupés** : la réflexion et les appels d'outils qui se suivent forment un seul bloc repliable (« Réflexion · 3 outils »), avec l'outil en cours affiché pendant la génération. Restent visibles : autorisations en attente, propositions à valider, questions et suggestions.
