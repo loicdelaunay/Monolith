@@ -1,6 +1,6 @@
 {
   "name": "@monolith/contracts",
-  "version": "3.0.0-alpha.17",
+  "version": "3.0.0-alpha.18",
   "private": true,
   "type": "module",
   "description": "Types, contrats d'API et messages partagés (sans dépendance Node) entre moteur, desktop, CLI et serveur.",
