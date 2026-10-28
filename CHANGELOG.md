@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.25 — 2026-10-28
 
 - **Sous-agents dans la barre latérale** : les conversations des agents délégués s'affichent sous leur conversation parente (« 3 sous-agents », repliable, avec le rôle de chaque agent et un indicateur d'activité) ; le groupe s'ouvre de lui-même quand un sous-agent travaille ou est affiché.
 
