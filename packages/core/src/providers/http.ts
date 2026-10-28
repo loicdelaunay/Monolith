@@ -1,5 +1,6 @@
 import { HarnessError, type HarnessErrorCode } from '@monolith/contracts';
 import type { Logger } from '../log/logger.ts';
+import { completeCertificateChain, describeTlsError, isMissingIssuer, tlsErrorCode } from '../net/certificates.ts';
 import { redact } from '../security/redact.ts';
 
 /** Erreur HTTP/transport d'un fournisseur, classée pour la politique de retry. */
@@ -81,14 +82,22 @@ export class HttpClient {
     const connect = new AbortController();
     const timer = setTimeout(() => connect.abort(new ProviderError('provider_timeout', `Aucune réponse après ${Math.round(options.connectTimeoutMs / 1000)} s`, null, true)), options.connectTimeoutMs);
     const signal = AbortSignal.any([options.signal, connect.signal]);
+    const init: RequestInit = {
+      method: options.method ?? 'GET',
+      headers: { ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}), ...options.headers },
+      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : options.form ? { body: new URLSearchParams(options.form).toString() } : {}),
+      signal,
+    };
     let response: Response;
     try {
-      response = await fetch(url, {
-        method: options.method ?? 'GET',
-        headers: { ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}), ...options.headers },
-        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : options.form ? { body: new URLSearchParams(options.form).toString() } : {}),
-        signal,
-      });
+      try {
+        response = await fetch(url, init);
+      } catch (error) {
+        // Serveur sans ses certificats intermédiaires : chaîne complétée comme le ferait un navigateur, puis une seule nouvelle tentative.
+        if (signal.aborted || !isMissingIssuer(tlsErrorCode(error)) || !(await completeCertificateChain(url, signal))) throw error;
+        this.logger.info('network', 'Chaîne de certificats complétée (intermédiaire téléchargé)', target);
+        response = await fetch(url, init);
+      }
     } catch (error) {
       clearTimeout(timer);
       const ms = Math.round(performance.now() - started);
@@ -103,6 +112,10 @@ export class HttpClient {
       const cause = (error as { cause?: { code?: string; message?: string } }).cause;
       const detail = cause?.code ?? cause?.message ?? (error as Error).message;
       this.logger.warn('network', 'Fournisseur injoignable', { ...target, ms, detail });
+      const tlsCode = tlsErrorCode(error);
+      const explained = tlsCode ? describeTlsError(tlsCode) : null;
+      // Une erreur de certificat ne se corrige pas en réessayant.
+      if (explained) throw new ProviderError('provider_unreachable', `Fournisseur injoignable : ${explained}`, null, false);
       throw new ProviderError('provider_unreachable', `Fournisseur injoignable (${detail})`, null, true);
     }
     clearTimeout(timer);

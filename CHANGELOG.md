@@ -2,6 +2,13 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Certificats HTTPS des fournisseurs** (erreur `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, par exemple avec une connexion OpenAI personnalisée) :
+  - les autorités du magasin de certificats du système (autorités d'entreprise, antivirus qui inspectent HTTPS, certificats installés sur le poste) sont reconnues, comme dans la v1 ;
+  - un serveur qui n'envoie pas son certificat intermédiaire est accepté comme dans un navigateur : l'intermédiaire indiqué par le certificat est téléchargé et vérifié, et il n'est retenu que s'il mène à une autorité reconnue ;
+  - la vérification des certificats n'est jamais désactivée ; si le certificat reste refusé, le message explique la cause et la correction (chaîne complète côté serveur, ou autorité à installer sur le poste).
+
 ## 3.0.0-alpha.17 — 2026-10-28
 
 - Release Windows uniquement (archive portable, installateur) et CLI : les paquets Linux ne sont pas publiés pour le moment.

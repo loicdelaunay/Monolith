@@ -63,6 +63,7 @@ import { webSearchTool } from './tools/web.ts';
 import { WebHttpClient, webHttpTools } from './tools/web-http.ts';
 import { discoverSkills, PYTHON_TOOLS, ragTools, skillTools } from './tools/knowledge.ts';
 import { HttpClient } from './providers/http.ts';
+import { trustSystemCertificates } from './net/certificates.ts';
 import { OpenAICompatibleAdapter } from './providers/openai-compatible.ts';
 import { GeminiAdapter } from './providers/gemini.ts';
 import { GoogleAuth } from './providers/google-auth.ts';
@@ -172,6 +173,9 @@ export class Harness {
       allowFileFallback: options.allowFileKeyFallback ?? false,
     });
 
+    // Autorités du système (entreprise, antivirus, certificats installés) en plus de celles de Node, comme la v1.
+    const systemCertificates = trustSystemCertificates();
+    if (systemCertificates) this.logger.info('network', 'Autorités de certification du système ajoutées', { count: systemCertificates });
     const http = new HttpClient(this.logger);
     const googleAuth = new GoogleAuth(http);
     const composite = new CompositeAdapter();
