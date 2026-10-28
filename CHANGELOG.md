@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.21 — 2026-10-28
 
 - **Pièces jointes : dossiers et fichiers jusqu’à 100 Mo**, dans le chat (« + › Joindre un dossier », glisser-déposer) et dans les projets. Un dossier est copié dans Monolith, sans dépendances, .git ni caches. Tous les types de fichiers sont acceptés : les images (jusqu’à 10 Mo) et le texte sont transmis au modèle (début du texte au-delà de 1 Mo ; arborescence et fichiers courts pour un dossier) ; le contenu complet est lisible par les outils en mode Agent, sans pouvoir être modifié.
 - **Mode des nouvelles conversations** : Agent · Proposition par défaut, réglable dans Réglages › Chat ; une icône à droite des réglages rapides rappelle le mode de la conversation.

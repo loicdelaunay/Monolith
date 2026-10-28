@@ -24,14 +24,14 @@
       <br><br>
       Windows x64
       <br><br>
-      <a href="https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.20"><strong>Download GUI</strong></a>
+      <a href="https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.21"><strong>Download GUI</strong></a>
     </td>
     <td align="center" valign="top">
       <img src="resources/branding/cli.png" alt="CLI logo" width="80">
       <br><br>
       Node.js 24 bundle
       <br><br>
-      <a href="https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.20"><strong>Download CLI</strong></a>
+      <a href="https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.21"><strong>Download CLI</strong></a>
     </td>
   </tr>
 </table>
@@ -134,12 +134,12 @@ Browser, screenshot and desktop-control skills need the desktop app; keyboard an
 
 ## Quick start
 
-1. Download the [GUI release](https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.20). On Windows, take the **portable zip** (`MonolithHarness-v3.0.0-alpha.20-win-x64.zip`) or the **installer** (`…-win-x64.exe`). Linux packages are not published for now.
+1. Download the [GUI release](https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.21). On Windows, take the **portable zip** (`MonolithHarness-v3.0.0-alpha.21-win-x64.zip`) or the **installer** (`…-win-x64.exe`). Linux packages are not published for now.
 2. With the zip, extract it into a **writable folder** and run <code>Monolith.exe</code>. The app keeps its data in <code>data/</code> beside the executable, so the whole folder can be moved or copied while the app is closed.
 3. Open **Settings → Providers**, add a provider and its API key or endpoint — or connect your ChatGPT subscription, Vertex AI, or a local model — then **Test connection** and choose the models to enable.
 4. Create a project, attach the folders you want to share with its conversations, pick a mode in the quick settings and start a conversation.
 
-The CLI is a single file for **Node.js 24**: run <code>node MonolithHarness-CLI-v3.0.0-alpha.20-node24.mjs</code> in a terminal (`--help` lists the options, `-p "…"` answers once without the interactive interface). It uses the same engine and the same kind of data folder as the desktop app.
+The CLI is a single file for **Node.js 24**: run <code>node MonolithHarness-CLI-v3.0.0-alpha.21-node24.mjs</code> in a terminal (`--help` lists the options, `-p "…"` answers once without the interactive interface). It uses the same engine and the same kind of data folder as the desktop app.
 
 ## Portable data and privacy
 
