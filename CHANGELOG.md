@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.19 — 2026-10-28
 
 - **Mise à jour intégrée (Windows)** : l'installation ne démarrait jamais. PowerShell lancé détaché quittait sans exécuter le script, et lancé directement il était arrêté avec l'application. L'installateur passe désormais par `cmd /c start` et s'exécute après la fermeture de Monolith. Vérifié de bout en bout depuis GitHub : recherche, téléchargement, contrôle SHA-256, installation (ancienne version conservée dans `previous`) et redémarrage dans la nouvelle version. Les versions alpha.17 et alpha.18 doivent être mises à jour une fois à la main.
 
