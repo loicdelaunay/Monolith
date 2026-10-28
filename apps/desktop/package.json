@@ -6,6 +6,11 @@
   "description": "Monolith Harness — interface desktop (Electron + Vue 3 + PrimeVue 4)",
   "author": "Loïc DELAUNAY",
   "license": "MIT",
+  "homepage": "https://github.com/loicdelaunay/Monolith",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/loicdelaunay/Monolith.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

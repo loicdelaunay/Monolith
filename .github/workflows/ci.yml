@@ -27,3 +27,19 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run licenses
+
+  # Vérification des paquets Linux (AppImage, deb, tar.gz) sans publication ; non bloquante.
+  package-linux:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:linux
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: ls -la release
