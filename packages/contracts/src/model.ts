@@ -64,6 +64,8 @@ export interface Conversation {
   role: string | null;
   /** Budget d'un sous-agent (null : réglages généraux). */
   budget: ConversationBudget | null;
+  /** Orchestration forcée pour cette conversation (/orchestration) : délégation à des sous-agents demandée au modèle. */
+  orchestration: boolean;
   createdAt: string;
   updatedAt: string;
   lastMessageAt: string | null;

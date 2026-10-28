@@ -101,6 +101,7 @@ export interface ConversationPatch {
   model?: string | null;
   reasoningLevel?: ReasoningLevel;
   projectId?: Id | null;
+  orchestration?: boolean;
 }
 
 export interface ProjectInput {

@@ -262,7 +262,7 @@ export class GenerationRunner {
       .filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId))
       .filter((t) => !this.deps.chrome || this.deps.chrome.allows(t, s))
       // Délégation : désactivée par réglage ou au-delà de la profondeur maximale.
-      .filter((t) => t.name !== 'delegate_tasks' || (s.subagents.mode !== 'off' && conversation.depth < s.subagents.maxDepth))
+      .filter((t) => t.name !== 'delegate_tasks' || ((s.subagents.mode !== 'off' || conversation.orchestration) && conversation.depth < s.subagents.maxDepth))
       // Sans moteur de recherche : client HTTP intégré seulement (comme la v1).
       .filter((t) => t.name !== 'web_search' || s.web.searchProvider !== 'none');
     const instructionFiles = conversation.mode === 'agent' && s.agent.readInstructionFiles ? this.deps.resources.instructionFiles(scope.roots) : [];
@@ -481,7 +481,7 @@ export class GenerationRunner {
     if (this.deps.memory && s.memory.forcedRead && (s.skills.enabled.memory ?? true)) {
       out.push(this.deps.memory.promptBlock(this.deps.memory.visible(conversationId, ctx.conversation.projectId, null, s.memory.forcedReadCount)));
     }
-    if (s.subagents.mode === 'forced' && ctx.tools.some((t) => t.name === 'delegate_tasks')) {
+    if ((s.subagents.mode === 'forced' || ctx.conversation.orchestration) && ctx.tools.some((t) => t.name === 'delegate_tasks')) {
       out.push('Délégation : découpe le travail en sous-tâches indépendantes et confie-les à des sous-agents avec delegate_tasks (en parallèle quand c’est possible), puis synthétise leurs rapports.');
     }
     if (ctx.conversation.parentId !== null) {

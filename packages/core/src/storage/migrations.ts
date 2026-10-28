@@ -448,6 +448,13 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 10,
+    name: 'conversation-orchestration',
+    sql: /* sql */ `
+      ALTER TABLE conversations ADD COLUMN orchestration INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

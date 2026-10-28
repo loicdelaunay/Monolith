@@ -6,7 +6,7 @@ import Button from 'primevue/button';
 import Popover from 'primevue/popover';
 import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
-import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage } from '@monolith/contracts';
+import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage, type ConversationPatch, type ReasoningLevel } from '@monolith/contracts';
 import { api, errorCode, errorMessage, host } from '../api.ts';
 import { messagesOf, store } from '../stores/app.ts';
 import { attachPaths, uploadFiles, formatSize } from '../lib/attachments.ts';
@@ -137,21 +137,67 @@ async function stop() {
 interface SlashCommand {
   name: string;
   icon: string;
+  /** Description affichée (sinon composer.slash.<nom>). */
+  hint?: string;
   run: () => unknown;
 }
-const COMMANDS: SlashCommand[] = [
+/** Change la conversation (mode, réflexion, orchestration) et le confirme. */
+async function patchConversation(patch: ConversationPatch, done: string) {
+  try {
+    await api.call('conversations.update', { id: props.conversation.id, patch });
+    toast.add({ severity: 'success', summary: done, life: 2500 });
+  } catch (e) {
+    toast.add({ severity: 'error', summary: errorMessage(e), life: 5000 });
+  }
+}
+const MODE_COMMANDS = [
+  { name: 'chat', icon: 'pi-comment', mode: 'chat' },
+  { name: 'plan', icon: 'pi-search', mode: 'plan' },
+  { name: 'proposal', icon: 'pi-file-edit', mode: 'propose' },
+  { name: 'execute', icon: 'pi-play', mode: 'execute' },
+] as const;
+const EFFORTS: ReasoningLevel[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+/** Niveaux de réflexion proposés : ceux déclarés par le modèle quand ils sont connus, sinon tous. */
+const effortLevels = computed<ReasoningLevel[]>(() => {
+  const provider = store.providers.find((p) => p.id === props.conversation.providerId);
+  const caps = provider?.models.find((m) => m.id === props.conversation.model)?.capabilities;
+  const known = (caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l));
+  return known.length ? ['auto', ...known.filter((l) => l !== 'auto')] : EFFORTS;
+});
+const COMMANDS = computed<SlashCommand[]>(() => [
   { name: 'compact', icon: 'pi-compress', run: () => actions.compact(props.conversation.id) },
   { name: 'export', icon: 'pi-download', run: () => actions.exportMarkdown(props.conversation.id, false) },
   { name: 'fork', icon: 'pi-clone', run: () => actions.fork(props.conversation.id) },
   { name: 'goal', icon: 'pi-flag', run: () => emit('open-goal') },
   { name: 'template', icon: 'pi-bookmark', run: () => (templatesOpen.value = true) },
-];
+  ...MODE_COMMANDS.map((c) => ({
+    name: c.name,
+    icon: c.icon,
+    hint: t('composer.slash.mode', { mode: t(`modes.${c.mode}`) }),
+    run: () => patchConversation(c.mode === 'chat' ? { mode: 'chat' } : { mode: 'agent', agentMode: c.mode }, t('composer.slash.modeDone', { mode: t(`modes.${c.mode}`) })),
+  })),
+  ...effortLevels.value.map((level) => ({
+    name: `effort-${level}`,
+    icon: 'pi-sparkles',
+    hint: t('composer.slash.effort', { level: t(`reasoningLevels.${level}`) }),
+    run: () => patchConversation({ reasoningLevel: level }, t('composer.slash.effortDone', { level: t(`reasoningLevels.${level}`) })),
+  })),
+  {
+    name: 'orchestration',
+    icon: 'pi-sitemap',
+    hint: props.conversation.orchestration ? t('composer.slash.orchestrationOff') : t('composer.slash.orchestrationOn'),
+    run: () =>
+      props.conversation.orchestration
+        ? patchConversation({ orchestration: false }, t('composer.slash.orchestrationDisabled'))
+        : patchConversation({ orchestration: true, mode: 'agent', ...(props.conversation.mode === 'chat' ? { agentMode: 'propose' as const } : {}) }, t('composer.slash.orchestrationEnabled')),
+  },
+]);
 const slashIndex = ref(0);
 const slashMatches = computed(() => {
   const v = text.value;
   if (!v.startsWith('/') || /\s/.test(v)) return [];
   const q = v.slice(1).toLowerCase();
-  return COMMANDS.filter((c) => c.name.startsWith(q));
+  return COMMANDS.value.filter((c) => c.name.startsWith(q));
 });
 watch(slashMatches, () => (slashIndex.value = 0));
 function runSlash(cmd: SlashCommand) {
@@ -312,7 +358,7 @@ defineExpose({ focus: () => textarea.value?.focus() });
         <li v-for="(cmd, i) in slashMatches" :key="cmd.name" role="option" :aria-selected="i === slashIndex" :class="{ active: i === slashIndex }" @mousedown.prevent="runSlash(cmd)">
           <i class="pi" :class="cmd.icon" />
           <span class="slash-name">/{{ cmd.name }}</span>
-          <span class="mh-hint">{{ t(`composer.slash.${cmd.name}`) }}</span>
+          <span class="mh-hint">{{ cmd.hint ?? t(`composer.slash.${cmd.name}`) }}</span>
         </li>
       </ul>
 

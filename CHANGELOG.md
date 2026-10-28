@@ -4,6 +4,7 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 ## Non publié
 
+- **Nouvelles commandes /** : /chat, /plan, /proposal, /execute changent le mode de la conversation ; /effort-auto, /effort-low… /effort-max règlent la réflexion (niveaux du modèle quand ils sont connus) ; /orchestration force la délégation à des sous-agents dans cette conversation (même si les sous-agents sont désactivés dans les réglages), et la désactive à la commande suivante.
 - **AI Info** (panneau de travail, ouvert d'un clic sur l'anneau de contexte ou la vitesse) : modèle et réflexion, contexte de la prochaine requête détaillé par poste (instructions, outils, messages, pièces jointes, résultats d'outils, images…), vitesses minimum / moyenne / maximum / dernière, premier token et tokens consommés de la conversation. L'estimation du contexte compte désormais les définitions d'outils. Panneau étroit : onglets en icônes, sauf l'onglet actif.
 - **Lecture de fichiers et de données** : en entier ou des lignes X à Y (start_line, end_line), pour read_file, les réponses web enregistrées, le texte des pages du navigateur et les ressources de skills. Plus de limite cachée de 2000 lignes ; un résultat trop long est coupé en fin de ligne avec la plage exacte à relire.
 - **Zoom sur les diagrammes Mermaid** : bouton loupe ou double-clic pour ouvrir le diagramme en plein écran ; zoom à la molette (centré sur le curseur) ou avec + / −, déplacement en glissant, 0 ou double-clic pour ajuster à la fenêtre, Échap pour fermer.

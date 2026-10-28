@@ -39,6 +39,7 @@ interface ConversationRow {
   depth: number;
   role: string | null;
   budget_json: string | null;
+  orchestration: number;
 }
 
 const REASONING: ReasoningLevel[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
@@ -138,6 +139,7 @@ export class ConversationService {
     if (patch.pinned !== undefined) set('pinned', patch.pinned ? 1 : 0);
     if (patch.archived !== undefined) set('archived', patch.archived ? 1 : 0);
     if (patch.goal !== undefined) set('goal', String(patch.goal).slice(0, 20_000));
+    if (patch.orchestration !== undefined) set('orchestration', patch.orchestration ? 1 : 0);
     if (patch.mode !== undefined) {
       if (!(['chat', 'agent'] as ConversationMode[]).includes(patch.mode)) throw new HarnessError('invalid_argument', 'Mode inconnu');
       set('mode', patch.mode);
@@ -292,6 +294,7 @@ export class ConversationService {
       depth: r.depth ?? 0,
       role: r.role ?? null,
       budget: r.budget_json ? json<ConversationBudget | null>(r.budget_json, null) : null,
+      orchestration: !!r.orchestration,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       lastMessageAt: r.last_message_at,
