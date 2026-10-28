@@ -214,6 +214,17 @@ export const en: Messages = {
     executed: 'Plan completed',
     steps: '{n} step | {n} steps',
   },
+  diagram: {
+    title: 'Diagram',
+    open: 'Enlarge diagram',
+    code: 'Show code',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    fit: 'Fit to window',
+    actualSize: 'Actual size (100%)',
+    close: 'Close (Esc)',
+    hint: 'Wheel: zoom · drag: pan · double-click or 0: fit · + / −: zoom · Esc: close',
+  },
   fileMenu: {
     preview: 'Preview',
     open: 'Open with the default app',

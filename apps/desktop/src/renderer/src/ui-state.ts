@@ -35,4 +35,6 @@ export const uiState = reactive({
   studio: { open: false, tab: 'text' as 'text' | 'images' | 'assets' | 'benchmark' | 'detect' | 'dashboard' },
   /** Fichier affiché dans l'onglet Aperçu du panneau de travail. */
   preview: null as { conversationId: Id; path: string; line: number | null } | null,
+  /** Diagramme Mermaid agrandi (SVG rendu) ; null : visionneuse fermée. */
+  diagram: null as string | null,
 });

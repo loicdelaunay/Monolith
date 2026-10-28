@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import FileContextMenu from './components/FileContextMenu.vue';
+import DiagramViewer from './components/DiagramViewer.vue';
 import FirstUseDialog from './components/FirstUseDialog.vue';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -181,6 +182,7 @@ onBeforeUnmount(() => {
     <ConfirmDialog />
     <FirstUseDialog />
     <FileContextMenu />
+    <DiagramViewer />
   </div>
 </template>
 

@@ -212,6 +212,17 @@ export const fr = {
     executed: 'Plan exécuté',
     steps: '{n} étape | {n} étapes',
   },
+  diagram: {
+    title: 'Diagramme',
+    open: 'Agrandir le diagramme',
+    code: 'Afficher le code',
+    zoomIn: 'Zoom avant',
+    zoomOut: 'Zoom arrière',
+    fit: 'Ajuster à la fenêtre',
+    actualSize: 'Taille réelle (100 %)',
+    close: 'Fermer (Échap)',
+    hint: 'Molette : zoom · glisser : déplacer · double-clic ou 0 : ajuster · + / − : zoom · Échap : fermer',
+  },
   fileMenu: {
     preview: 'Aperçu',
     open: 'Ouvrir avec l’application par défaut',

@@ -174,16 +174,26 @@
   max-width: 100%;
   height: auto;
 }
-.mh-md .mh-mermaid-toggle {
+.mh-md .mh-mermaid-svg {
+  cursor: zoom-in;
+}
+.mh-md .mh-mermaid-tools {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.mh-md .mh-mermaid-tools button {
   border: none;
   background: var(--mh-hover);
   color: var(--mh-muted);
   border-radius: 6px;
   padding: 3px 6px;
   cursor: pointer;
+}
+.mh-md .mh-mermaid-tools button:hover {
+  color: var(--mh-text);
 }
 .mh-md .mh-html-preview {
   border-top: 1px solid var(--mh-border);

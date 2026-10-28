@@ -33,6 +33,16 @@ function enhance() {
 onMounted(enhance);
 watch(blocks, () => void nextTick(enhance));
 
+/** Diagramme agrandi dans la visionneuse (bouton loupe ou double-clic sur le diagramme). */
+function openDiagram(from: HTMLElement) {
+  const svg = from.closest('.mh-mermaid')?.querySelector('.mh-mermaid-svg svg');
+  if (svg) uiState.diagram = svg.outerHTML;
+}
+function onDblClick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest('.mh-mermaid-svg') && !target.closest('button')) openDiagram(target);
+}
+
 function togglePreview(button: HTMLElement) {
   const block = button.closest<HTMLElement>('.mh-code');
   if (!block) return;
@@ -88,6 +98,11 @@ async function onClick(e: MouseEvent) {
     togglePreview(preview);
     return;
   }
+  const zoom = target.closest<HTMLElement>('[data-mermaid-zoom]');
+  if (zoom) {
+    openDiagram(zoom);
+    return;
+  }
   const toggle = target.closest<HTMLElement>('[data-mermaid-toggle]');
   if (toggle) {
     toggle.closest('.mh-mermaid')?.classList.toggle('show-code');
@@ -113,7 +128,7 @@ async function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu">
+  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
     <div v-for="(html, i) in blocks" :key="i" class="mh-md-block" v-html="html" />
   </div>
 </template>

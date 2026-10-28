@@ -1,6 +1,9 @@
 import { fileIcon } from './file-icons.ts';
 import type { FileReference, Id } from '@monolith/contracts';
 import { api } from '../api.ts';
+import { i18n } from '../i18n.ts';
+
+const translator = i18n.global as unknown as { t: (key: string) => string };
 
 // ---------- Mermaid (chargé à la demande, niveau de sécurité strict) ----------
 type Mermaid = typeof import('mermaid').default;
@@ -51,13 +54,19 @@ export async function renderMermaid(root: HTMLElement): Promise<void> {
     const wrap = document.createElement('div');
     wrap.className = 'mh-mermaid-svg';
     wrap.innerHTML = result;
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'mh-mermaid-toggle';
-    toggle.dataset.mermaidToggle = '1';
-    toggle.setAttribute('aria-label', 'Code');
-    toggle.innerHTML = '<i class="pi pi-code"></i>';
-    wrap.append(toggle);
+    const tools = document.createElement('div');
+    tools.className = 'mh-mermaid-tools';
+    const button = (data: string, icon: string, label: string) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset[data] = '1';
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.innerHTML = `<i class="pi ${icon}"></i>`;
+      return b;
+    };
+    tools.append(button('mermaidZoom', 'pi-search-plus', translator.t('diagram.open')), button('mermaidToggle', 'pi-code', translator.t('diagram.code')));
+    wrap.append(tools);
     node.prepend(wrap);
     node.classList.add('rendered');
   }
