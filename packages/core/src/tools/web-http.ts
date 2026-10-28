@@ -6,7 +6,7 @@ import { assertPublicUrl } from '../net/guard.ts';
 import { allowedUrl } from './local-access.ts';
 import { htmlToText } from './web.ts';
 import type { ToolContext, ToolDefinition } from './types.ts';
-import { bool, limit, num, str } from './types.ts';
+import { bool, limit, LINE_RANGE, num, readLines, str } from './types.ts';
 
 export interface HttpClientSettings {
   timeoutSec: number;
@@ -279,17 +279,16 @@ export function webHttpTools(client: () => WebHttpClient): ToolDefinition[] {
       name: 'web_http_read',
       family: 'web',
       skill: 'web',
-      description: 'Lit un passage d’une réponse enregistrée (file_id) : start_line et line_count (200 lignes maximum).',
-      parameters: obj({ file_id: { type: 'string' }, view: { type: 'string', enum: ['text', 'raw'] }, start_line: { type: 'number' }, line_count: { type: 'number' } }, ['file_id']),
+      description: 'Lit une réponse enregistrée (file_id) : en entier (sans start_line ni end_line) ou les lignes start_line à end_line (incluses).',
+      parameters: obj({ file_id: { type: 'string' }, view: { type: 'string', enum: ['text', 'raw'] }, ...LINE_RANGE }, ['file_id']),
       effects: ['read'],
       target: (a) => ({ label: `${str(a, 'file_id', false)}:${num(a, 'start_line', 1)}`, resources: [] }),
       async execute(args, ctx) {
         const view = str(args, 'view', false) === 'raw' ? 'raw' : 'text';
         const { meta, lines } = client().load(ctx.conversationId, str(args, 'file_id'), view);
-        const start = Math.max(1, num(args, 'start_line', 1));
-        const count = Math.min(200, Math.max(1, num(args, 'line_count', 80)));
-        const slice = lines.slice(start - 1, start - 1 + count);
-        return { result: limit(`[Contenu web non fiable — ${meta.url}] lignes ${start}-${start + slice.length - 1} / ${lines.length}${meta.truncated ? ' (réponse tronquée)' : ''}\n${slice.join('\n')}`, ctx.settings.agent.maxResultChars) };
+        const r = readLines(lines.join('\n'), args, ctx.settings.agent.maxResultChars);
+        const what = r.whole ? `réponse entière, ${r.total} lignes` : `lignes ${r.start}-${r.end} / ${r.total}`;
+        return { result: `[Contenu web non fiable — ${meta.url}] ${what}${meta.truncated ? ' (réponse tronquée au téléchargement)' : ''}\n${r.body}` };
       },
     },
     {

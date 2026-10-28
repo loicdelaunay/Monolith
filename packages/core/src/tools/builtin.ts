@@ -3,7 +3,7 @@ import { arch, hostname, platform, release } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { ActionProposal, FileChange, PlanItem, Question, QuestionAnswer, ToolDisplay } from '@monolith/contracts';
 import type { ToolContext, ToolDefinition, ToolResult } from './types.ts';
-import { bool, limit, num, str } from './types.ts';
+import { bool, limit, LINE_RANGE, num, readLines, str } from './types.ts';
 import { applyChanges, currentContent, isBinary, readText, replaceInText, walk } from './files.ts';
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false });
@@ -114,20 +114,19 @@ const sourcesTools: ToolDefinition[] = [
     name: 'read_file',
     family: 'sources',
     skill: 'sources',
-    description: 'Lit un fichier texte, éventuellement une plage de lignes (numérotées à partir de 1).',
-    parameters: obj({ path: { type: 'string' }, start_line: { type: 'number' }, end_line: { type: 'number' } }, ['path']),
+    description: 'Lit un fichier texte : en entier (sans start_line ni end_line) ou des lignes start_line à end_line (numérotées à partir de 1, incluses).',
+    parameters: obj({ path: { type: 'string' }, ...LINE_RANGE }, ['path']),
     effects: ['read'],
     target: (a, ctx) => pathTarget(a, ctx),
     async execute(args, ctx) {
       const full = ctx.scope.resolve(args.path);
-      const lines = readText(full).split(/\r?\n/);
-      const start = Math.max(1, Math.floor(num(args, 'start_line', 1)));
-      const end = Math.min(lines.length, Math.floor(num(args, 'end_line', Math.min(lines.length, start + 1999))));
-      const slice = lines.slice(start - 1, end);
-      const numbered = slice.map((l, i) => `${String(start + i).padStart(5)}| ${l}`).join('\n');
+      const text = readText(full);
+      const r = readLines(text, args, ctx.settings.agent.maxResultChars, { numbered: true });
+      const content = text.split(/\r?\n/).slice(r.start - 1, r.end).join('\n');
+      const what = r.whole ? `fichier entier, ${r.total} lignes` : `lignes ${r.start}-${r.end} sur ${r.total}`;
       return {
-        display: { kind: 'file', path: ctx.scope.display(full), startLine: start, endLine: end, totalLines: lines.length, content: slice.join('\n') },
-        result: limit(`${ctx.scope.display(full)} (lignes ${start}-${end} sur ${lines.length}) :\n${numbered}`, ctx.settings.agent.maxResultChars),
+        display: { kind: 'file', path: ctx.scope.display(full), startLine: r.start, endLine: r.end, totalLines: r.total, content },
+        result: `${ctx.scope.display(full)} (${what}) :\n${r.body}`,
       };
     },
   },

@@ -86,6 +86,38 @@ export function bool(args: Record<string, unknown>, key: string, fallback = fals
 }
 
 /** Tronque un résultat en le signalant explicitement au modèle. */
+/** Paramètres de lecture : sans plage, contenu entier ; avec plage, lignes start_line à end_line (incluses). */
+export const LINE_RANGE = {
+  start_line: { type: 'number', description: 'Première ligne lue (à partir de 1). Sans start_line ni end_line : contenu entier.' },
+  end_line: { type: 'number', description: 'Dernière ligne lue (incluse). Sans end_line : jusqu’à la fin.' },
+};
+
+/**
+ * Lecture « contenu entier » ou « lignes X à Y ». Si le résultat dépasse la taille maximale, il est
+ * coupé en fin de ligne et la note indique exactement la plage à relire (jamais de coupe silencieuse).
+ */
+export function readLines(text: string, args: Record<string, unknown>, max: number, opts: { numbered?: boolean } = {}): { body: string; start: number; end: number; total: number; whole: boolean; next: { start: number; end: number } | null } {
+  const lines = text.split(/\r?\n/);
+  const total = lines.length;
+  const hasStart = typeof args.start_line === 'number' && Number.isFinite(args.start_line);
+  const hasEnd = typeof args.end_line === 'number' && Number.isFinite(args.end_line);
+  const start = Math.min(Math.max(1, hasStart ? Math.floor(args.start_line as number) : 1), Math.max(1, total));
+  const end = Math.max(start, Math.min(total, hasEnd ? Math.floor(args.end_line as number) : total));
+  const out: string[] = [];
+  let size = 0;
+  let last = start - 1;
+  for (let n = start; n <= end; n++) {
+    const line = opts.numbered ? `${String(n).padStart(5)}| ${lines[n - 1]}` : lines[n - 1]!;
+    if (size + line.length + 1 > max && out.length) break;
+    out.push(line);
+    size += line.length + 1;
+    last = n;
+  }
+  const next = last < end ? { start: last + 1, end } : null;
+  const body = next ? `${out.join('\n')}\n\n[… lignes ${next.start} à ${next.end} non transmises (taille maximale d’un résultat) : relisez avec start_line=${next.start} end_line=${next.end}]` : out.join('\n');
+  return { body, start, end: last, total, whole: !hasStart && !hasEnd && !next, next };
+}
+
 export function limit(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max)}\n\n[… résultat tronqué : ${text.length - max} caractères supplémentaires non transmis]`;

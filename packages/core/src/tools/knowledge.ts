@@ -5,7 +5,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import type { CustomSkill, Settings } from '@monolith/contracts';
 import type { RagService } from '../services/rag.ts';
 import type { ToolContext, ToolDefinition } from './types.ts';
-import { limit, num, str } from './types.ts';
+import { limit, LINE_RANGE, num, readLines, str } from './types.ts';
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false });
 
@@ -140,8 +140,8 @@ export function skillTools(globalDir: string): ToolDefinition[] {
       name: 'read_skill_resource',
       family: 'skills',
       skill: 'custom_skills',
-      description: 'Lit un fichier de ressource d’un skill personnalisé (chemin relatif au dossier du skill).',
-      parameters: obj({ name: { type: 'string' }, path: { type: 'string' } }, ['name', 'path']),
+      description: 'Lit un fichier de ressource d’un skill personnalisé (chemin relatif au dossier du skill) : en entier ou les lignes start_line à end_line.',
+      parameters: obj({ name: { type: 'string' }, path: { type: 'string' }, ...LINE_RANGE }, ['name', 'path']),
       effects: ['read'],
       target: (a) => ({ label: `${str(a, 'name', false)}/${str(a, 'path', false)}`, resources: [] }),
       async execute(args, ctx) {
@@ -150,7 +150,7 @@ export function skillTools(globalDir: string): ToolDefinition[] {
         if (!full.startsWith(resolve(s.path) + sep)) throw new Error('Chemin hors du dossier du skill.');
         const buf = readFileSync(full);
         if (buf.includes(0)) throw new Error('Fichier binaire : lecture refusée.');
-        return { result: limit(buf.toString('utf8'), ctx.settings.agent.maxResultChars) };
+        return { result: readLines(buf.toString('utf8'), args, ctx.settings.agent.maxResultChars).body };
       },
     },
     {
