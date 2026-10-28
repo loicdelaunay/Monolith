@@ -1,6 +1,6 @@
 # Release : déclenchée par un tag de version (v*) poussé à la demande du mainteneur, ou
 # manuellement (workflow_dispatch, release en BROUILLON uniquement si `draft_release` est coché).
-# Produit les paquets Windows/Linux, le bundle CLI, les licences et SHA256SUMS.txt.
+# Produit le paquet Windows, le bundle CLI, les licences et SHA256SUMS.txt.
 # Une préversion (3.0.0-alpha.N…) est publiée comme pre-release ; les notes viennent du CHANGELOG.
 name: Release
 on:
@@ -25,10 +25,8 @@ jobs:
           - os: windows-latest
             target: dist:win
             optional: false
-          - os: ubuntu-latest
-            target: dist:linux
-            # Paquets Linux pas encore vérifiés : un échec ne bloque pas la release Windows.
-            optional: true
+          # Linux : pas publié pour le moment. Pour le réactiver, ajouter
+          # { os: ubuntu-latest, target: dist:linux, optional: true } (vérifié par le job package-linux de la CI).
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional }}
     steps:

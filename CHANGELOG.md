@@ -2,6 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.17 — 2026-10-28
+
+- Release Windows uniquement (archive portable, installateur) et CLI : les paquets Linux ne sont pas publiés pour le moment.
+- Paquet desktop : page d'accueil et dépôt renseignés (requis pour les paquets Linux, désormais construits sans erreur en CI).
+
 ## 3.0.0-alpha.16 — 2026-10-28
 
 Première version publiée de la v3 (réécriture complète en TypeScript) ; l'ensemble des nouveautés depuis 3.0.0-alpha.1 est décrit dans les sections suivantes du [CHANGELOG](https://github.com/loicdelaunay/Monolith/blob/main/CHANGELOG.md).
