@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
-interface UpdateJob {
+export interface UpdateJob {
   script: string;
   zip: string;
   sha256: string;
@@ -26,14 +26,14 @@ export async function installUpdate(params: Record<string, unknown>, exeDir: str
     pending = job;
     return { scheduled: true };
   }
-  launch(job, exeDir, true);
+  launchInstaller(job, exeDir, true);
   setTimeout(quit, 300);
   return { scheduled: true };
 }
 
 /** À la fermeture : installe la mise à jour programmée, sans relancer. */
 export function runPendingUpdate(exeDir: string | null): void {
-  if (pending && exeDir) launch(pending, exeDir, false);
+  if (pending && exeDir) launchInstaller(pending, exeDir, false);
   pending = null;
 }
 
@@ -53,13 +53,24 @@ function validate(p: Record<string, unknown>): UpdateJob {
   return job;
 }
 
-function launch(job: UpdateJob, exeDir: string, relaunch: boolean): void {
-  const powershell = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', job.script, '-WaitPid', String(process.pid), '-Zip', job.zip, '-Sha256', job.sha256, '-Target', exeDir, '-Exe', basename(process.execPath), '-Version', job.version];
+/** Arguments de l'installateur, sûrs entre guillemets pour cmd.exe (ni guillemet ni %). */
+export function installerCommand(job: UpdateJob, exeDir: string, exe: string, pid: number, relaunch: boolean, systemRoot = 'C:\\Windows'): string {
+  const powershell = join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const args = [powershell, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', job.script, '-WaitPid', String(pid), '-Zip', job.zip, '-Sha256', job.sha256, '-Target', exeDir, '-Exe', exe, '-Version', job.version];
   if (relaunch) args.push('-Relaunch');
+  if (args.some((a) => /["%\r\n]/.test(a))) throw new Error('Dossier de Monolith non pris en charge pour la mise à jour automatique (caractère " ou % dans le chemin).');
+  return `start "" /min ${args.map((a) => `"${a}"`).join(' ')}`;
+}
+
+export function launchInstaller(job: UpdateJob, exeDir: string, relaunch: boolean): void {
+  const systemRoot = process.env.SystemRoot ?? 'C:\\Windows';
+  const command = installerCommand(job, exeDir, basename(process.execPath), process.pid, relaunch, systemRoot);
   // PSModulePath hérité de PowerShell 7 : il masquerait les modules de Windows PowerShell 5.1.
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toLowerCase() !== 'psmodulepath'));
-  spawn(powershell, args, { detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+  // Ni enfant direct (Node le rattache à l'application, qui le termine en se fermant) ni PowerShell
+  // détaché (sans console, il quitte sans exécuter le script) : cmd détaché le démarre via `start`,
+  // avec sa propre console masquée, hors de l'application.
+  spawn(join(systemRoot, 'System32', 'cmd.exe'), ['/d', '/s', '/c', `"${command}"`], { detached: true, stdio: 'ignore', windowsHide: true, env, windowsVerbatimArguments: true }).unref();
 }
 
 function sha256(file: string): Promise<string> {
