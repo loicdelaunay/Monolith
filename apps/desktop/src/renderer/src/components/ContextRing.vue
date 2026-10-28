@@ -5,6 +5,7 @@ import type { ContextUsage } from '@monolith/contracts';
 import { formatTokens } from '../lib/format.ts';
 
 const props = defineProps<{ usage: ContextUsage }>();
+defineEmits<{ open: [] }>();
 const { t } = useI18n();
 
 const R = 8;
@@ -21,7 +22,7 @@ const label = computed(() =>
 
 <template>
   <span class="ctx">
-    <button type="button" class="ring" :class="level" :aria-label="label" aria-describedby="mh-ctx-card">
+    <button type="button" class="ring" :class="level" :aria-label="label" aria-describedby="mh-ctx-card" @click="$emit('open')">
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
         <circle class="track" cx="11" cy="11" :r="R" />
         <circle v-if="ratio !== null" class="bar" cx="11" cy="11" :r="R" :stroke-dasharray="`${Math.max(ratio * CIRC, ratio > 0 ? 1.2 : 0)} ${CIRC}`" transform="rotate(-90 11 11)" />
@@ -53,6 +54,7 @@ const label = computed(() =>
         </template>
       </dl>
       <p class="src">{{ usage.source === 'estimate' ? t('chat.estimatedHint') : t('composer.context.sourceApi') }}</p>
+      <p class="src">{{ t('aiInfo.clickHint') }}</p>
     </div>
   </span>
 </template>
@@ -71,7 +73,7 @@ const label = computed(() =>
   border: 0;
   border-radius: 50%;
   background: transparent;
-  cursor: default;
+  cursor: pointer;
 }
 .ring:hover {
   background: var(--mh-hover);

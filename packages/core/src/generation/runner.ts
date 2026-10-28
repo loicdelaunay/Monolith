@@ -4,6 +4,8 @@ import {
   type AttachmentRef,
   type Compaction,
   type ContextUsage,
+  type ContextDetail,
+  type ContextPart,
   type Conversation,
   type GenerationSnapshot,
   type GenerationState,
@@ -1202,7 +1204,8 @@ export class GenerationRunner {
   /** Tokens de la prochaine requête : dernier compteur API + estimation de la suite, ou estimation complète. */
   private measure(ctx: JobContext, excludeMessageId: Id | null): { tokens: number; source: 'api' | 'estimate' } {
     const { request } = this.buildRequest(ctx, excludeMessageId);
-    const estimate = estimateRequestTokens(request.messages);
+    // Les définitions d'outils font partie de chaque requête (le compteur API les inclut déjà).
+    const estimate = estimateRequestTokens(request.messages) + (request.tools?.length ? estimateTokens(JSON.stringify(request.tools)) : 0);
     const list = this.deps.messages.list(ctx.conversation.id).filter((m) => m.id !== excludeMessageId);
     const latest = this.deps.compactions.latest(ctx.conversation.id);
     const lastApi = [...list].reverse().find((m) => m.role === 'assistant' && m.usage && !m.usage.estimated && m.usage.inputTokens !== null && (!latest || m.seq > latest.upToSeq));
@@ -1210,6 +1213,68 @@ export class GenerationRunner {
     const after = list.filter((m) => m.seq > lastApi.seq);
     const tail = estimateRequestTokens(buildHistory(after, { attachments: { text: () => '', dataUrl: () => '' }, vision: null }).messages);
     return { tokens: Math.max(estimate, (lastApi.usage!.inputTokens ?? 0) + (lastApi.usage!.outputTokens ?? 0) + tail), source: 'api' };
+  }
+
+  /** AI Info : postes du contexte de la prochaine requête (estimations), à côté du compteur d'utilisation. */
+  async contextDetail(conversationId: Id): Promise<ContextDetail> {
+    const usage = await this.contextUsage(conversationId);
+    let ctx: JobContext;
+    try {
+      ctx = await this.prepare(conversationId);
+    } catch {
+      return { usage, parts: [], estimated: 0, provider: null, model: null, reasoningLevel: null };
+    }
+    const active = this.active.get(conversationId);
+    const { request } = this.buildRequest(ctx, active?.state.messageId ?? null);
+    const conversation = this.deps.conversations.get(conversationId);
+    const tok = (s: string | null | undefined) => (s && s.trim() ? estimateTokens(s) : 0);
+    const system = typeof request.messages[0]?.content === 'string' ? request.messages[0].content : '';
+    const instructions = tok(ctx.settings.chat.customInstructions);
+    const project = tok(ctx.project?.instructions);
+    const goal = tok(conversation.goal);
+    const summary = tok(this.deps.compactions.latest(conversationId)?.summary);
+    const agent = ctx.instructionFiles.reduce((n, f) => n + tok(f.content), 0);
+    const tools = request.tools?.length ? estimateTokens(JSON.stringify(request.tools)) : 0;
+    let user = 0, assistant = 0, toolResults = 0, images = 0, userCount = 0, assistantCount = 0, toolCount = 0;
+    for (const m of request.messages.slice(1)) {
+      const parts = typeof m.content === 'string' ? [{ type: 'text' as const, text: m.content }] : m.content;
+      let n = 0;
+      for (const p of parts) {
+        if (p.type === 'text') n += estimateTokens(p.text);
+        else images++;
+      }
+      for (const c of m.toolCalls ?? []) n += estimateTokens(c.name + c.arguments) + 8;
+      if (m.role === 'tool') (toolResults += n), toolCount++;
+      else if (m.role === 'assistant') (assistant += n), assistantCount++;
+      else (user += n), userCount++;
+    }
+    // Pièces jointes (hors images) : comptées à part, retirées des messages de l'utilisateur.
+    const refs = [...(ctx.project?.attachments ?? []), ...this.deps.messages.list(conversationId).flatMap((m) => m.parts.flatMap((p) => (p.type === 'attachment' && p.attachment.kind !== 'image' ? [p.attachment] : [])))];
+    let attachments = 0;
+    for (const r of refs) {
+      try {
+        attachments += estimateTokens(this.deps.attachments.promptText(r.id));
+      } catch {
+        /* contenu supprimé */
+      }
+    }
+    attachments = Math.min(attachments, user);
+    user -= attachments;
+    const parts: ContextPart[] = [
+      { key: 'system', tokens: Math.max(0, tok(system) - instructions - project - goal - summary - agent), count: null },
+      { key: 'instructions', tokens: instructions, count: null },
+      { key: 'project', tokens: project, count: null },
+      { key: 'goal', tokens: goal, count: null },
+      { key: 'agent', tokens: agent, count: ctx.instructionFiles.length || null },
+      { key: 'summary', tokens: summary, count: null },
+      { key: 'tools', tokens: tools, count: request.tools?.length ?? 0 },
+      { key: 'user', tokens: user, count: userCount },
+      { key: 'attachments', tokens: attachments, count: refs.length },
+      { key: 'assistant', tokens: assistant, count: assistantCount },
+      { key: 'toolResults', tokens: toolResults, count: toolCount },
+      { key: 'images', tokens: images * 1000, count: images },
+    ];
+    return { usage, parts, estimated: parts.reduce((n, p) => n + p.tokens, 0), provider: ctx.provider.name, model: ctx.snapshot.model, reasoningLevel: ctx.snapshot.reasoningLevel };
   }
 
   async contextUsage(conversationId: Id): Promise<ContextUsage> {

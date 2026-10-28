@@ -396,6 +396,25 @@ export interface Compaction {
   createdAt: string;
 }
 
+/** Poste du contexte de la prochaine requête (estimation : ~4 caractères par token, 1000 par image). */
+export interface ContextPart {
+  key: 'system' | 'instructions' | 'project' | 'goal' | 'summary' | 'agent' | 'tools' | 'user' | 'assistant' | 'toolResults' | 'attachments' | 'images';
+  tokens: number;
+  /** Nombre d'éléments (outils, messages, pièces jointes, images). */
+  count: number | null;
+}
+
+/** AI Info : contexte de la prochaine requête détaillé par poste, modèle et niveau de réflexion. */
+export interface ContextDetail {
+  usage: ContextUsage;
+  parts: ContextPart[];
+  /** Total estimé de la requête (somme des postes). */
+  estimated: number;
+  provider: string | null;
+  model: string | null;
+  reasoningLevel: string | null;
+}
+
 export interface ContextUsage {
   conversationId: Id;
   /** Tokens d'entrée de la prochaine requête (dernier compteur API + estimation du reste, ou estimation complète). */

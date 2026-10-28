@@ -631,6 +631,7 @@ export class Harness {
       'conversations.exportMarkdown': (p) => this.history.exportMarkdown(p.id, p.includeReasoning === true),
       'conversations.compact': (p) => this.generation.compact(p.id),
       'conversations.contextUsage': (p) => this.generation.contextUsage(p.id),
+      'conversations.contextDetail': (p) => this.generation.contextDetail(p.id),
       'compactions.list': (p) => this.compactions.list(p.conversationId),
 
       'queue.list': (p) => this.queue.list(p.conversationId),

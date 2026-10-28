@@ -21,6 +21,7 @@ import type {
   AttachmentRef,
   Compaction,
   ContextUsage,
+  ContextDetail,
   MessageTemplate,
   QueuedInput,
   UsageRecord,
@@ -216,6 +217,7 @@ export interface HarnessApi {
   'conversations.exportMarkdown': { params: { id: Id; includeReasoning?: boolean }; result: { fileName: string; markdown: string } };
   'conversations.compact': { params: { id: Id }; result: Compaction };
   'conversations.contextUsage': { params: { id: Id }; result: ContextUsage };
+  'conversations.contextDetail': { params: { id: Id }; result: ContextDetail };
   'compactions.list': { params: { conversationId: Id }; result: Compaction[] };
 
   'queue.list': { params: { conversationId: Id }; result: QueuedInput[] };

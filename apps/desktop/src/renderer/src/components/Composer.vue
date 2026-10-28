@@ -282,6 +282,11 @@ watch(
 onBeforeUnmount(() => clearInterval(speedTimer));
 const speed = computed(() => (generating.value ? liveSpeed.value : lastSpeed.value));
 
+/** AI Info : panneau de travail ouvert sur le détail du contexte et des vitesses. */
+function openAiInfo() {
+  void api.call('settings.update', { layout: { panelOpen: true, panelTab: 'ai' } });
+}
+
 // ---------- Menu « + » : pièces jointes et modèles de messages ----------
 const plusMenu = ref<InstanceType<typeof Menu> | null>(null);
 const plusBtn = ref<HTMLElement | null>(null);
@@ -341,10 +346,10 @@ defineExpose({ focus: () => textarea.value?.focus() });
         </div>
         <div class="right">
           <span class="meta">
-            <span v-if="showSpeed && speed" class="stat" v-tooltip.top="generating ? t('chat.speedLive') : t('chat.speedLast')">
+            <button v-if="showSpeed && speed" type="button" class="stat" v-tooltip.top="`${generating ? t('chat.speedLive') : t('chat.speedLast')} — ${t('aiInfo.open')}`" @click="openAiInfo">
               <i class="pi pi-gauge" />{{ t('chat.throughput', { value: speed.toFixed(speed < 10 ? 1 : 0) }) }}
-            </span>
-            <ContextRing v-if="showContext && context" :usage="context" />
+            </button>
+            <ContextRing v-if="showContext && context" :usage="context" @open="openAiInfo" />
             <ModelPicker :conversation="conversation" />
           </span>
           <template v-if="generating">
@@ -502,6 +507,18 @@ defineExpose({ focus: () => textarea.value?.focus() });
 .send.stop {
   background: var(--mh-text);
   color: var(--mh-bg);
+}
+button.stat {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.stat:hover {
+  background: var(--mh-hover);
 }
 .stat {
   display: inline-flex;

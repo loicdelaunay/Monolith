@@ -9,8 +9,9 @@ import GitTab from './GitTab.vue';
 import BrowserTab from './BrowserTab.vue';
 import PreviewTab from './PreviewTab.vue';
 import AssetsView from '../studio/AssetsView.vue';
+import AiInfoTab from './AiInfoTab.vue';
 
-export type PanelTab = 'files' | 'terminal' | 'git' | 'browser' | 'preview' | 'assets';
+export type PanelTab = 'files' | 'terminal' | 'git' | 'browser' | 'preview' | 'assets' | 'ai';
 const TABS: { id: PanelTab; icon: string }[] = [
   { id: 'files', icon: 'pi-folder' },
   { id: 'terminal', icon: 'pi-code' },
@@ -18,6 +19,7 @@ const TABS: { id: PanelTab; icon: string }[] = [
   { id: 'browser', icon: 'pi-globe' },
   { id: 'preview', icon: 'pi-eye' },
   { id: 'assets', icon: 'pi-palette' },
+  { id: 'ai', icon: 'pi-microchip-ai' },
 ];
 
 const { t } = useI18n();
@@ -58,7 +60,7 @@ function resizeKey(e: KeyboardEvent) {
     <div v-if="!layout.panelMaximized" class="resizer" role="separator" aria-orientation="vertical" tabindex="0" :aria-label="t('panel.resize')" :aria-valuenow="width" aria-valuemin="320" aria-valuemax="1400" @pointerdown="startResize" @keydown="resizeKey" />
     <header class="head">
       <div class="tabs" role="tablist">
-        <button v-for="x in TABS" :key="x.id" type="button" role="tab" class="tab" :class="{ active: tab === x.id }" :aria-selected="tab === x.id" @click="select(x.id)">
+        <button v-for="x in TABS" :key="x.id" type="button" role="tab" class="tab" :class="{ active: tab === x.id }" :aria-selected="tab === x.id" :title="t(`panel.tabs.${x.id}`)" @click="select(x.id)">
           <i class="pi" :class="x.icon" /> <span>{{ t(`panel.tabs.${x.id}`) }}</span>
         </button>
       </div>
@@ -75,6 +77,7 @@ function resizeKey(e: KeyboardEvent) {
         <TerminalTab v-else-if="tab === 'terminal' && conversation" :key="`t${conversation.id}`" :conversation-id="conversation.id" />
         <GitTab v-else-if="tab === 'git' && conversation" :key="`g${conversation.id}`" :conversation-id="conversation.id" />
         <PreviewTab v-else-if="tab === 'preview' && conversation" :conversation-id="conversation.id" @open-browser="select('browser')" />
+        <AiInfoTab v-else-if="tab === 'ai' && conversation" :key="`a${conversation.id}`" :conversation-id="conversation.id" />
       </template>
       <!-- Le navigateur reste monté : ses onglets survivent aux changements d'onglet du panneau. -->
       <BrowserTab v-show="tab === 'browser'" :visible="tab === 'browser'" :conversation-id="conversation?.id ?? null" />
@@ -121,6 +124,16 @@ function resizeKey(e: KeyboardEvent) {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+/* Panneau étroit : icônes seules, sauf l'onglet actif (tous les onglets restent visibles). */
+.head {
+  container-type: inline-size;
+}
+@container (max-width: 720px) {
+  .tab:not(.active) span {
+    display: none;
+  }
 }
 .tab {
   display: inline-flex;

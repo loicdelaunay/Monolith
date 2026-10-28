@@ -4,6 +4,7 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 ## Non publié
 
+- **AI Info** (panneau de travail, ouvert d'un clic sur l'anneau de contexte ou la vitesse) : modèle et réflexion, contexte de la prochaine requête détaillé par poste (instructions, outils, messages, pièces jointes, résultats d'outils, images…), vitesses minimum / moyenne / maximum / dernière, premier token et tokens consommés de la conversation. L'estimation du contexte compte désormais les définitions d'outils. Panneau étroit : onglets en icônes, sauf l'onglet actif.
 - **Lecture de fichiers et de données** : en entier ou des lignes X à Y (start_line, end_line), pour read_file, les réponses web enregistrées, le texte des pages du navigateur et les ressources de skills. Plus de limite cachée de 2000 lignes ; un résultat trop long est coupé en fin de ligne avec la plage exacte à relire.
 - **Zoom sur les diagrammes Mermaid** : bouton loupe ou double-clic pour ouvrir le diagramme en plein écran ; zoom à la molette (centré sur le curseur) ou avec + / −, déplacement en glissant, 0 ou double-clic pour ajuster à la fenêtre, Échap pour fermer.
 - **Bloc réflexion et outils** : hauteur limitée, l'en-tête reste à portée ; le défilement interne suit les nouvelles étapes comme le chat (suspendu dès que vous remontez, repris en revenant en bas). L'en-tête peut afficher la dernière étape (outil et sa cible, ou dernier titre de la réflexion) à la place du seul « Réflexion » : réglage dans Réglages › Chat, activé par défaut.
