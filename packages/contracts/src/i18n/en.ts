@@ -966,6 +966,7 @@ export const en: Messages = {
       reasoningDisplay: 'Reasoning display',
       reasoningDisplays: { none: 'None (“Reasoning…” status)', collapsed: 'Collapsed by default', expanded: 'Expanded by default' },
       reasoningDisplayHint: 'Display only; the requested reasoning level is chosen in the chat.',
+      activityLastStep: 'Show the last step (reasoning or tool) in the collapsed block header',
       showThroughput: 'Show throughput (tokens/s)',
       showContextUsage: 'Show context usage',
       codeLineNumbers: 'Line numbers in code blocks',

@@ -41,6 +41,8 @@ export interface Settings {
     responseStyle: ResponseStyle;
     reasoningDisplay: ReasoningDisplay;
     showThroughput: boolean;
+    /** En-tête du bloc réflexion et outils : dernière étape (réflexion ou outil) au lieu du seul résumé. */
+    activityLastStep: boolean;
     showContextUsage: boolean;
     codeLineNumbers: boolean;
     /** Instructions système globales ajoutées avant celles du projet. */
@@ -259,6 +261,7 @@ export const DEFAULT_SETTINGS: Settings = {
     responseStyle: 'default',
     reasoningDisplay: 'collapsed',
     showThroughput: true,
+    activityLastStep: true,
     showContextUsage: true,
     codeLineNumbers: true,
     customInstructions: '',

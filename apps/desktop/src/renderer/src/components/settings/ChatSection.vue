@@ -72,6 +72,10 @@ function setProvider(id: number | null) {
       <label :for="`rd-${d}`">{{ t(`settings.chat.reasoningDisplays.${d}`) }}</label>
     </div>
     <p class="mh-hint">{{ t('settings.chat.reasoningDisplayHint') }}</p>
+    <div class="mh-switch-row">
+      <label for="activity-step">{{ t('settings.chat.activityLastStep') }}</label>
+      <ToggleSwitch input-id="activity-step" v-model="draft.chat.activityLastStep" />
+    </div>
   </fieldset>
 
   <div class="mh-switch-row">

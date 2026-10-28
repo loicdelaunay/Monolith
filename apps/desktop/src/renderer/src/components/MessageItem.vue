@@ -9,6 +9,7 @@ import MarkdownView from './MarkdownView.vue';
 import AttachmentChip from './AttachmentChip.vue';
 import ToolCallBubble from './tools/ToolCallBubble.vue';
 import PlanHistory from './PlanHistory.vue';
+import ActivityBody from './ActivityBody.vue';
 
 const props = defineProps<{ message: Message; busy?: boolean }>();
 const emit = defineEmits<{ resume: []; fork: [] }>();
@@ -103,11 +104,25 @@ const segments = computed<Segment[]>(() => {
 });
 const activityLabel = (s: Extract<Segment, { kind: 'activity' }>) =>
   [s.reasoning ? t('chat.reasoningBlock') : null, s.tools.length ? t('chat.toolCount', { n: s.tools.length }) : null].filter(Boolean).join(' · ');
+const toolName = (c: ToolPart['call']) => (te(`tools.names.${c.name}`) ? t(`tools.names.${c.name}`) : c.name);
 /** Pendant la génération : outil en cours, affiché dans l'en-tête du bloc replié. */
 const activityNow = (s: Extract<Segment, { kind: 'activity' }>) => {
   const running = s.tools.findLast((c) => c.status === 'running' || c.status === 'pending');
-  return running ? (te(`tools.names.${running.name}`) ? t(`tools.names.${running.name}`) : running.name) : null;
+  return running ? toolName(running) : null;
 };
+/** Dernière étape du bloc : outil (nom et cible) ou fin de la réflexion (dernier titre en gras, sinon dernière ligne). */
+const showLastStep = computed(() => store.settings?.chat.activityLastStep ?? true);
+function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
+  const item = s.items.at(-1);
+  if (!item) return null;
+  if (item.part.type === 'tool') return [toolName(item.part.call), item.part.call.target].filter(Boolean).join(' · ');
+  if (item.part.type !== 'reasoning') return null;
+  const text = item.part.text.trim();
+  const heading = [...text.matchAll(/\*\*([^*\n]{3,120})\*\*/g)].at(-1)?.[1];
+  const line = heading ?? text.split(/\n+/).filter((l) => l.trim()).at(-1) ?? '';
+  const clean = line.replace(/[*_`#>]/g, '').trim();
+  return clean ? (clean.length > 140 ? `${clean.slice(0, 140)}…` : clean) : null;
+}
 </script>
 
 <template>
@@ -136,16 +151,22 @@ const activityNow = (s: Extract<Segment, { kind: 'activity' }>) => {
           <details v-if="seg.kind === 'activity'" class="reasoning activity" :open="display === 'expanded'">
             <summary>
               <i class="pi" :class="seg.reasoning ? 'pi-sparkles' : 'pi-wrench'" />
-              <span>{{ activityLabel(seg) }}</span>
-              <span v-if="streaming && activityNow(seg)" class="now">— {{ activityNow(seg) }}</span>
+              <template v-if="showLastStep && lastStep(seg)">
+                <span class="now step">{{ lastStep(seg) }}</span>
+                <span class="count">{{ activityLabel(seg) }}</span>
+              </template>
+              <template v-else>
+                <span>{{ activityLabel(seg) }}</span>
+                <span v-if="streaming && activityNow(seg)" class="now">— {{ activityNow(seg) }}</span>
+              </template>
               <ProgressSpinner v-if="streaming && seg === segments.at(-1)" class="tiny" stroke-width="6" />
             </summary>
-            <div class="activity-body">
+            <ActivityBody>
               <template v-for="item in seg.items" :key="item.index">
                 <div v-if="item.part.type === 'reasoning'" class="reasoning-text">{{ item.part.text }}</div>
                 <ToolCallBubble v-else-if="item.part.type === 'tool'" :call="item.part.call" :conversation-id="message.conversationId" :message-id="message.id" />
               </template>
-            </div>
+            </ActivityBody>
           </details>
           <MarkdownView v-else-if="seg.part.type === 'text'" :text="seg.part.text" :conversation-id="message.conversationId" />
           <PlanHistory v-else-if="seg.part.type === 'tool' && seg.part.call.id === finishedPlan?.id" :items="finishedPlan.items" />
@@ -309,14 +330,19 @@ const activityNow = (s: Extract<Segment, { kind: 'activity' }>) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.activity-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px 10px 10px;
+.activity .step {
+  color: var(--mh-text);
+  opacity: 0.85;
+}
+.activity .count {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
 }
 .activity-body .reasoning-text {
   padding: 2px 4px;
+  max-height: none;
+  overflow: visible;
 }
 .reasoning-text {
   padding: 10px 14px;

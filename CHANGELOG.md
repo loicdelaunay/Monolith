@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Bloc réflexion et outils** : hauteur limitée, l'en-tête reste à portée ; le défilement interne suit les nouvelles étapes comme le chat (suspendu dès que vous remontez, repris en revenant en bas). L'en-tête peut afficher la dernière étape (outil et sa cible, ou dernier titre de la réflexion) à la place du seul « Réflexion » : réglage dans Réglages › Chat, activé par défaut.
+
 ## 3.0.0-alpha.22 — 2026-10-28
 
 - **Diagrammes Mermaid** : de nouveau affichés comme diagrammes dans le chat (Mermaid 12 utilisait par défaut une disposition non incluse ; la disposition standard est imposée).

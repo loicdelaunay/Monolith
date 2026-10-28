@@ -964,6 +964,7 @@ export const fr = {
       reasoningDisplay: 'Affichage de la réflexion',
       reasoningDisplays: { none: 'Aucun (statut « Raisonnement… »)', collapsed: 'Réduit (replié par défaut)', expanded: 'Détaillé (déplié par défaut)' },
       reasoningDisplayHint: 'Concerne uniquement l’affichage ; le niveau de réflexion demandé se choisit dans le chat.',
+      activityLastStep: 'Afficher la dernière étape (réflexion ou outil) dans l’en-tête du bloc replié',
       showThroughput: 'Afficher le débit (tokens/s)',
       showContextUsage: 'Afficher l’utilisation du contexte',
       codeLineNumbers: 'Numéros de ligne dans les blocs de code',
