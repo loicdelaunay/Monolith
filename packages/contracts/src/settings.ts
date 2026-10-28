@@ -34,6 +34,8 @@ export interface Settings {
     defaultProviderId: Id | null;
     defaultModel: string | null;
     defaultReasoningLevel: ReasoningLevel;
+    /** Mode d'une nouvelle conversation : Chat, ou Agent en Plan / Proposition / Exécution. */
+    defaultMode: 'chat' | AgentMode;
     responseStyle: ResponseStyle;
     reasoningDisplay: ReasoningDisplay;
     showThroughput: boolean;
@@ -250,6 +252,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultProviderId: null,
     defaultModel: null,
     defaultReasoningLevel: 'auto',
+    defaultMode: 'propose',
     responseStyle: 'default',
     reasoningDisplay: 'collapsed',
     showThroughput: true,

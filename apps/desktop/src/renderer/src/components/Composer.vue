@@ -7,9 +7,9 @@ import Popover from 'primevue/popover';
 import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
 import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage } from '@monolith/contracts';
-import { api, errorCode, errorMessage } from '../api.ts';
+import { api, errorCode, errorMessage, host } from '../api.ts';
 import { messagesOf, store } from '../stores/app.ts';
-import { uploadFiles, formatSize } from '../lib/attachments.ts';
+import { attachPaths, uploadFiles, formatSize } from '../lib/attachments.ts';
 import { chatActions } from '../lib/chat-actions.ts';
 import { throughput } from '../lib/format.ts';
 import ModelPicker from './ModelPicker.vue';
@@ -216,6 +216,15 @@ function onPick(e: Event) {
 function removeAttachment(id: number) {
   attachments.value = attachments.value.filter((a) => a.id !== id);
 }
+/** Dossier du poste : copié par le moteur (dépendances, .git et caches exclus). */
+async function attachFolder() {
+  if (attachments.value.length >= ATTACHMENT_LIMITS.perMessage) return toast.add({ severity: 'warn', summary: t('composer.tooMany', { max: ATTACHMENT_LIMITS.perMessage }), life: 5000 });
+  const path = await host.pickDirectory(t('composer.attachFolder'));
+  if (!path) return;
+  const { refs, errors } = await attachPaths([path]);
+  attachments.value = [...attachments.value, ...refs];
+  for (const err of errors) toast.add({ severity: 'error', summary: t('composer.attachmentRejected'), detail: err, life: 8000 });
+}
 
 // ---------- Modèles de messages ----------
 const templatesPop = ref<InstanceType<typeof Popover> | null>(null);
@@ -278,6 +287,7 @@ const plusMenu = ref<InstanceType<typeof Menu> | null>(null);
 const plusBtn = ref<HTMLElement | null>(null);
 const plusItems = computed(() => [
   { label: t('composer.attach'), icon: 'pi pi-paperclip', command: () => fileInput.value?.click() },
+  { label: t('composer.attachFolder'), icon: 'pi pi-folder', command: () => void attachFolder() },
   { label: t('templates.title'), icon: 'pi pi-bookmark', command: () => setTimeout(() => templatesPop.value?.show({ currentTarget: plusBtn.value } as unknown as Event, plusBtn.value ?? undefined), 0) },
 ]);
 
@@ -322,7 +332,7 @@ defineExpose({ focus: () => textarea.value?.focus() });
 
       <div class="toolbar">
         <div class="left">
-          <button ref="plusBtn" type="button" class="round-btn" :aria-label="t('composer.more')" aria-haspopup="menu" v-tooltip.top="t('composer.attachHint', { image: formatSize(ATTACHMENT_LIMITS.imageBytes), text: formatSize(ATTACHMENT_LIMITS.textBytes) })" @click="plusMenu?.toggle($event)">
+          <button ref="plusBtn" type="button" class="round-btn" :aria-label="t('composer.more')" aria-haspopup="menu" v-tooltip.top="t('composer.attachHint', { max: formatSize(ATTACHMENT_LIMITS.fileBytes), image: formatSize(ATTACHMENT_LIMITS.imageBytes) })" @click="plusMenu?.toggle($event)">
             <i class="pi pi-plus" />
           </button>
           <Menu ref="plusMenu" :model="plusItems" popup />

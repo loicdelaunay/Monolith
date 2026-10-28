@@ -94,7 +94,7 @@ export const fr = {
     attachments: 'Pièces jointes du projet',
     addAttachments: 'Ajouter des fichiers',
     noAttachments: 'Aucune pièce jointe. Glissez des fichiers ici ou utilisez le bouton.',
-    attachmentsHint: 'Transmises au modèle au début de chaque conversation du projet (texte UTF-8 et images ; {max} fichiers au plus). Elles comptent dans le contexte de chaque conversation.',
+    attachmentsHint: 'Fichiers et dossiers (copiés, {size} au plus chacun ; {max} pièces jointes au plus), transmis au modèle au début de chaque conversation du projet. Les gros fichiers et les dossiers sont résumés, et lisibles en entier par les outils en mode Agent.',
     tooManyAttachments: '{max} pièces jointes maximum par projet',
     addFolder: 'Ajouter un dossier',
     folderMissing: 'Introuvable ou illisible',
@@ -224,7 +224,8 @@ export const fr = {
   composer: {
     attach: 'Joindre des fichiers',
     more: 'Joindre des fichiers ou insérer un modèle de message',
-    attachHint: 'Images PNG, JPEG, WebP, GIF (≤ {image}) et fichiers texte UTF-8 (≤ {text}). Glisser-déposer et collage acceptés.',
+    attachHint: 'Fichiers et dossiers jusqu’à {max} (images envoyées au modèle jusqu’à {image}). Glisser-déposer et collage acceptés.',
+    attachFolder: 'Joindre un dossier',
     attachmentRejected: 'Pièce jointe refusée',
     removeAttachment: 'Retirer {name}',
     tooMany: '{max} pièces jointes maximum par message',
@@ -955,6 +956,8 @@ export const fr = {
       secrets: 'Protection des clés',
     },
     chat: {
+      defaultMode: 'Mode des nouvelles conversations',
+      defaultModeHint: 'Modifiable ensuite pour chaque conversation (réglages rapides, Ctrl+Maj+M).',
       responseStyle: 'Style de réponse',
       styles: { default: 'Par défaut', short: 'Court', pragmatic: 'Pragmatique', detailed: 'Détaillé', playful: 'Plus ludique' },
       reasoningDisplay: 'Affichage de la réflexion',

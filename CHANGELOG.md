@@ -2,6 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Pièces jointes : dossiers et fichiers jusqu’à 100 Mo**, dans le chat (« + › Joindre un dossier », glisser-déposer) et dans les projets. Un dossier est copié dans Monolith, sans dépendances, .git ni caches. Tous les types de fichiers sont acceptés : les images (jusqu’à 10 Mo) et le texte sont transmis au modèle (début du texte au-delà de 1 Mo ; arborescence et fichiers courts pour un dossier) ; le contenu complet est lisible par les outils en mode Agent, sans pouvoir être modifié.
+- **Mode des nouvelles conversations** : Agent · Proposition par défaut, réglable dans Réglages › Chat ; une icône à droite des réglages rapides rappelle le mode de la conversation.
+
 ## 3.0.0-alpha.20 — 2026-10-28
 
 - **Navigateur : Chrome du poste** (comme la v1) : Réglages › Skills › Navigateur permet de choisir entre le navigateur intégré et Chrome via Chrome DevTools MCP. Chrome démarre avec un profil dédié à Monolith, conservé dans le dossier de données ; un chemin vers Chrome peut être indiqué. Node.js et Google Chrome sont requis ; fonctionne aussi dans le CLI.

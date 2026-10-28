@@ -1,6 +1,6 @@
 // Preload (sandboxé) : seul pont entre l'interface et le reste de l'application.
 // Expose un port vers le moteur et quelques appels hôte nommés ; rien d'autre.
-import { contextBridge, ipcRenderer, webFrame } from 'electron';
+import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron';
 import type { HostApi, MonolithBridge } from '../shared/bridge.ts';
 
 let port: MessagePort | null = null;
@@ -28,6 +28,13 @@ const host: HostApi = {
   info: () => ipcRenderer.invoke('host:info'),
   pickDirectory: (title) => ipcRenderer.invoke('host:pickDirectory', title),
   pickFiles: (title) => ipcRenderer.invoke('host:pickFiles', title),
+  pathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
   openExternal: (url) => ipcRenderer.invoke('host:openExternal', url),
   showItemInFolder: (path) => ipcRenderer.invoke('host:showItemInFolder', path),
   openToolWindow: (tool, title) => ipcRenderer.invoke('host:openToolWindow', tool, title),

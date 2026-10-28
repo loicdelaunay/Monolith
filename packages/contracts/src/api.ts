@@ -226,6 +226,8 @@ export interface HarnessApi {
   'queue.sendNext': { params: { conversationId: Id }; result: SendResult };
 
   'attachments.upload': { params: { name: string; mime: string; dataBase64: string }; result: AttachmentRef };
+  /** Fichier ou dossier de ce poste choisi par l'utilisateur : copié dans les données de Monolith. */
+  'attachments.fromPath': { params: { path: string }; result: AttachmentRef };
   'attachments.read': { params: { id: Id }; result: { name: string; mime: string; dataBase64: string } };
 
   'templates.list': { params: void; result: MessageTemplate[] };

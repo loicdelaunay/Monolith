@@ -40,11 +40,14 @@ export class ResourceScope {
   readonly roots: string[];
   readonly files: string[];
   private readonly forbidden: string[];
+  /** Copies des pièces jointes (fichiers et dossiers) : lisibles, jamais modifiables. */
+  readonly readOnly: string[];
 
-  constructor(roots: string[], files: string[], forbidden: string[]) {
+  constructor(roots: string[], files: string[], forbidden: string[], readOnly: string[] = []) {
     this.roots = roots.map(canonical);
     this.files = files.map(canonical);
     this.forbidden = forbidden.map(canonical);
+    this.readOnly = readOnly.map(canonical);
   }
 
   get primary(): string | null {
@@ -61,6 +64,10 @@ export class ResourceScope {
     for (const f of this.forbidden) {
       if (isInside(f, full)) throw new HarnessError('permission_denied', `Chemin protégé par l’application : ${raw}`);
     }
+    if (this.readOnly.some((r) => isInside(r, full))) {
+      if (opts.write) throw new HarnessError('permission_denied', `Pièce jointe en lecture seule : ${raw}. Écrivez dans un dossier de la conversation.`);
+      return full;
+    }
     if (this.roots.some((r) => isInside(r, full))) return full;
     if (!opts.write && this.files.some((f) => norm(f) === norm(full))) return full;
     if (opts.write && this.files.some((f) => norm(f) === norm(full))) return full;
@@ -76,7 +83,7 @@ export class ResourceScope {
   }
 
   describe(): string {
-    const parts = [...this.roots, ...this.files];
+    const parts = [...this.roots, ...this.files, ...this.readOnly.map((r) => `${r} (pièce jointe, lecture seule)`)];
     return parts.length ? parts.join(', ') : 'aucune ressource';
   }
 }

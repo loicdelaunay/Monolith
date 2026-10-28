@@ -340,7 +340,8 @@ export interface SearchHit {
   messageId: Id | null;
 }
 
-export type AttachmentKind = 'image' | 'text';
+/** image : envoyée aux modèles avec vision ; text : texte UTF-8 ; file : autre fichier (lu par les outils) ; folder : dossier copié. */
+export type AttachmentKind = 'image' | 'text' | 'file' | 'folder';
 
 export interface AttachmentRef {
   id: Id;
@@ -352,8 +353,12 @@ export interface AttachmentRef {
 
 /** Limites explicites des pièces jointes (affichées dans l'interface). */
 export const ATTACHMENT_LIMITS = {
+  /** Image transmise telle quelle aux modèles avec vision (au-delà : fichier lu par les outils). */
   imageBytes: 10 * 1024 * 1024,
-  textBytes: 1024 * 1024,
+  /** Fichier ou dossier joint (copie dans les données de Monolith). */
+  fileBytes: 100 * 1024 * 1024,
+  /** Fichiers d'un dossier joint (dépendances, .git et caches exclus). */
+  folderFiles: 10_000,
   perMessage: 10,
   perProject: 20,
   imageMimes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],

@@ -15,6 +15,7 @@ const { t } = useI18n();
 
 const styles: ResponseStyle[] = ['default', 'short', 'pragmatic', 'detailed', 'playful'];
 const displays = ['none', 'collapsed', 'expanded'] as const;
+const modeOptions = computed(() => (['chat', 'plan', 'propose', 'execute'] as const).map((m) => ({ label: t(`modes.${m}`), value: m })));
 
 const providerOptions = computed(() => store.providers.map((p) => ({ label: p.name, value: p.id })));
 const namingModelOptions = computed(() => {
@@ -44,6 +45,12 @@ function setProvider(id: number | null) {
       <Select :model-value="draft.chat.defaultProviderId" :options="providerOptions" option-label="label" option-value="value" show-clear :placeholder="t('chat.chooseProvider')" :aria-label="t('chat.provider')" class="sel" @update:model-value="setProvider" />
       <Select v-model="draft.chat.defaultModel" :options="modelOptions" option-label="label" option-value="value" filter :placeholder="t('chat.chooseModel')" :aria-label="t('chat.model')" :disabled="!draft.chat.defaultProviderId" class="sel" />
     </div>
+  </div>
+
+  <div class="mh-field">
+    <label for="default-mode">{{ t('settings.chat.defaultMode') }}</label>
+    <Select input-id="default-mode" v-model="draft.chat.defaultMode" :options="modeOptions" option-label="label" option-value="value" class="sel" />
+    <p class="mh-hint">{{ t('settings.chat.defaultModeHint') }}</p>
   </div>
 
   <div class="mh-field">

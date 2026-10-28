@@ -96,7 +96,7 @@ export const en: Messages = {
     attachments: 'Project attachments',
     addAttachments: 'Add files',
     noAttachments: 'No attachments. Drop files here or use the button.',
-    attachmentsHint: 'Sent to the model at the start of every conversation in the project (UTF-8 text and images; up to {max} files). They count toward each conversation’s context.',
+    attachmentsHint: 'Files and folders (copied, up to {size} each; up to {max} attachments), sent to the model at the start of every conversation in the project. Large files and folders are summarized and fully readable by tools in Agent mode.',
     tooManyAttachments: '{max} attachments maximum per project',
     addFolder: 'Add a folder',
     folderMissing: 'Missing or unreadable',
@@ -226,7 +226,8 @@ export const en: Messages = {
   composer: {
     attach: 'Attach files',
     more: 'Attach files or insert a message template',
-    attachHint: 'PNG, JPEG, WebP, GIF images (≤ {image}) and UTF-8 text files (≤ {text}). Drag-and-drop and paste accepted.',
+    attachHint: 'Files and folders up to {max} (images sent to the model up to {image}). Drag-and-drop and paste accepted.',
+    attachFolder: 'Attach a folder',
     attachmentRejected: 'Attachment rejected',
     removeAttachment: 'Remove {name}',
     tooMany: '{max} attachments maximum per message',
@@ -957,6 +958,8 @@ export const en: Messages = {
       secrets: 'Key protection',
     },
     chat: {
+      defaultMode: 'Mode for new conversations',
+      defaultModeHint: 'Can then be changed for each conversation (quick settings, Ctrl+Shift+M).',
       responseStyle: 'Response style',
       styles: { default: 'Default', short: 'Short', pragmatic: 'Pragmatic', detailed: 'Detailed', playful: 'More playful' },
       reasoningDisplay: 'Reasoning display',

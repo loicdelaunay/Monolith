@@ -24,6 +24,7 @@ const MODES = [
   { key: 'execute', icon: 'pi-play' },
 ] as const;
 const mode = computed(() => (props.conversation.mode === 'chat' ? 'chat' : props.conversation.agentMode));
+const modeIcon = computed(() => MODES.find((m) => m.key === mode.value)?.icon ?? 'pi-comment');
 async function setMode(key: (typeof MODES)[number]['key']) {
   try {
     await api.call('conversations.update', { id: props.conversation.id, patch: key === 'chat' ? { mode: 'chat' } : { mode: 'agent', agentMode: key } });
@@ -91,6 +92,10 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
   <button type="button" class="round-btn" :class="{ risky: policy === 'allow_all' }" :aria-label="summary" aria-haspopup="dialog" v-tooltip.top="summary" @click="open">
     <i class="pi pi-sliders-h" />
     <span v-if="policy === 'allow_all'" class="badge" aria-hidden="true" />
+  </button>
+  <!-- Rappel du mode de la conversation (ouvre aussi les réglages rapides). -->
+  <button type="button" class="mode-chip" :class="mode" :aria-label="`${t('modes.label')} : ${t(`modes.${mode}`)}`" v-tooltip.top="`${t('modes.label')} : ${t(`modes.${mode}`)}`" @click="open">
+    <i class="pi" :class="modeIcon" />
   </button>
   <Popover ref="pop">
     <div class="qs" role="dialog" :aria-label="t('composer.quick.title')">
@@ -162,6 +167,29 @@ const summary = computed(() => `${t('composer.quick.title')} — ${t(`modes.${mo
 /* Autoriser tout : signalé en orange, comme dans la v1. */
 .round-btn.risky {
   color: var(--mh-warning);
+}
+.mode-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mh-text) 6%, transparent);
+  color: var(--mh-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mode-chip:hover {
+  background: var(--mh-hover);
+}
+.mode-chip.propose {
+  color: var(--mh-accent);
+}
+.mode-chip.execute {
+  color: var(--mh-success);
 }
 .badge {
   position: absolute;

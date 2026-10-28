@@ -92,6 +92,7 @@ export class SettingsService {
       if (section === 'web' && key === 'httpProxyUrl' && typeof value === 'string') v = checkProxy(value);
       if (section === 'web' && key === 'httpUserAgent' && typeof value === 'string') v = value.replace(/[\r\n]/g, '').slice(0, 300);
       if (section === 'appearance' && key === 'backgroundAnimation' && !['none', 'gradient', 'aurora', 'particles'].includes(String(value))) continue;
+      if (section === 'chat' && key === 'defaultMode' && !['chat', 'plan', 'propose', 'execute'].includes(String(value))) continue;
       if (section === 'browser' && key === 'backend' && !['embedded', 'chrome'].includes(String(value))) continue;
       if (section === 'browser' && key === 'chromePath' && typeof value === 'string') v = value.replace(/[\r\n"]/g, '').trim().slice(0, 500);
       if (section === 'desktop' && (key === 'keyboardMode' || key === 'mouseMode') && !['auto', 'uia', 'legacy'].includes(String(value))) continue;

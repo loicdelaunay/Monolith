@@ -154,7 +154,7 @@ describe('bifurcation, reprise et export', () => {
 describe('pièces jointes', () => {
   const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a0f10000000049454e44ae426082', 'hex');
 
-  it('valide le contenu réel et refuse les formats non pris en charge', async () => {
+  it('valide le contenu réel : images, texte, autres fichiers gardés comme fichiers', async () => {
     const { h } = await setup('http://127.0.0.1:9/v1');
     expect(sniffImage(PNG)).toBe('image/png');
     const img = await h.call('attachments.upload', { name: 'pixel.png', mime: 'image/png', dataBase64: PNG.toString('base64') });
@@ -162,8 +162,9 @@ describe('pièces jointes', () => {
     const txt = await h.call('attachments.upload', { name: 'notes.md', mime: '', dataBase64: Buffer.from('# Titre\nContenu é').toString('base64') });
     expect(txt.kind).toBe('text');
     await expect(h.call('attachments.upload', { name: 'faux.png', mime: 'image/png', dataBase64: Buffer.from('pas une image').toString('base64') })).rejects.toMatchObject({ code: 'invalid_argument' });
-    await expect(h.call('attachments.upload', { name: 'doc.pdf', mime: 'application/pdf', dataBase64: Buffer.from('%PDF-1.7').toString('base64') })).rejects.toThrow(/non pris en charge/);
-    await expect(h.call('attachments.upload', { name: 'bin.dat', mime: '', dataBase64: Buffer.from([0, 1, 2, 255]).toString('base64') })).rejects.toThrow(/non pris en charge/);
+    // PDF et binaires : fichiers lisibles par les outils, jamais insérés comme texte.
+    expect(await h.call('attachments.upload', { name: 'doc.pdf', mime: 'application/pdf', dataBase64: Buffer.from('%PDF-1.7').toString('base64') })).toMatchObject({ kind: 'file', mime: 'application/pdf' });
+    expect(await h.call('attachments.upload', { name: 'bin.dat', mime: '', dataBase64: Buffer.from([0, 1, 2, 255]).toString('base64') })).toMatchObject({ kind: 'file', mime: 'application/octet-stream' });
     const read = await h.call('attachments.read', { id: img.id });
     expect(Buffer.from(read.dataBase64, 'base64').equals(PNG)).toBe(true);
   });

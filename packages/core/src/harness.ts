@@ -211,6 +211,19 @@ export class Harness {
     this.compactions = new CompactionService(this.db, this.events);
     // Base, clés et journaux de l'application : jamais accessibles aux outils, même dans une racine.
     this.resources = new ResourceService(this.db, this.projects, this.layout.conversations, [this.layout.keys, this.layout.database, `${this.layout.database}-wal`, `${this.layout.database}-shm`, this.layout.logs, this.layout.backups]);
+    this.resources.attachmentPaths = (conversationId, projectId) => {
+      const refs = [...(projectId !== null ? this.projects.get(projectId).attachments : []), ...this.messages.list(conversationId).flatMap((m) => m.parts.flatMap((p) => (p.type === 'attachment' ? [p.attachment] : [])))];
+      const paths = new Set<string>();
+      for (const r of refs) {
+        if (r.kind === 'image') continue;
+        try {
+          paths.add(this.attachments.agentPath(r.id));
+        } catch {
+          /* contenu supprimé : signalé dans la conversation */
+        }
+      }
+      return [...paths];
+    };
     this.permissions = new PermissionEngine(this.db, this.events);
     this.hostBridge = options.hostBridge ?? null;
     this.tools = new ToolRegistry([
@@ -590,6 +603,7 @@ export class Harness {
           providerId: s.chat.defaultProviderId,
           model: s.chat.defaultModel,
           reasoningLevel: s.chat.defaultReasoningLevel,
+          mode: s.chat.defaultMode,
         });
       },
       'conversations.update': (p) => this.conversations.update(p.id, p.patch),
@@ -615,6 +629,7 @@ export class Harness {
       'projects.addAttachments': (p) => this.projects.addAttachments(p.id, p.attachmentIds),
       'projects.removeAttachment': (p) => this.projects.removeAttachment(p.id, p.attachmentId),
       'attachments.upload': (p) => this.attachments.upload(p.name, p.mime, p.dataBase64),
+      'attachments.fromPath': (p) => this.attachments.fromPath(p.path),
       'attachments.read': (p) => {
         const ref = this.attachments.get(p.id);
         return { name: ref.name, mime: ref.mime, dataBase64: this.attachments.bytes(p.id).toString('base64') };

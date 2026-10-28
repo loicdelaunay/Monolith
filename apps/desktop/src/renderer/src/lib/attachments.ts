@@ -1,5 +1,5 @@
 import { ATTACHMENT_LIMITS, type AttachmentRef, type Id } from '@monolith/contracts';
-import { api } from '../api.ts';
+import { api, errorMessage, host } from '../api.ts';
 
 function toBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -10,21 +10,43 @@ function toBase64(buffer: ArrayBuffer): string {
 }
 
 /**
- * Envoie des fichiers au moteur, qui les valide (signature, taille, encodage) et les copie
- * dans l'espace de travail. Retourne les références acceptées et les refus expliqués.
+ * Envoie des fichiers ou dossiers au moteur, qui les valide (signature, taille, encodage) et les copie
+ * dans l'espace de travail. Un élément du disque (sélecteur, glisser-déposer) passe par son chemin :
+ * le moteur le lit directement, dossiers compris ; un contenu collé passe par son contenu.
  */
 export async function uploadFiles(files: File[]): Promise<{ refs: AttachmentRef[]; errors: string[] }> {
   const refs: AttachmentRef[] = [];
   const errors: string[] = [];
   for (const file of files) {
-    if (file.size > ATTACHMENT_LIMITS.imageBytes) {
-      errors.push(`${file.name} : ${Math.round(file.size / 1048576)} Mo (maximum ${ATTACHMENT_LIMITS.imageBytes / 1048576} Mo)`);
+    const path = host.pathForFile(file);
+    if (path) {
+      const r = await attachPaths([path]);
+      refs.push(...r.refs);
+      errors.push(...r.errors);
+      continue;
+    }
+    if (file.size > ATTACHMENT_LIMITS.fileBytes) {
+      errors.push(`${file.name} : ${Math.round(file.size / 1048576)} Mo (maximum ${ATTACHMENT_LIMITS.fileBytes / 1048576} Mo)`);
       continue;
     }
     try {
       refs.push(await api.call('attachments.upload', { name: file.name || 'image.png', mime: file.type, dataBase64: toBase64(await file.arrayBuffer()) }));
     } catch (e) {
-      errors.push(e instanceof Error ? e.message : String(e));
+      errors.push(errorMessage(e));
+    }
+  }
+  return { refs, errors };
+}
+
+/** Fichiers ou dossiers du poste désignés par leur chemin (sélecteurs natifs). */
+export async function attachPaths(paths: string[]): Promise<{ refs: AttachmentRef[]; errors: string[] }> {
+  const refs: AttachmentRef[] = [];
+  const errors: string[] = [];
+  for (const path of paths) {
+    try {
+      refs.push(await api.call('attachments.fromPath', { path }));
+    } catch (e) {
+      errors.push(errorMessage(e));
     }
   }
   return { refs, errors };

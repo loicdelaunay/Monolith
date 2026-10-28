@@ -541,7 +541,7 @@ export function App({ client, locale, dataDir, changelog }: Props) {
         if (!arg) return note(t('cli.argRequired'), 'error');
         const path = resolve(arg.replace(/^["']|["']$/g, ''));
         if (!existsSync(path)) return note(t('cli.fileMissing', { path }), 'error');
-        const ref = await client.call('attachments.upload', { name: basename(path), mime: '', dataBase64: readFileSync(path).toString('base64') });
+        const ref = await client.call('attachments.fromPath', { path });
         setAttachments((list) => [...list, ref]);
         return note(`📎 ${sanitize(ref.name)} (${ref.kind}, ${Math.round(ref.size / 1024)} Ko)`, 'success');
       }

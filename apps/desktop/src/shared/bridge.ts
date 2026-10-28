@@ -54,6 +54,8 @@ export interface HostApi {
   info(): Promise<RendererInfo>;
   pickDirectory(title?: string): Promise<string | null>;
   pickFiles(title?: string): Promise<string[]>;
+  /** Chemin sur le disque d'un fichier ou dossier choisi ou déposé ('' pour un contenu collé). */
+  pathForFile(file: File): string;
   openExternal(url: string): Promise<boolean>;
   showItemInFolder(path: string): Promise<void>;
   /** Ouvre (ou ramène au premier plan) la fenêtre d'un outil dédié. */

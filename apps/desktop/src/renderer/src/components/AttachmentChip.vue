@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AttachmentRef } from '@monolith/contracts';
 import { formatSize, previewUrl } from '../lib/attachments.ts';
+import { fileIcon } from '../lib/file-icons.ts';
 
 const props = defineProps<{ attachment: AttachmentRef; removable?: boolean; large?: boolean }>();
 defineEmits<{ remove: [] }>();
 const { t } = useI18n();
 const src = ref<string | null>(null);
+const icon = computed(() => fileIcon(props.attachment.name, props.attachment.kind === 'folder' ? 'directory' : 'file'));
 
 onMounted(async () => {
   if (props.attachment.kind === 'image') src.value = await previewUrl(props.attachment.id).catch(() => null);
@@ -17,7 +19,7 @@ onMounted(async () => {
 <template>
   <span class="chip" :class="{ large, image: attachment.kind === 'image' }" :title="`${attachment.name} — ${attachment.mime}, ${formatSize(attachment.size)}`">
     <img v-if="src" :src="src" :alt="attachment.name" />
-    <i v-else class="pi" :class="attachment.kind === 'image' ? 'pi-image' : 'pi-file'" aria-hidden="true" />
+    <i v-else class="pi" :class="icon.icon" :style="{ color: icon.color }" aria-hidden="true" />
     <span class="name">{{ attachment.name }}</span>
     <span class="size">{{ formatSize(attachment.size) }}</span>
     <button v-if="removable" type="button" class="remove" :aria-label="t('composer.removeAttachment', { name: attachment.name })" @click="$emit('remove')"><i class="pi pi-times" /></button>

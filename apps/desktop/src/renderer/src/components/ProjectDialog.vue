@@ -10,7 +10,7 @@ import { api, errorMessage, host } from '../api.ts';
 import { store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
 import { ATTACHMENT_LIMITS, type AttachmentRef } from '@monolith/contracts';
-import { uploadFiles } from '../lib/attachments.ts';
+import { attachPaths, formatSize, uploadFiles } from '../lib/attachments.ts';
 import AttachmentChip from './AttachmentChip.vue';
 
 const { t } = useI18n();
@@ -78,7 +78,14 @@ async function addAttachments(files: File[]) {
   if (!files.length) return;
   const room = ATTACHMENT_LIMITS.perProject - projectAttachments.value.length;
   if (files.length > room) toast.add({ severity: 'warn', summary: t('project.tooManyAttachments', { max: ATTACHMENT_LIMITS.perProject }), life: 5000 });
-  const { refs, errors } = await uploadFiles(files.slice(0, Math.max(0, room)));
+  await attach(await uploadFiles(files.slice(0, Math.max(0, room))));
+}
+async function addFolderAttachment() {
+  if (projectAttachments.value.length >= ATTACHMENT_LIMITS.perProject) return toast.add({ severity: 'warn', summary: t('project.tooManyAttachments', { max: ATTACHMENT_LIMITS.perProject }), life: 5000 });
+  const path = await host.pickDirectory(t('composer.attachFolder'));
+  if (path) await attach(await attachPaths([path]));
+}
+async function attach({ refs, errors }: { refs: AttachmentRef[]; errors: string[] }) {
   for (const err of errors) toast.add({ severity: 'error', summary: t('composer.attachmentRejected'), detail: err, life: 8000 });
   if (!refs.length) return;
   if (project.value) await api.call('projects.addAttachments', { id: project.value.id, attachmentIds: refs.map((r) => r.id) }).catch(fail);
@@ -172,10 +179,13 @@ async function removeFolder(folderId: number) {
             <AttachmentChip v-for="a in projectAttachments" :key="a.id" :attachment="a" removable @remove="removeAttachment(a.id)" />
           </div>
           <p v-else class="mh-muted">{{ t('project.noAttachments') }}</p>
-          <div><Button :label="t('project.addAttachments')" icon="pi pi-paperclip" size="small" severity="secondary" outlined @click="fileInput?.click()" /></div>
+          <div class="mh-row">
+            <Button :label="t('project.addAttachments')" icon="pi pi-paperclip" size="small" severity="secondary" outlined @click="fileInput?.click()" />
+            <Button :label="t('composer.attachFolder')" icon="pi pi-folder" size="small" severity="secondary" outlined @click="addFolderAttachment" />
+          </div>
         </div>
         <input ref="fileInput" type="file" multiple hidden @change="onPick" />
-        <p class="mh-hint">{{ t('project.attachmentsHint', { max: ATTACHMENT_LIMITS.perProject }) }}</p>
+        <p class="mh-hint">{{ t('project.attachmentsHint', { max: ATTACHMENT_LIMITS.perProject, size: formatSize(ATTACHMENT_LIMITS.fileBytes) }) }}</p>
       </div>
 
       <div v-if="project" class="mh-field">

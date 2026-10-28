@@ -58,6 +58,9 @@ export class ResourceService {
       .map((r) => ({ id: r.id, kind: r.kind === 'file' ? 'file' : 'folder', path: r.path, available: readable(r.path, r.kind !== 'file') }));
   }
 
+  /** Copies des pièces jointes (hors images) de la conversation et de son projet, lisibles par les outils. */
+  attachmentPaths: (conversationId: Id, projectId: Id | null) => string[] = () => [];
+
   /** Portée effective : dossiers (projet ou conversation), fichiers isolés, espace privé si aucun dossier. */
   scope(conversationId: Id): { scope: ResourceScope; info: Omit<ResourceScopeInfo, 'instructionFiles'> } {
     const { mode, projectId } = this.mode(conversationId);
@@ -75,7 +78,7 @@ export class ResourceService {
       mkdirSync(privateDir, { recursive: true });
       folders = [privateDir];
     }
-    return { scope: new ResourceScope(folders, files, this.forbidden), info: { mode, items, roots: folders, files, privateDir } };
+    return { scope: new ResourceScope(folders, files, this.forbidden, this.attachmentPaths(conversationId, projectId)), info: { mode, items, roots: folders, files, privateDir } };
   }
 
   get(conversationId: Id, readInstructions: boolean): ResourceScopeInfo {

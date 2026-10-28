@@ -260,6 +260,11 @@ export class MaintenanceService {
     // Fichiers dont plus aucune pièce jointe ne partage le contenu.
     const live = new Set(this.deps.db.all<{ sha256: string }>('SELECT DISTINCT sha256 FROM attachments').map((r) => r.sha256));
     for (const f of existsSync(this.deps.attachmentsDir) ? readdirSync(this.deps.attachmentsDir) : []) if (/^[0-9a-f]{64}$/.test(f) && !live.has(f)) rmSync(join(this.deps.attachmentsDir, f), { force: true });
+    // Dossiers copiés et copies nommées (accès des outils) sans pièce jointe correspondante.
+    for (const sub of ['folders', 'files']) {
+      const dir = join(this.deps.attachmentsDir, sub);
+      for (const f of existsSync(dir) ? readdirSync(dir) : []) if (/^[0-9a-f]{64}$/.test(f) && !live.has(f)) rmSync(join(dir, f), { recursive: true, force: true });
+    }
     return orphans.length;
   }
 }

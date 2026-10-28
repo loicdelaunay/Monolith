@@ -78,7 +78,7 @@ export class ConversationService {
   create(
     projectId: Id | null,
     title?: string,
-    defaults?: { providerId: Id | null; model: string | null; reasoningLevel: ReasoningLevel },
+    defaults?: { providerId: Id | null; model: string | null; reasoningLevel: ReasoningLevel; mode?: 'chat' | AgentMode },
     extra?: { forkedFrom?: { conversationId: Id; messageId: Id | null }; archived?: boolean; source?: Conversation; titleSource?: Conversation['titleSource']; parent?: { id: Id; depth: number; role: string; budget: ConversationBudget } },
   ): Conversation {
     if (projectId !== null && !this.db.get('SELECT 1 AS x FROM projects WHERE id = ?', projectId)) {
@@ -102,8 +102,8 @@ export class ConversationService {
       src ? src.model : (defaults?.model ?? null),
       src ? src.reasoningLevel : (defaults?.reasoningLevel ?? 'auto'),
       src?.goal ?? '',
-      src?.mode ?? 'chat',
-      src?.agentMode ?? 'plan',
+      src?.mode ?? (defaults?.mode && defaults.mode !== 'chat' ? 'agent' : 'chat'),
+      src?.agentMode ?? (defaults?.mode && defaults.mode !== 'chat' ? defaults.mode : 'plan'),
       extra?.archived ? 1 : 0,
       extra?.forkedFrom?.conversationId ?? null,
       extra?.forkedFrom?.messageId ?? null,

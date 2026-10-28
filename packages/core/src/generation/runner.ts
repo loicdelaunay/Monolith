@@ -157,6 +157,8 @@ export class GenerationRunner {
   private readonly active = new Map<Id, Job>();
   /** Conversations dont la génération est en cours de préparation (entre la validation et l'écriture). */
   private readonly starting = new Set<Id>();
+  /** Envois de la file en cours de démarrage (après la fin d'une génération). */
+  private readonly continuing = new Set<Promise<unknown>>();
 
   constructor(private readonly deps: GenerationDeps) {
     deps.conversations.isGenerating = (id) => this.active.has(id);
@@ -180,7 +182,11 @@ export class GenerationRunner {
 
   /** Attend la fin de toutes les générations, y compris celles lancées depuis la file. */
   async idle(): Promise<void> {
-    while (this.active.size) await Promise.allSettled([...this.active.values()].map((g) => g.done));
+    // Une génération terminée peut enchaîner sur la file : attendre aussi les démarrages en cours.
+    while (this.active.size || this.starting.size || this.continuing.size) {
+      await Promise.allSettled([...[...this.active.values()].map((g) => g.done), ...this.continuing]);
+      if (this.starting.size) await new Promise((r) => setTimeout(r, 5));
+    }
   }
 
   async send(conversationId: Id, input: SendInput): Promise<SendResult> {
@@ -367,10 +373,12 @@ export class GenerationRunner {
     if (job.final !== 'complete') return;
     void this.maybeName(ctx).catch((e: unknown) => this.deps.logger.warn('naming', 'Nommage automatique impossible', { error: (e as Error).message }));
     if (this.deps.queue.peekNext(job.conversationId)) {
-      void this.sendNext(job.conversationId).catch((e: unknown) => {
+      const next = this.sendNext(job.conversationId).catch((e: unknown) => {
         this.deps.logger.warn('generation', 'Élément de file non envoyé', { error: (e as Error).message });
         this.deps.events.emit('log.error', { code: e instanceof HarnessError ? e.code : 'internal', message: (e as Error).message });
       });
+      this.continuing.add(next);
+      void next.finally(() => this.continuing.delete(next));
     }
   }
 
@@ -443,7 +451,7 @@ export class GenerationRunner {
       list.push({ id: -1, conversationId: conversation.id, seq: Number.MAX_SAFE_INTEGER, role: 'assistant', origin: 'direct', status: 'streaming', parts: currentParts, snapshot: null, usage: null, error: null, createdAt: '', completedAt: null, durationMs: null, firstTokenMs: null });
     }
     const history = buildHistory(list, {
-      attachments: { text: (r) => attachments.text(r.id), dataUrl: (r) => attachments.dataUrl(r.id) },
+      attachments: { text: (r) => attachments.promptText(r.id), dataUrl: (r) => attachments.dataUrl(r.id) },
       vision: ctx.caps?.vision ?? null,
       ...(this.deps.vision && ctx.settings.studio.visionFallback ? { describe: (id: number) => this.deps.vision!.cached(id) } : {}),
       compactedUpToSeq: latest?.upToSeq ?? null,
