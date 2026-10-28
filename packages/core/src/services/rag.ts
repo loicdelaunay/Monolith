@@ -97,7 +97,8 @@ export class RagService {
     return walk(root, { max: MAX_FILES }).paths.filter((p) => !/(^|\/)(index\.ohm|package-lock\.json|.*\.min\.(js|css)|.*\.lock)$/.test(p));
   }
 
-  status(conversationId: Id, roots: string[]): RagStatus {
+  status(conversationId: Id, rawRoots: string[]): RagStatus {
+    const roots = rawRoots.map(canonical);
     const rootsStatus: RagRootStatus[] = roots.map((root) => {
       const rows = this.db.all<SourceRow>('SELECT * FROM rag_sources WHERE root = ?', root);
       const chunks = this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM rag_chunks c JOIN rag_sources s ON s.id = c.source_id WHERE s.root = ?', root)!.n;
@@ -131,7 +132,8 @@ export class RagService {
     this.running.get(conversationId)?.controller.abort();
   }
 
-  clear(roots: string[]): void {
+  clear(rawRoots: string[]): void {
+    const roots = rawRoots.map(canonical);
     for (const root of roots) this.db.run('DELETE FROM rag_sources WHERE root = ?', root);
   }
 
@@ -157,7 +159,9 @@ export class RagService {
     return { vectors: data.map((d) => d.embedding), model: s.embeddingModel };
   }
 
-  async index(conversationId: Id, roots: string[]): Promise<RagStatus> {
+  /** Racines canoniques partout (index, état, recherche) : même chemin malgré noms courts 8.3 ou liens. */
+  async index(conversationId: Id, rawRoots: string[]): Promise<RagStatus> {
+    const roots = rawRoots.map(canonical);
     if (this.running.has(conversationId)) throw new HarnessError('busy', 'Indexation déjà en cours');
     const controller = new AbortController();
     const state = { controller, progress: { done: 0, total: 0, file: null as string | null } };
