@@ -31,8 +31,8 @@ export interface PromptContext {
 }
 
 const AGENT_MODE: Record<AgentMode, string> = {
-  plan: 'Mode Agent — Plan : inspection et analyse uniquement. Vous pouvez lire et rechercher, mais aucune modification de fichier ni commande n’est possible (le moteur les refuse).',
-  propose: 'Mode Agent — Proposition : préparez des changements consultables. Les écritures de fichiers sont enregistrées comme propositions que l’utilisateur appliquera ou rejettera ; aucune commande n’est exécutée.',
+  plan: 'Mode Agent — Plan : inspection et analyse uniquement. Vous pouvez lire et rechercher, mais aucune modification de fichier ni commande n’est possible (le moteur les refuse). Navigateur, web et commandes ne sont pas disponibles dans ce mode : si la demande les exige, dites à l’utilisateur de passer en mode Proposition ou Exécution (réglages rapides).',
+  propose: 'Mode Agent — Proposition : préparez des changements consultables. Les écritures de fichiers sont enregistrées comme propositions que l’utilisateur appliquera ou rejettera. Le navigateur et le web sont disponibles (avec autorisations) ; les commandes et le contrôle du bureau ne le sont pas : si la demande les exige, dites à l’utilisateur de passer en mode Exécution (réglages rapides).',
   execute: 'Mode Agent — Exécution : les outils agissent réellement sur les fichiers et le système, dans la limite des autorisations.',
 };
 

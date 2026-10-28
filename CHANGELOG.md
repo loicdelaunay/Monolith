@@ -6,6 +6,7 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 - **Diagrammes Mermaid** : de nouveau affichés comme diagrammes dans le chat (Mermaid 12 utilisait par défaut une disposition non incluse ; la disposition standard est imposée).
 - **Réflexion et outils regroupés** : la réflexion et les appels d'outils qui se suivent forment un seul bloc repliable (« Réflexion · 3 outils »), avec l'outil en cours affiché pendant la génération. Restent visibles : autorisations en attente, propositions à valider, questions et suggestions.
+- **Navigateur en mode Proposition** : le navigateur (intégré ou Chrome du poste) et le web sont disponibles en Agent · Proposition, avec autorisations ; auparavant réservés au mode Exécution, ils étaient invisibles pour le modèle dans le mode par défaut. Les commandes et le contrôle du bureau restent réservés à l'Exécution, et le modèle l'indique au lieu d'inventer une configuration manquante. Chrome DevTools MCP ne démarre plus deux fois lors de générations simultanées.
 - **Nouvelle conversation** : reprend le dernier fournisseur, modèle et niveau de réflexion utilisés (réglable dans Réglages › Chat ; le modèle par défaut sert s'il n'est plus disponible).
 
 ## 3.0.0-alpha.21 — 2026-10-28

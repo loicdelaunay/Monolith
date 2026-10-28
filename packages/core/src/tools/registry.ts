@@ -13,17 +13,20 @@ export function modeAllows(tool: ToolDefinition, mode: ConversationMode, agentMo
   }
   const allowed: Record<AgentMode, string[]> = {
     plan: ['read', 'interact'],
-    propose: ['read', 'interact', 'write'],
+    propose: ['read', 'interact', 'write', 'network'],
     execute: ['read', 'interact', 'write', 'exec', 'network', 'desktop'],
   };
-  const bad = tool.effects.find((e) => !allowed[agentMode].includes(e));
+  // Proposition : le navigateur (intégré ou Chrome du poste) agit dans ses propres pages, avec autorisations ;
+  // commandes et contrôle du bureau restent réservés à l'Exécution.
+  const effects = agentMode === 'propose' && tool.family === 'browser' ? tool.effects.filter((e) => e !== 'desktop') : tool.effects;
+  const bad = effects.find((e) => !allowed[agentMode].includes(e));
   if (!bad) return { ok: true, reason: '' };
   return {
     ok: false,
     reason:
       agentMode === 'plan'
         ? 'Mode Plan : inspection et analyse uniquement, aucune modification ni commande.'
-        : 'Mode Proposition : les changements de fichiers sont préparés pour validation ; commandes et accès réseau indisponibles.',
+        : 'Mode Proposition : les changements de fichiers sont préparés pour validation ; commandes et contrôle du bureau indisponibles (mode Exécution).',
   };
 }
 

@@ -5,7 +5,7 @@ import type { ToolRegistry } from '../tools/registry.ts';
 import type { ToolContext, ToolDefinition } from '../tools/types.ts';
 import { allowedUrl } from '../tools/local-access.ts';
 import { McpClient, type McpRawTool } from './client.ts';
-import { mcpEffects, mcpResult, toInfo } from './service.ts';
+import { mcpResult, toInfo } from './service.ts';
 
 /** Version épinglée de Chrome DevTools MCP (Google, Apache-2.0), lancée par npx. */
 export const CHROME_DEVTOOLS_MCP = 'chrome-devtools-mcp@1.11.0';
@@ -29,7 +29,6 @@ export interface ChromeMcpOptions {
 export class ChromeMcp {
   private client: McpClient | null = null;
   private key = '';
-  private connecting: Promise<void> | null = null;
 
   constructor(private readonly o: ChromeMcpOptions) {}
 
@@ -42,26 +41,28 @@ export class ChromeMcp {
   }
 
   /** Avant une génération : connecte Chrome DevTools MCP si choisi ; renvoie l'erreur éventuelle (non bloquante). */
-  async ensure(settings: Settings): Promise<string | null> {
+  ensure(settings: Settings): Promise<string | null> {
+    // Appels simultanés (plusieurs conversations) : un seul démarrage à la fois, jamais deux processus.
+    const run = this.queue.then(() => this.ensureNow(settings));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private async ensureNow(settings: Settings): Promise<string | null> {
     if (settings.browser.backend !== 'chrome') {
       if (this.client) await this.stop();
       return null;
     }
     const key = settings.browser.chromePath;
     if (this.client && !this.client.closed && this.key === key) return null;
-    if (this.connecting) {
-      await this.connecting.catch(() => undefined);
-      if (this.client && !this.client.closed && this.key === key) return null;
-    }
     await this.stop();
-    this.connecting = this.start(key);
     try {
-      await this.connecting;
+      await this.start(key);
       return null;
     } catch (e) {
       return `Chrome DevTools MCP : ${(e as Error).message} (Node.js et Google Chrome sont requis).`;
-    } finally {
-      this.connecting = null;
     }
   }
 
@@ -95,7 +96,8 @@ export class ChromeMcp {
         skill: 'browser',
         description: `[Chrome du poste] ${(t.description ?? info.title ?? t.name).slice(0, 1000)}`,
         parameters: t.inputSchema && t.inputSchema.type === 'object' ? t.inputSchema : { type: 'object', properties: {} },
-        effects: mcpEffects(info),
+        // Actions dans les pages du navigateur (pas des commandes du poste) : lecture ou interaction.
+        effects: info.readOnly ? ['read', 'network'] : ['network', 'desktop'],
         target: (a) => {
           const url = typeof a.url === 'string' ? a.url : '';
           return { label: `Chrome › ${info.title ?? t.name}${url ? ` · ${url}` : ''}`, resources: ['chrome', `chrome:${t.name}`, ...(url ? [url] : [])] };

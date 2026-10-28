@@ -5,6 +5,8 @@ import { DEFAULT_SETTINGS, type MessagePart } from '@monolith/contracts';
 import { mockProvider, sseChunk, standardStream, tempHarness, writeFragmented } from './helpers.ts';
 import { allowedUrl } from '../src/tools/local-access.ts';
 import type { ToolContext, ToolDefinition } from '../src/tools/types.ts';
+import { modeAllows } from '../src/tools/registry.ts';
+import { silentLogger } from '../src/log/logger.ts';
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -92,5 +94,31 @@ describe('adresses locales demandées par le modèle', () => {
     const asked: string[] = [];
     await expect(allowedUrl('file:///C:/Windows/win.ini', ctx(true, asked))).rejects.toThrow(/Schéma non autorisé/);
     expect(asked).toEqual([]);
+  });
+});
+
+describe('navigateur selon le mode Agent', () => {
+  const tool = (name: string, family: ToolDefinition['family'], effects: ToolDefinition['effects']) => ({ name, family, skill: 'x', effects }) as unknown as ToolDefinition;
+  it('Proposition : navigateur (intégré et Chrome) et web, mais ni commandes ni bureau ; Plan : lecture seule', () => {
+    const allowed = (t: ToolDefinition, m: 'plan' | 'propose' | 'execute') => modeAllows(t, 'agent', m).ok;
+    expect(allowed(tool('browser_open', 'browser', ['network']), 'propose')).toBe(true);
+    expect(allowed(tool('browser_click', 'browser', ['desktop']), 'propose')).toBe(true);
+    expect(allowed(tool('chrome__click', 'browser', ['network', 'desktop']), 'propose')).toBe(true);
+    expect(allowed(tool('web_http_request', 'web', ['network']), 'propose')).toBe(true);
+    expect(allowed(tool('run_command', 'terminal' as never, ['exec']), 'propose')).toBe(false);
+    expect(allowed(tool('desktop_mouse', 'desktop', ['desktop']), 'propose')).toBe(false);
+    expect(allowed(tool('mcp__x__do', 'mcp', ['exec', 'network']), 'propose')).toBe(false);
+    expect(allowed(tool('browser_open', 'browser', ['network']), 'plan')).toBe(false);
+    expect(allowed(tool('chrome__take_snapshot', 'browser', ['read', 'network']), 'plan')).toBe(false);
+  });
+
+  it('Chrome DevTools MCP : un seul démarrage pour des générations simultanées', async () => {
+    const started: string[] = [];
+    const logger = { ...silentLogger, info: (_c: string, message: string) => void (message.includes('Chrome DevTools MCP connecté') && started.push(message)) };
+    const t = tempHarness(undefined, { logger, chromeMcp: { command: process.execPath, args: [join(import.meta.dirname, 'fixtures', 'fake-chrome-mcp.mjs')] } });
+    cleanups.push(t.cleanup);
+    const settings = { ...DEFAULT_SETTINGS, browser: { backend: 'chrome' as const, chromePath: '' } };
+    expect(await Promise.all([t.harness.chrome.ensure(settings), t.harness.chrome.ensure(settings), t.harness.chrome.ensure(settings)])).toEqual([null, null, null]);
+    expect(started).toHaveLength(1);
   });
 });
