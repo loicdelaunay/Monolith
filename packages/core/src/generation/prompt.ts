@@ -106,10 +106,12 @@ export function attachmentBlock(ref: AttachmentRef, content: string): string {
  *  - les appels d'outils sont rejoués avec leur résultat réel (un appel non exécuté le dit explicitement) ;
  *  - les réponses sans contenu (erreurs) sont omises, une réponse interrompue garde son texte partiel ;
  *  - deux messages texte consécutifs du même rôle sont fusionnés (alternance exigée par plusieurs API) ;
+ *  - pendant la boucle d'outils, le texte écrit après les appels du dernier tour rejoint ce tour : la
+ *    requête suivante se termine toujours par les résultats (Gemini refuse une requête finissant par le modèle) ;
  *  - les pièces jointes texte sont insérées, les images envoyées seulement si le modèle les accepte.
  */
 export function buildHistory(messages: Message[], options?: HistoryOptions): HistoryResult {
-  type Out = { role: 'user' | 'assistant' | 'tool'; parts: ContentPart[]; toolCalls?: ToolCallRequest[]; toolCallId?: string };
+  type Out = { role: 'user' | 'assistant' | 'tool'; parts: ContentPart[]; toolCalls?: ToolCallRequest[]; toolCallId?: string; toolImagesFor?: string[] };
   const out: Out[] = [];
   let droppedImages = 0;
   const pushText = (role: 'user' | 'assistant', parts: ContentPart[]) => {
@@ -148,22 +150,26 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
     // Assistant : texte et groupes d'appels d'outils dans l'ordre d'arrivée.
     let text = '';
     let group: ToolCallRecord[] = [];
+    let lastCalls: Out | null = null;
     const flushGroup = () => {
       if (group.length === 0) return;
-      out.push({ role: 'assistant', parts: text.trim() ? [{ type: 'text', text }] : [], toolCalls: group.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments || '{}', ...(c.meta ? { meta: c.meta } : {}) })) });
+      lastCalls = { role: 'assistant', parts: text.trim() ? [{ type: 'text', text }] : [], toolCalls: group.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments || '{}', ...(c.meta ? { meta: c.meta } : {}) })) };
+      out.push(lastCalls);
       for (const c of group) out.push({ role: 'tool', toolCallId: c.id, parts: [{ type: 'text', text: toolResultText(c) }] });
       // Images produites par un outil (captures) : jointes dans un message utilisateur, si le modèle a la vision.
       const images = group.filter((c) => c.display?.kind === 'image' && c.status === 'done');
       if (images.length && options && options.vision !== false) {
         const parts: ContentPart[] = [{ type: 'text', text: '[Image(s) produite(s) par les outils ci-dessus]' }];
+        const toolImagesFor: string[] = [];
         for (const c of images) {
           try {
             parts.push({ type: 'image_url', image_url: { url: options.attachments.dataUrl({ id: (c.display as { attachmentId: number }).attachmentId, name: 'capture.png', mime: 'image/png', size: 0, kind: 'image' }) } });
+            toolImagesFor.push(c.id);
           } catch {
             /* image introuvable : le résultat texte de l'outil suffit */
           }
         }
-        out.push({ role: 'user', parts });
+        if (toolImagesFor.length) out.push({ role: 'user', parts, toolImagesFor });
       }
       text = '';
       group = [];
@@ -174,21 +180,28 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
         if (group.length) flushGroup();
         const r = p.call.result ? `\n${p.call.result.length > 4000 ? `${p.call.result.slice(0, 4000)}…` : p.call.result}` : '';
         text += `\n[${p.call.target ?? p.call.name} → ${p.call.status}]${r}\n`;
-      } else if (p.type === 'tool') group.push(p.call);
+      } else if (p.type === 'tool') {
+        // Nouveau tour d'outils : le tour précédent est rejoué à part (appel puis résultats).
+        if (group.length && group[0]!.round !== undefined && p.call.round !== undefined && p.call.round !== group[0]!.round) flushGroup();
+        group.push(p.call);
+      }
       else if (p.type === 'text') {
         if (group.length) flushGroup();
         text += p.text;
       }
     }
     flushGroup();
-    if (text.trim()) pushText('assistant', [{ type: 'text', text }]);
+    const calls = lastCalls as Out | null;
+    // Réponse en cours : le texte final suit les appels du même tour (les outils viennent d'être exécutés).
+    if (text.trim() && m.status === 'streaming' && calls) calls.parts.push({ type: 'text', text: calls.parts.length ? `\n\n${text}` : text });
+    else if (text.trim()) pushText('assistant', [{ type: 'text', text }]);
   }
   return {
     droppedImages,
-    messages: out.map(({ role, parts, toolCalls, toolCallId }): ChatMessage => {
+    messages: out.map(({ role, parts, toolCalls, toolCallId, toolImagesFor }): ChatMessage => {
       // Contenu simple (chaîne) lorsqu'il n'y a pas d'image : compatibilité maximale.
       const content = parts.every((p) => p.type === 'text') ? parts.map((p) => (p as { text: string }).text).join('') : parts;
-      return { role, content, ...(toolCalls ? { toolCalls } : {}), ...(toolCallId ? { toolCallId } : {}) };
+      return { role, content, ...(toolCalls ? { toolCalls } : {}), ...(toolCallId ? { toolCallId } : {}), ...(toolImagesFor ? { toolImagesFor } : {}) };
     }),
   };
 }

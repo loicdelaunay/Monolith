@@ -59,6 +59,11 @@ export interface ChatMessage {
   toolCalls?: ToolCallRequest[];
   /** Réponse d'outil : identifiant de l'appel. */
   toolCallId?: string;
+  /**
+   * Message utilisateur portant les images produites par des outils : identifiant de l'appel de
+   * chaque image, dans l'ordre (Gemini 3+ les place dans la réponse de fonction correspondante).
+   */
+  toolImagesFor?: string[];
 }
 
 export interface ToolSpec {

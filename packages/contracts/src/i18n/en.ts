@@ -192,6 +192,11 @@ export const en: Messages = {
       noProvider: 'No OpenAI-compatible connection: add one in Settings › Providers.',
     },
   },
+  plan: {
+    title: 'Plan',
+    progress: '{done} / {total}',
+    hide: 'Hide the plan',
+  },
   composer: {
     attach: 'Attach files',
     more: 'Attach files or insert a message template',

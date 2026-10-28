@@ -7,6 +7,8 @@ import type { ServerResponse } from 'node:http';
 import type { MessagePart, ToolCallRecord } from '@monolith/contracts';
 import { mockProvider, sseChunk, standardStream, tempHarness, writeFragmented } from './helpers.ts';
 import { thinkingConfig, toGemini } from '../src/providers/gemini.ts';
+import { buildHistory } from '../src/generation/prompt.ts';
+import type { Message } from '@monolith/contracts';
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -32,6 +34,47 @@ async function base() {
 async function lastAssistant(h: Awaited<ReturnType<typeof base>>['h'], conversationId: number) {
   return (await h.call('messages.list', { conversationId })).filter((m) => m.role === 'assistant').at(-1)!;
 }
+
+describe('Gemini natif : texte après un appel d’outil', () => {
+  it('la requête suivante se termine par le résultat de l’outil, jamais par le modèle', async () => {
+    const { h, project } = await base();
+    let n = 0;
+    const mock = await mockProvider((_req, raw, res: ServerResponse) => {
+      n++;
+      if (n === 2) {
+        // Comportement de l'API Google : refus d'une requête qui se termine par un tour du modèle.
+        const body = JSON.parse(raw) as { contents: { role: string; parts: Record<string, unknown>[] }[] };
+        if (body.contents.at(-1)!.role === 'model') {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: { code: 400, message: 'Requests ending with a model turn are not supported.' } }));
+          return;
+        }
+      }
+      // Tour 1 : appel d'outil PUIS texte dans la même réponse (ordre observé avec Vertex AI).
+      const payload =
+        n === 1
+          ? gsse({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'read_file', args: { path: 'README.md' } } }] } }] }) +
+            gsse({ candidates: [{ content: { role: 'model', parts: [{ text: 'Je lis le fichier.' }] }, finishReason: 'STOP' }] })
+          : gsse({ candidates: [{ content: { role: 'model', parts: [{ text: 'Terminé.' }] }, finishReason: 'STOP' }] });
+      void writeFragmented(res, payload, 17);
+    });
+    cleanups.push(mock.close);
+    const p = await h.call('providers.create', { name: 'Gemini', kind: 'gemini', preset: 'gemini', baseUrl: `${mock.url}beta`, apiKey: 'AIza-test-key' });
+    await h.call('providers.setModels', { id: p.id, models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null } }] });
+    const c = await h.call('conversations.create', { projectId: project.id });
+    await h.call('conversations.update', { id: c.id, patch: { providerId: p.id, model: 'gemini-2.5-flash', mode: 'agent', agentMode: 'execute' } });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'Lis le README' } });
+    await h.generation.idle();
+    const msg = await lastAssistant(h, c.id);
+    expect(msg).toMatchObject({ status: 'complete', error: null });
+    expect(msg.parts.at(-1)).toMatchObject({ type: 'text', text: 'Terminé.' });
+    const second = mock.requests[1]!.body as { contents: { role: string; parts: Record<string, unknown>[] }[] };
+    const [model, results] = second.contents.slice(-2);
+    // Le texte du tour 1 accompagne son appel ; la requête se termine par le résultat de l'outil.
+    expect(model).toMatchObject({ role: 'model', parts: [{ text: 'Je lis le fichier.' }, { functionCall: { name: 'read_file' } }] });
+    expect(results).toMatchObject({ role: 'user', parts: [{ functionResponse: { name: 'read_file' } }] });
+  });
+});
 
 describe('Gemini natif', () => {
   it('traduit l’historique, les outils et la réflexion ; renvoie la signature de réflexion', async () => {
@@ -286,5 +329,34 @@ describe('OpenAI Subscription (ChatGPT via Codex ACP)', () => {
     // Adaptateur sans connexion ChatGPT : refus explicite.
     await h.call('providers.update', { id: p.id, patch: { options: { acp: { command: process.execPath, args: [agent], env: {}, account: 'chatgpt' } } } });
     expect(await h.call('providers.authenticate', { id: p.id })).toMatchObject({ ok: false, message: expect.stringContaining('n’annonce pas la connexion ChatGPT') });
+  });
+});
+
+describe('Gemini 3+ : tours d’outils et images rendues par les outils', () => {
+  const call = (id: string, name: string, round: number, extra: Partial<ToolCallRecord> = {}): MessagePart => ({
+    type: 'tool',
+    call: { id, name, family: 'x', effects: [], arguments: '{}', target: null, status: 'done', result: `ok ${id}`, display: null, permission: null, startedAt: null, finishedAt: null, round, ...extra },
+  });
+  const msg = (id: number, role: 'user' | 'assistant', parts: MessagePart[], status: Message['status'] = 'complete'): Message =>
+    ({ id, conversationId: 1, seq: id, role, origin: 'direct', status, parts, snapshot: null, usage: null, error: null, createdAt: '', completedAt: null, durationMs: null, firstTokenMs: null }) as Message;
+  const history = (parts: MessagePart[]) =>
+    buildHistory([msg(1, 'user', [{ type: 'text', text: 'Fais une capture' }]), msg(2, 'assistant', parts, 'streaming')], { attachments: { text: () => '', dataUrl: () => 'data:image/png;base64,QUJD' }, vision: true }).messages;
+
+  it('chaque tour est rejoué séparément ; l’image d’une capture va dans sa réponse de fonction (requête terminée par les réponses)', () => {
+    const parts = [call('a', 'write_file', 0, { meta: { thoughtSignature: 'sig-a' } }), call('b', 'screenshot_window', 1, { meta: { thoughtSignature: 'sig-b' }, display: { kind: 'image', attachmentId: 7, caption: 'Écran' } })];
+    const g = toGemini(history(parts), 'gemini-4-argon');
+    expect(g.contents.map((c) => `${c.role}:${c.parts.map((p) => Object.keys(p).filter((k) => k !== 'thoughtSignature')[0]).join(',')}`)).toEqual(['user:text', 'model:functionCall', 'user:functionResponse', 'model:functionCall', 'user:functionResponse']);
+    const last = g.contents.at(-1)!.parts[0]!;
+    expect(last.functionResponse).toMatchObject({ name: 'screenshot_window', parts: [{ inlineData: { mimeType: 'image/png', data: 'QUJD' } }] });
+    expect(g.contents[1]!.parts[0]!.thoughtSignature).toBe('sig-a');
+    expect(g.contents[3]!.parts[0]!.thoughtSignature).toBe('sig-b');
+  });
+
+  it('Gemini 2.5 : image jointe dans le tour utilisateur ; appels parallèles : signature factice sur le premier seulement', () => {
+    const parts = [call('b', 'screenshot_window', 0, { display: { kind: 'image', attachmentId: 7, caption: 'Écran' } })];
+    const old = toGemini(history(parts), 'gemini-2.5-flash');
+    expect(old.contents.at(-1)!.parts.map((p) => Object.keys(p)[0])).toEqual(['functionResponse', 'text', 'inlineData']);
+    const parallel = toGemini(history([call('x', 'read_file', 0), call('y', 'read_file', 0)]), 'gemini-3.6-flash');
+    expect(parallel.contents[1]!.parts.map((p) => p.thoughtSignature ?? null)).toEqual(['skip_thought_signature_validator', null]);
   });
 });

@@ -190,6 +190,11 @@ export const fr = {
       noProvider: 'Aucune connexion compatible OpenAI : ajoutez-en une dans Réglages › Fournisseurs.',
     },
   },
+  plan: {
+    title: 'Plan',
+    progress: '{done} / {total}',
+    hide: 'Masquer le plan',
+  },
   composer: {
     attach: 'Joindre des fichiers',
     more: 'Joindre des fichiers ou insérer un modèle de message',

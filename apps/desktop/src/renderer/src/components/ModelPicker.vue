@@ -45,8 +45,8 @@ async function open(e: Event) {
   await nextTick();
   search.value?.focus();
 }
+/** Le sélecteur reste ouvert (choix de la réflexion juste après) : il se ferme par un clic à l'extérieur. */
 function pick(providerId: Id, modelId: string) {
-  pop.value?.hide();
   const sameProvider = providerId === effectiveProviderId.value;
   void update({ providerId, model: modelId, ...(sameProvider ? {} : { reasoningLevel: 'auto' as const }) });
 }

@@ -11,7 +11,7 @@ interface GPart {
   thoughtSignature?: string;
   inlineData?: { mimeType: string; data: string };
   functionCall?: { name: string; args?: Record<string, unknown>; id?: string };
-  functionResponse?: { name: string; response: Record<string, unknown>; id?: string };
+  functionResponse?: { name: string; response: Record<string, unknown>; id?: string; parts?: { inlineData: { mimeType: string; data: string } }[] };
 }
 
 interface GContent {
@@ -38,8 +38,12 @@ interface GModel {
 /** Signature factice documentée par Google pour un historique sans signature (autre fournisseur, ancienne version). */
 const SKIP_SIGNATURE = 'skip_thought_signature_validator';
 
-const isGemini3 = (model: string) => /gemini-3/.test(model);
-const thinks = (model: string) => /gemini-(2\.5|3)/.test(model);
+/** Gemini 3 et versions suivantes (gemini-3-…, gemini-3.6-…, gemini-4-…) : signatures et niveaux de réflexion. */
+const isGemini3 = (model: string) => {
+  const m = /gemini-(\d+(?:\.\d+)?)/.exec(model);
+  return !!m && Number.parseFloat(m[1]!) >= 3;
+};
+const thinks = (model: string) => /gemini-2\.5/.test(model) || isGemini3(model);
 
 /** Traduction du niveau de réflexion en `thinkingConfig` selon la génération du modèle. */
 export function thinkingConfig(model: string, level: ReasoningLevel | null): Record<string, unknown> | null {
@@ -55,6 +59,8 @@ export function toGemini(messages: ChatMessage[], model: string): { contents: GC
   const system: string[] = [];
   const contents: GContent[] = [];
   const names = new Map<string, string>();
+  /** Parties `functionResponse` par appel : les images d'outils y sont rattachées (Gemini 3+). */
+  const responses = new Map<string, GPart>();
   const push = (role: GContent['role'], parts: GPart[]) => {
     if (!parts.length) return;
     const last = contents.at(-1);
@@ -70,8 +76,23 @@ export function toGemini(messages: ChatMessage[], model: string): { contents: GC
     if (m.role === 'tool') {
       const name = names.get(m.toolCallId ?? '') ?? 'outil';
       const text = typeof m.content === 'string' ? m.content : m.content.map((p) => (p.type === 'text' ? p.text : '')).join('');
-      push('user', [{ functionResponse: { name, response: { result: text } } }]);
+      const part: GPart = { functionResponse: { name, response: { result: text } } };
+      if (m.toolCallId) responses.set(m.toolCallId, part);
+      push('user', [part]);
       continue;
+    }
+    // Images produites par des outils : Gemini 3+ les attend dans la réponse de fonction elle-même ;
+    // les mêler à du texte utilisateur dans le tour des réponses fait refuser la requête.
+    if (m.role === 'user' && m.toolImagesFor && isGemini3(model) && Array.isArray(m.content)) {
+      const images = m.content.filter((p) => p.type === 'image_url');
+      const attached = images.every((p, i) => {
+        const target = responses.get(m.toolImagesFor![i] ?? '');
+        const match = p.type === 'image_url' ? /^data:([^;]+);base64,(.*)$/.exec(p.image_url.url) : null;
+        if (!target?.functionResponse || !match) return false;
+        target.functionResponse.parts = [...(target.functionResponse.parts ?? []), { inlineData: { mimeType: match[1]!, data: match[2]! } }];
+        return true;
+      });
+      if (attached) continue;
     }
     const parts: GPart[] = [];
     if (typeof m.content === 'string') {
@@ -87,7 +108,9 @@ export function toGemini(messages: ChatMessage[], model: string): { contents: GC
       }
     }
     if (m.role === 'assistant') {
-      for (const c of m.toolCalls ?? []) {
+      // Appels parallèles : seule la première partie porte une signature (règle de Google).
+      const anySignature = (m.toolCalls ?? []).some((c) => c.meta?.thoughtSignature);
+      for (const [i, c] of (m.toolCalls ?? []).entries()) {
         names.set(c.id, c.name);
         let args: Record<string, unknown> = {};
         try {
@@ -97,7 +120,7 @@ export function toGemini(messages: ChatMessage[], model: string): { contents: GC
           /* arguments invalides : objet vide */
         }
         const part: GPart = { functionCall: { name: c.name, args } };
-        const signature = c.meta?.thoughtSignature ?? (isGemini3(model) ? SKIP_SIGNATURE : undefined);
+        const signature = c.meta?.thoughtSignature ?? (isGemini3(model) && i === 0 && !anySignature ? SKIP_SIGNATURE : undefined);
         if (signature) part.thoughtSignature = signature;
         parts.push(part);
       }

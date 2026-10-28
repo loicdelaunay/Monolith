@@ -57,6 +57,8 @@ const errorTitle = computed(() => {
   const code = props.message.error?.code;
   return code && te(`errors.${code}`) ? t(`errors.${code}`) : t('chat.status.error');
 });
+/** Plan publié par l'agent : affiché épinglé au-dessus de la zone de saisie, pas dans le fil (sauf échec). */
+const pinnedPlan = (call: { name: string; status: string; display: { kind: string } | null }) => call.name === 'update_plan' && call.status === 'done' && call.display?.kind === 'plan';
 </script>
 
 <template>
@@ -91,7 +93,7 @@ const errorTitle = computed(() => {
             <div class="reasoning-text">{{ part.text }}</div>
           </details>
           <MarkdownView v-else-if="part.type === 'text'" :text="part.text" :conversation-id="message.conversationId" />
-          <ToolCallBubble v-else-if="part.type === 'tool'" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
+          <ToolCallBubble v-else-if="part.type === 'tool' && !pinnedPlan(part.call)" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
           <div v-else-if="part.type === 'notice'" class="notice" :class="part.level" role="note">
             <i class="pi" :class="part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />
             <span>{{ part.text }}</span>

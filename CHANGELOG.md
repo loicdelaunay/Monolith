@@ -2,6 +2,12 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## 3.0.0-alpha.16 — 2026-10-28
+
+- **Vertex AI / Gemini 3 et suivants (dont Gemini 4)** : correction de l'erreur « Requests ending with a model turn are not supported » après une capture d'écran par un outil. Les images rendues par un outil sont désormais placées dans la réponse de fonction, comme l'exige Google ; chaque tour d'outils est rejoué séparément avec sa signature de réflexion ; les niveaux de réflexion de Gemini 4 sont reconnus.
+- **Plan épinglé** : le plan de l'agent s'affiche au-dessus de la zone de saisie (dernière version, progression, repliable) au lieu de cartes répétées dans la conversation.
+- **Sélecteur de modèle** : il reste ouvert après le choix d'un modèle (pour régler la réflexion juste après) et se ferme par un clic à l'extérieur.
+
 ## 3.0.0-alpha.15 — 2026-10-28
 
 - **Première utilisation, comme la v1** : en choisissant le mode Automatique sans validateur, ou en activant le RAG sans embeddings, une fenêtre propose de **télécharger et utiliser le modèle local**, d'**utiliser un modèle spécifique** d'une connexion, ou d'**annuler** (rien ne change).

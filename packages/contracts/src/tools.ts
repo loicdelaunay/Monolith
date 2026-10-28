@@ -152,6 +152,8 @@ export interface ToolCallRecord {
   meta?: Record<string, string>;
   /** Exécuté hors du moteur (agent ACP, spécialiste d'un modèle composé) : affiché, jamais rejoué. */
   external?: boolean;
+  /** Tour d'outils de la réponse : les appels d'un même tour sont rejoués ensemble, chaque tour séparément. */
+  round?: number;
 }
 
 export interface PermissionRule {

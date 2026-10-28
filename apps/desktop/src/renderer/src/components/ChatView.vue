@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PlanDock from './PlanDock.vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'primevue/button';
@@ -176,6 +177,7 @@ const sandboxOpen = ref(false);
       <div class="bottom">
         <ProposalsPanel :conversation="activeConversation" />
         <QueuePanel :conversation="activeConversation" />
+        <PlanDock :conversation="activeConversation" />
         <Composer :conversation="activeConversation" @sent="scrollToBottom(true)" @open-goal="openGoal()" />
       </div>
 

@@ -779,7 +779,7 @@ export class GenerationRunner {
       // Exécution des appels, dans l'ordre, chacun soumis au mode et aux autorisations.
       for (const call of calls) {
         const index = parts.length;
-        const outcome = await this.executeTool(job, ctx, messageId, call, (record) => setPart(index, { type: 'tool', call: record }));
+        const outcome = await this.executeTool(job, ctx, messageId, call, (record) => setPart(index, { type: 'tool', call: record }), round);
         if (outcome === 'stop' || signal.aborted) {
           status = 'cancelled';
           if (outcome === 'stop') notice('warning', 'loop_stopped', 'Travail arrêté par l’utilisateur après une détection de boucle.');
@@ -853,11 +853,11 @@ export class GenerationRunner {
    * Un appel d'outil : mode, skill, détection de boucle, autorisation, puis exécution. Le résultat
    * renvoyé au modèle est toujours fidèle (refus, erreur, annulation sont dits comme tels).
    */
-  private async executeTool(job: Job, ctx: JobContext, messageId: Id, call: ToolCallRequest, update: (r: ToolCallRecord) => void): Promise<'ok' | 'stop'> {
+  private async executeTool(job: Job, ctx: JobContext, messageId: Id, call: ToolCallRequest, update: (r: ToolCallRecord) => void, round = 0): Promise<'ok' | 'stop'> {
     const { permissions, proposals, questions, loopGate, events, terminals } = this.deps;
     const signal = job.controller.signal;
     const nowIso = () => new Date().toISOString();
-    const record: ToolCallRecord = { id: call.id, name: call.name, family: 'inconnu', effects: [], arguments: call.arguments, target: null, status: 'pending', result: null, display: null, permission: null, startedAt: nowIso(), finishedAt: null, ...(call.meta ? { meta: call.meta } : {}) };
+    const record: ToolCallRecord = { id: call.id, name: call.name, family: 'inconnu', effects: [], arguments: call.arguments, target: null, status: 'pending', result: null, display: null, permission: null, startedAt: nowIso(), finishedAt: null, round, ...(call.meta ? { meta: call.meta } : {}) };
     const end = (patch: Partial<ToolCallRecord>) => {
       Object.assign(record, patch, { finishedAt: nowIso() });
       if (record.result) record.result = limit(record.result, ctx.settings.agent.maxResultChars);
