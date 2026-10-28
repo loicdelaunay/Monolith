@@ -205,6 +205,8 @@ export const en: Messages = {
     title: 'Plan',
     progress: '{done} / {total}',
     hide: 'Hide the plan',
+    executed: 'Plan completed',
+    steps: '{n} step | {n} steps',
   },
   fileMenu: {
     preview: 'Preview',
@@ -550,6 +552,13 @@ export const en: Messages = {
     },
     config: {
       desktop: 'Desktop control (Windows)',
+      browser: 'Browser',
+      browserHint: 'Browser driven by the AI (Browser skill). A local address (localhost, 127.0.0.1, local network) asks for your approval; you can allow it once or always for that host.',
+      browserBackend: 'Browser used',
+      browserBackends: { embedded: 'Built-in browser', chrome: 'This computer’s Chrome (Chrome DevTools MCP)' },
+      chromePath: 'Chrome executable (optional)',
+      chromePathPlaceholder: 'Empty: installed Chrome detected automatically',
+      chromeHint: 'As in v1: Chrome DevTools MCP (npx) starts Google Chrome with a profile dedicated to Monolith, kept in the data folder. Node.js and Google Chrome are required; also works in the CLI. The built-in browser tools are then replaced by Chrome’s.',
       desktopHint: 'UI Automation acts on controls without moving the cursor or simulating keys. Legacy uses the real mouse and keyboard on the window brought to the foreground. Each action result reports the mode actually used and the reason for any fallback.',
       keyboardMode: 'Keyboard mode',
       mouseMode: 'Mouse mode',

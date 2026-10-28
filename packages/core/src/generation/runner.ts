@@ -136,6 +136,8 @@ export interface GenerationDeps {
   memory?: MemoryService;
   /** Serveurs MCP : connexion avant génération et filtrage des outils par conversation. */
   mcp?: { allows(tool: ToolDefinition, conversationId: Id): boolean; ensureConnected(conversationId: Id, cwd: string): Promise<string[]> };
+  /** Navigateur Chrome du poste (Chrome DevTools MCP) à la place du navigateur intégré, selon les réglages. */
+  chrome?: { allows(tool: ToolDefinition, settings: Settings): boolean; ensure(settings: Settings): Promise<string | null> };
   customSkills?: (roots: string[], settings: Settings) => CustomSkill[];
   /** Vision de secours (modèle de la conversation sans vision). */
   vision?: { cached(attachmentId: Id): string | null; ensure(attachmentId: Id, signal: AbortSignal): Promise<string> };
@@ -243,9 +245,12 @@ export class GenerationRunner {
     const { scope } = this.deps.resources.scope(conversationId);
     // Serveurs MCP actifs pour la conversation : connectés avant de figer la liste des outils.
     const mcpErrors = this.deps.mcp && conversation.mode === 'agent' && (s.skills.enabled.mcp ?? true) ? await this.deps.mcp.ensureConnected(conversationId, scope.roots[0] ?? process.cwd()) : [];
+    const chromeError = this.deps.chrome && conversation.mode === 'agent' && (s.skills.enabled.browser ?? true) ? await this.deps.chrome.ensure(s) : null;
+    if (chromeError) mcpErrors.push(chromeError);
     const tools = this.deps.tools
       .available(s, conversation.mode, conversation.agentMode, this.deps.host)
       .filter((t) => !this.deps.mcp || this.deps.mcp.allows(t, conversationId))
+      .filter((t) => !this.deps.chrome || this.deps.chrome.allows(t, s))
       // Délégation : désactivée par réglage ou au-delà de la profondeur maximale.
       .filter((t) => t.name !== 'delegate_tasks' || (s.subagents.mode !== 'off' && conversation.depth < s.subagents.maxDepth))
       // Sans moteur de recherche : client HTTP intégré seulement (comme la v1).

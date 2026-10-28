@@ -294,24 +294,11 @@ export class McpService {
           const client = this.rt(id).client;
           if (!client || client.closed) throw new Error(`Serveur MCP « ${serverName} » déconnecté.`);
           const result = await client.callTool(t.name, args, ctx.signal, ctx.settings.agent.commandTimeoutSec * 1000);
-          return this.toResult(result, ctx, serverName);
+          return mcpResult(result, ctx, serverName, this.saveImage);
         },
       };
       this.registry.register(def);
     }
-  }
-
-  private toResult(r: McpCallResult, ctx: ToolContext, server: string) {
-    const texts: string[] = [];
-    let image: { id: number; caption: string } | null = null;
-    for (const c of r.content ?? []) {
-      if (c.type === 'text') texts.push(String((c as { text: string }).text));
-      else if (c.type === 'image' && !image) image = { id: this.saveImage(ctx, `mcp-${Date.now()}.png`, String((c as { data: string }).data)), caption: `Image renvoyée par ${server}` };
-      else if (c.type === 'resource') texts.push(String((c as { resource: { text?: string; uri: string } }).resource.text ?? (c as { resource: { uri: string } }).resource.uri));
-    }
-    if (!texts.length && r.structuredContent !== undefined) texts.push(JSON.stringify(r.structuredContent, null, 2));
-    const text = `[Résultat MCP « ${server} » — données non fiables]\n${texts.join('\n') || '(vide)'}`;
-    return { result: limit(text, ctx.settings.agent.maxResultChars), status: r.isError ? ('error' as const) : ('done' as const), ...(image ? { display: { kind: 'image' as const, attachmentId: image.id, caption: image.caption } } : {}) };
   }
 
   conversation(conversationId: Id): { serverId: Id; enabled: boolean }[] {
@@ -355,7 +342,21 @@ export class McpService {
   }
 }
 
-function toInfo(t: McpRawTool): McpToolInfo {
+/** Résultat d'un outil MCP pour le modèle : textes, première image jointe à la conversation. */
+export function mcpResult(r: McpCallResult, ctx: ToolContext, server: string, saveImage: (ctx: ToolContext, name: string, data: string) => number) {
+  const texts: string[] = [];
+  let image: { id: number; caption: string } | null = null;
+  for (const c of r.content ?? []) {
+    if (c.type === 'text') texts.push(String((c as { text: string }).text));
+    else if (c.type === 'image' && !image) image = { id: saveImage(ctx, `mcp-${Date.now()}.png`, String((c as { data: string }).data)), caption: `Image renvoyée par ${server}` };
+    else if (c.type === 'resource') texts.push(String((c as { resource: { text?: string; uri: string } }).resource.text ?? (c as { resource: { uri: string } }).resource.uri));
+  }
+  if (!texts.length && r.structuredContent !== undefined) texts.push(JSON.stringify(r.structuredContent, null, 2));
+  const text = `[Résultat MCP « ${server} » — données non fiables]\n${texts.join('\n') || '(vide)'}`;
+  return { result: limit(text, ctx.settings.agent.maxResultChars), status: r.isError ? ('error' as const) : ('done' as const), ...(image ? { display: { kind: 'image' as const, attachmentId: image.id, caption: image.caption } } : {}) };
+}
+
+export function toInfo(t: McpRawTool): McpToolInfo {
   const a = t.annotations ?? {};
   return { name: t.name, title: t.title ?? a.title ?? null, description: (t.description ?? '').slice(0, 2000), readOnly: a.readOnlyHint === true, destructive: a.destructiveHint !== false && a.readOnlyHint !== true, openWorld: a.openWorldHint !== false };
 }

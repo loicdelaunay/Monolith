@@ -6,22 +6,21 @@ import { messagesOf } from '../stores/app.ts';
 
 /**
  * Plan de travail de l'agent, épinglé au-dessus de la zone de saisie (au lieu de cartes répétées
- * dans le fil) : dernière version publiée par `update_plan`, avec la progression. Affiché tant que
- * le plan appartient à la dernière réponse ou qu'il reste des étapes.
+ * dans le fil) : dernière version publiée par `update_plan`, avec la progression. Affiché tant qu'il
+ * reste des étapes ; une fois terminé, il disparaît et reste dans le fil (« Plan exécuté »).
  */
 const props = defineProps<{ conversation: Conversation }>();
 const { t } = useI18n();
 
 const latest = computed(() => {
   const list = messagesOf(props.conversation.id).value;
-  const lastAssistant = [...list].reverse().find((m) => m.role === 'assistant');
   for (let i = list.length - 1; i >= 0; i--) {
     const m = list[i]!;
     if (m.role !== 'assistant') continue;
     for (let j = m.parts.length - 1; j >= 0; j--) {
       const p = m.parts[j]!;
       if (p.type === 'tool' && p.call.name === 'update_plan' && p.call.display?.kind === 'plan') {
-        return { id: p.call.id, items: p.call.display.items as PlanItem[], current: m.id === lastAssistant?.id };
+        return { id: p.call.id, items: p.call.display.items as PlanItem[] };
       }
     }
   }
@@ -32,18 +31,14 @@ const total = computed(() => latest.value?.items.length ?? 0);
 const finished = computed(() => total.value > 0 && done.value === total.value);
 const active = computed(() => latest.value?.items.find((i) => i.status === 'in_progress') ?? null);
 
-// Replié par défaut une fois terminé ; masqué par l'utilisateur jusqu'à la prochaine mise à jour.
+// Masqué par l'utilisateur jusqu'à la prochaine mise à jour du plan.
 const collapsed = ref(false);
 const dismissed = ref<string | null>(null);
 watch(
   () => latest.value?.id,
-  () => {
-    collapsed.value = finished.value;
-    dismissed.value = null;
-  },
+  () => (dismissed.value = null),
 );
-watch(finished, (f) => f && (collapsed.value = true));
-const visible = computed(() => !!latest.value && dismissed.value !== latest.value.id && (latest.value.current || !finished.value));
+const visible = computed(() => !!latest.value && !finished.value && dismissed.value !== latest.value.id);
 </script>
 
 <template>

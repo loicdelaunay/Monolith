@@ -26,6 +26,7 @@ const providerOptions = computed(() => store.providers.filter((p) => p.kind === 
 const searchOptions = computed(() => (['duckduckgo', 'searxng', 'none'] as const).map((v) => ({ label: t(`skills.config.providers.${v}`), value: v })));
 const modeOptions = computed(() => (['smart', 'legacy'] as const).map((v) => ({ label: t(`skills.config.httpModes.${v}`), value: v })));
 const inputOptions = computed(() => (['auto', 'uia', 'legacy'] as const).map((v) => ({ label: t(`skills.config.inputModes.${v}`), value: v })));
+const browserOptions = computed(() => (['embedded', 'chrome'] as const).map((v) => ({ label: t(`skills.config.browserBackends.${v}`), value: v })));
 const desktopAvailable = computed(() => skills.value.find((s) => s.id === 'keyboard')?.available ?? false);
 
 async function setEnabled(id: string, value: boolean) {
@@ -107,6 +108,20 @@ const embeddingSource = computed({
     <label for="http-redir">{{ t('skills.config.httpFollowRedirects') }}</label>
     <ToggleSwitch input-id="http-redir" v-model="draft.web.httpFollowRedirects" />
   </div>
+
+  <h3 class="mh-section-title">{{ t('skills.config.browser') }}</h3>
+  <p class="mh-hint">{{ t('skills.config.browserHint') }}</p>
+  <div class="mh-row wrap">
+    <div class="mh-field">
+      <label for="br-backend">{{ t('skills.config.browserBackend') }}</label>
+      <Select input-id="br-backend" :aria-label="t('skills.config.browserBackend')" v-model="draft.browser.backend" :options="browserOptions" option-label="label" option-value="value" />
+    </div>
+    <div v-if="draft.browser.backend === 'chrome'" class="mh-field grow">
+      <label for="br-path">{{ t('skills.config.chromePath') }}</label>
+      <InputText id="br-path" v-model="draft.browser.chromePath" :placeholder="t('skills.config.chromePathPlaceholder')" spellcheck="false" />
+    </div>
+  </div>
+  <p v-if="draft.browser.backend === 'chrome'" class="mh-hint">{{ t('skills.config.chromeHint') }}</p>
 
   <h3 class="mh-section-title">{{ t('skills.config.desktop') }}</h3>
   <p class="mh-hint">{{ t('skills.config.desktopHint') }}</p>

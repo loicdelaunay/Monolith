@@ -8,6 +8,7 @@ import { formatDuration, formatTokens, throughput } from '../lib/format.ts';
 import MarkdownView from './MarkdownView.vue';
 import AttachmentChip from './AttachmentChip.vue';
 import ToolCallBubble from './tools/ToolCallBubble.vue';
+import PlanHistory from './PlanHistory.vue';
 
 const props = defineProps<{ message: Message; busy?: boolean }>();
 const emit = defineEmits<{ resume: []; fork: [] }>();
@@ -59,6 +60,16 @@ const errorTitle = computed(() => {
 });
 /** Plan publié par l'agent : affiché épinglé au-dessus de la zone de saisie, pas dans le fil (sauf échec). */
 const pinnedPlan = (call: { name: string; status: string; display: { kind: string } | null }) => call.name === 'update_plan' && call.status === 'done' && call.display?.kind === 'plan';
+/** Dernière version du plan de cette réponse, si toutes ses étapes sont faites : gardée dans le fil comme historique. */
+const finishedPlan = computed(() => {
+  for (let j = parts.value.length - 1; j >= 0; j--) {
+    const p = parts.value[j]!;
+    if (p.type !== 'tool' || !pinnedPlan(p.call) || p.call.display?.kind !== 'plan') continue;
+    const items = p.call.display.items;
+    return items.length > 0 && items.every((i) => i.status === 'done') ? { id: p.call.id, items } : null;
+  }
+  return null;
+});
 </script>
 
 <template>
@@ -93,6 +104,7 @@ const pinnedPlan = (call: { name: string; status: string; display: { kind: strin
             <div class="reasoning-text">{{ part.text }}</div>
           </details>
           <MarkdownView v-else-if="part.type === 'text'" :text="part.text" :conversation-id="message.conversationId" />
+          <PlanHistory v-else-if="part.type === 'tool' && part.call.id === finishedPlan?.id" :items="finishedPlan.items" />
           <ToolCallBubble v-else-if="part.type === 'tool' && !pinnedPlan(part.call)" :call="part.call" :conversation-id="message.conversationId" :message-id="message.id" />
           <div v-else-if="part.type === 'notice'" class="notice" :class="part.level" role="note">
             <i class="pi" :class="part.level === 'info' ? 'pi-info-circle' : 'pi-exclamation-triangle'" />

@@ -2,6 +2,12 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Navigateur : Chrome du poste** (comme la v1) : Réglages › Skills › Navigateur permet de choisir entre le navigateur intégré et Chrome via Chrome DevTools MCP. Chrome démarre avec un profil dédié à Monolith, conservé dans le dossier de données ; un chemin vers Chrome peut être indiqué. Node.js et Google Chrome sont requis ; fonctionne aussi dans le CLI.
+- **Adresses locales** (localhost, 127.0.0.1, réseau local) : le navigateur et le client HTTP ne les refusent plus d'office ; votre accord est demandé, une fois ou toujours pour l'hôte et le port. En mode Autoriser tout, elles passent sans question.
+- **Plan terminé** : il disparaît du haut de la zone de saisie et reste dans la conversation sous forme de carte « Plan exécuté » (repliée, étapes visibles au clic).
+
 ## 3.0.0-alpha.19 — 2026-10-28
 
 - **Mise à jour intégrée (Windows)** : l'installation ne démarrait jamais. PowerShell lancé détaché quittait sans exécuter le script, et lancé directement il était arrêté avec l'application. L'installateur passe désormais par `cmd /c start` et s'exécute après la fermeture de Monolith. Vérifié de bout en bout depuis GitHub : recherche, téléchargement, contrôle SHA-256, installation (ancienne version conservée dans `previous`) et redémarrage dans la nouvelle version. Les versions alpha.17 et alpha.18 doivent être mises à jour une fois à la main.

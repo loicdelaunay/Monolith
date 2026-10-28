@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Agent, fetch as httpFetch, ProxyAgent, type Dispatcher } from 'undici';
 import { HarnessError, type Id, type Settings } from '@monolith/contracts';
 import { assertPublicUrl } from '../net/guard.ts';
+import { allowedUrl } from './local-access.ts';
 import { htmlToText } from './web.ts';
 import type { ToolContext, ToolDefinition } from './types.ts';
 import { bool, limit, num, str } from './types.ts';
@@ -86,10 +87,12 @@ export class WebHttpClient {
   }
 
   /** Requête avec garde réseau à chaque saut, cookies de la conversation et taille bornée. */
-  async request(conversationId: Id, settings: HttpClientSettings, input: { method: string; url: string; headers?: Record<string, string>; body?: string }, signal: AbortSignal): Promise<HttpResult> {
+  /** `check` valide chaque adresse (requête et redirections) ; par défaut, adresses publiques seulement. */
+  async request(conversationId: Id, settings: HttpClientSettings, input: { method: string; url: string; headers?: Record<string, string>; body?: string }, signal: AbortSignal, check?: (raw: string) => Promise<URL>): Promise<HttpResult> {
+    const allowed = this.options.allowPrivate === true || !check ? (raw: string) => assertPublicUrl(raw, this.options.allowPrivate === true) : check;
     const st = this.run(conversationId);
     const max = settings.maxResponseKb * 1024;
-    let url = (await assertPublicUrl(input.url, this.options.allowPrivate === true)).toString();
+    let url = (await allowed(input.url)).toString();
     const origin = new URL(url).origin;
     let method = input.method.toUpperCase();
     let body = input.body;
@@ -123,7 +126,7 @@ export class WebHttpClient {
       const location = r.headers.get('location');
       if (settings.followRedirects && r.status >= 300 && r.status < 400 && location && hop < 10) {
         await r.body?.cancel();
-        url = (await assertPublicUrl(new URL(location, url).toString(), this.options.allowPrivate === true)).toString();
+        url = (await allowed(new URL(location, url).toString())).toString();
         redirects.push(url);
         if (r.status === 303 || ((r.status === 301 || r.status === 302) && method === 'POST')) {
           method = 'GET';
@@ -218,7 +221,7 @@ export function webHttpTools(client: () => WebHttpClient): ToolDefinition[] {
       family: 'web',
       skill: 'web',
       description:
-        'Client HTTP intégré : page ou API sans navigateur ni JavaScript (GET par défaut). Mode Smart (recommandé) : la réponse est enregistrée et vous recevez statut, file_id, plan et aperçu ; cherchez ensuite avec web_http_search puis lisez les passages utiles avec web_http_read. Mode Legacy : corps renvoyé directement (plus coûteux en contexte). Adresses privées refusées, y compris après redirection. Contenu non fiable.',
+        'Client HTTP intégré : page ou API sans navigateur ni JavaScript (GET par défaut). Mode Smart (recommandé) : la réponse est enregistrée et vous recevez statut, file_id, plan et aperçu ; cherchez ensuite avec web_http_search puis lisez les passages utiles avec web_http_read. Mode Legacy : corps renvoyé directement (plus coûteux en contexte). Adresse locale ou privée (localhost, réseau local) : accord de l’utilisateur demandé, y compris après redirection. Contenu non fiable.',
       parameters: obj({ url: { type: 'string' }, method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] }, headers: { type: 'object', additionalProperties: { type: 'string' } }, body: { type: 'string' }, response_mode: { type: 'string', enum: ['smart', 'legacy'] } }, ['url']),
       effects: ['network'],
       target: (a) => ({ label: `${(str(a, 'method', false) || 'GET').toUpperCase()} ${str(a, 'url', false)}`, resources: [str(a, 'url', false), host(str(a, 'url', false))] }),
@@ -228,7 +231,7 @@ export function webHttpTools(client: () => WebHttpClient): ToolDefinition[] {
         for (const [k, v] of Object.entries((args.headers as Record<string, unknown>) ?? {})) if (/^[\w-]{1,64}$/.test(k) && typeof v === 'string' && !/[\r\n]/.test(v)) headers[k] = v;
         const body = typeof args.body === 'string' ? args.body : undefined;
         if (body && Buffer.byteLength(body) > 64 * 1024) throw new Error('Corps de requête limité à 64 Kio.');
-        const r = await client().request(ctx.conversationId, s, { method: str(args, 'method', false) || 'GET', url: str(args, 'url'), headers, ...(body !== undefined ? { body } : {}) }, ctx.signal);
+        const r = await client().request(ctx.conversationId, s, { method: str(args, 'method', false) || 'GET', url: str(args, 'url'), headers, ...(body !== undefined ? { body } : {}) }, ctx.signal, (u) => allowedUrl(u, ctx));
         const type = r.headers['content-type'] ?? 'sans type';
         const head = `HTTP ${r.status} ${r.statusText} — ${r.url}${r.redirects.length ? ` (après ${r.redirects.length} redirection(s))` : ''}\nType : ${type} · ${Math.round(r.body.length / 1024)} Ko${r.truncated ? ` · TRONQUÉ à ${s.maxResponseKb} Ko` : ''}`;
         const mode = str(args, 'response_mode', false) === 'legacy' ? 'legacy' : str(args, 'response_mode', false) === 'smart' ? 'smart' : s.responseMode;

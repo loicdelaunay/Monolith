@@ -203,6 +203,8 @@ export const fr = {
     title: 'Plan',
     progress: '{done} / {total}',
     hide: 'Masquer le plan',
+    executed: 'Plan exécuté',
+    steps: '{n} étape | {n} étapes',
   },
   fileMenu: {
     preview: 'Aperçu',
@@ -548,6 +550,13 @@ export const fr = {
     },
     config: {
       desktop: 'Contrôle du bureau (Windows)',
+      browser: 'Navigateur',
+      browserHint: 'Navigateur piloté par l’IA (skill Navigateur). Une adresse locale (localhost, 127.0.0.1, réseau local) demande votre accord ; vous pouvez l’autoriser une fois ou toujours pour cet hôte.',
+      browserBackend: 'Navigateur utilisé',
+      browserBackends: { embedded: 'Navigateur intégré', chrome: 'Chrome du poste (Chrome DevTools MCP)' },
+      chromePath: 'Exécutable de Chrome (facultatif)',
+      chromePathPlaceholder: 'Vide : Chrome installé détecté automatiquement',
+      chromeHint: 'Comme la v1 : Chrome DevTools MCP (npx) démarre Google Chrome avec un profil dédié à Monolith, conservé dans le dossier de données. Node.js et Google Chrome sont requis ; fonctionne aussi dans le CLI. Les outils du navigateur intégré sont alors remplacés par ceux de Chrome.',
       desktopHint: 'UI Automation agit sur les contrôles sans déplacer le curseur ni simuler de touches. Legacy utilise la souris et le clavier réels de la fenêtre mise au premier plan. Le résultat de chaque action indique le mode réellement utilisé et la raison d’un repli.',
       keyboardMode: 'Mode du clavier',
       mouseMode: 'Mode de la souris',

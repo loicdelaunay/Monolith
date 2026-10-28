@@ -18,6 +18,17 @@ export function isPrivateAddress(ip: string): boolean {
   return false;
 }
 
+/** Adresse locale ou privée : l'appelant peut demander l'accord de l'utilisateur (voir tools/local-access). */
+export class PrivateAddressError extends HarnessError {
+  constructor(
+    message: string,
+    readonly url: URL,
+    readonly host: string,
+  ) {
+    super('permission_denied', message);
+  }
+}
+
 /**
  * Protection contre l'accès réseau privé non autorisé (SSRF) pour les accès initiés par le modèle :
  * schéma http(s) uniquement, et toutes les adresses résolues doivent être publiques.
@@ -34,12 +45,12 @@ export async function assertPublicUrl(raw: string, allowPrivate = false): Promis
   if (allowPrivate) return url;
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
-    throw new HarnessError('permission_denied', `Adresse locale refusée pour un accès initié par le modèle : ${host}`);
+    throw new PrivateAddressError(`Adresse locale refusée pour un accès initié par le modèle : ${host}`, url, host);
   }
   const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => {
     throw new HarnessError('provider_unreachable', `Nom d’hôte introuvable : ${host}`);
   });
   const blocked = addresses.find((a) => isPrivateAddress(a.address));
-  if (blocked) throw new HarnessError('permission_denied', `Adresse réseau privée refusée (${host} → ${blocked.address}). Ouvrez-la vous-même dans le navigateur si nécessaire.`);
+  if (blocked) throw new PrivateAddressError(`Adresse réseau privée refusée (${host} → ${blocked.address}).`, url, host);
   return url;
 }

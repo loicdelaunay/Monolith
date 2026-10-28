@@ -1,6 +1,6 @@
 import type { ToolContext, ToolDefinition } from './types.ts';
 import { limit, str } from './types.ts';
-import { assertPublicUrl } from '../net/guard.ts';
+import { allowedUrl } from './local-access.ts';
 
 /**
  * Services fournis par l'hôte graphique (navigateur intégré, captures). Absent en CLI et sur le serveur :
@@ -32,7 +32,7 @@ export function browserTools(bridge: () => HostBridge | null, saveImage: (ctx: T
       family: 'browser',
       skill: 'browser',
       hosts: ['desktop'],
-      description: 'Ouvre une page web publique dans le navigateur intégré (onglet de la conversation) et renvoie son titre.',
+      description: 'Ouvre une page web dans le navigateur intégré (onglet de la conversation) et renvoie son titre. Une adresse locale (localhost, 127.0.0.1, réseau privé) demande l’accord de l’utilisateur.',
       parameters: obj({ url: { type: 'string' }, new_tab: { type: 'boolean' } }, ['url']),
       effects: ['network'],
       target: (a) => {
@@ -46,7 +46,7 @@ export function browserTools(bridge: () => HostBridge | null, saveImage: (ctx: T
         return { label: u, resources: [u, host] };
       },
       async execute(args, ctx) {
-        const url = await assertPublicUrl(str(args, 'url'));
+        const url = await allowedUrl(str(args, 'url'), ctx);
         const page = await call<BrowserPage>('browser.open', { url: url.toString(), newTab: args.new_tab === true, conversationId: ctx.conversationId });
         return { result: `Page ouverte (onglet ${page.tabId}) : ${page.title} — ${page.url}` };
       },

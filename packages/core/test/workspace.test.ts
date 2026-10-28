@@ -128,10 +128,15 @@ describe('outils de l’hôte', () => {
     const plan = h.tools.available(settings, 'agent', 'plan', 'desktop').map((t) => t.name);
     expect(plan).not.toContain('browser_click');
     expect(plan).not.toContain('browser_open');
-    // L'agent ne peut pas viser le réseau local par le navigateur.
+    // Réseau local par le navigateur : seulement avec l'accord de l'utilisateur.
     const open = h.tools.get('browser_open')!;
-    await expect(open.execute({ url: 'http://127.0.0.1:8080/' }, { conversationId: 1 } as never)).rejects.toThrow(/privée|locale/);
+    const asked: string[] = [];
+    const ctx = (answer: boolean) => ({ conversationId: 1, authorize: async (r: string[]) => (asked.push(r.at(-1)!), answer) }) as never;
+    await expect(open.execute({ url: 'http://127.0.0.1:8080/' }, ctx(false))).rejects.toThrow(/locale/);
     expect(calls).toEqual([]);
+    await open.execute({ url: 'http://127.0.0.1:8080/' }, ctx(true));
+    expect(calls).toEqual(['browser.open']);
+    expect(asked).toEqual(['local-network:127.0.0.1:8080', 'local-network:127.0.0.1:8080']);
   });
 });
 

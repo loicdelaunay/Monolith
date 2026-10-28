@@ -46,6 +46,7 @@ import { WorkspaceFiles } from './services/workspace.ts';
 import { MemoryService } from './services/memory.ts';
 import { RagService } from './services/rag.ts';
 import { McpService } from './mcp/service.ts';
+import { ChromeMcp } from './mcp/chrome.ts';
 import { delegateTool, SubagentService } from './orchestration/subagents.ts';
 import { SandboxService } from './orchestration/sandbox.ts';
 import { StudioService } from './services/studio.ts';
@@ -92,6 +93,8 @@ export interface HarnessOptions {
   /** IA locale auxiliaire (LANCET Nano, MiniLM) : adresses et Python imposé (tests). */
   localAi?: Omit<LocalAiOptions, 'dir' | 'events' | 'logger'>;
   /** Mises à jour : vérification automatique (version installée) et adresses (tests). */
+  /** Tests : commande remplaçant `npx chrome-devtools-mcp` (navigateur Chrome du poste). */
+  chromeMcp?: { command: string; args: string[] };
   updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean; platform?: NodeJS.Platform };
 }
 
@@ -132,6 +135,7 @@ export class Harness {
   readonly memory: MemoryService;
   readonly rag: RagService;
   readonly mcp: McpService;
+  readonly chrome: ChromeMcp;
   readonly subagents: SubagentService;
   readonly sandbox: SandboxService;
   readonly studio: StudioService;
@@ -237,8 +241,16 @@ export class Harness {
     this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get(), this.localAi);
     this.sandbox = new SandboxService(this.resources, join(this.layout.workspace, 'sandboxes'));
     this.mcp = new McpService(this.db, this.events, this.secrets, this.tools, this.logger, (_ctx, name, data) => this.attachments.storeImage(name, data).id);
+    this.chrome = new ChromeMcp({
+      registry: this.tools,
+      logger: this.logger,
+      profileDir: join(this.layout.workspace, 'chrome-profile'),
+      saveImage: (_ctx, name, data) => this.attachments.storeImage(name, data).id,
+      ...(options.chromeMcp ? { command: options.chromeMcp } : {}),
+    });
     // Outils du navigateur et des captures : seulement si l'hôte les fournit réellement.
-    this.tools.hostFilter = (t) => !(t.family === 'browser' || t.family === 'desktop') || this.hostBridge !== null;
+    // Navigateur intégré et bureau : interface de bureau requise ; Chrome du poste (chrome__*) : non.
+    this.tools.hostFilter = (t) => !(t.family === 'browser' || t.family === 'desktop') || t.name.startsWith('chrome__') || this.hostBridge !== null;
     this.terminals = new TerminalManager(this.events);
     this.questions = new QuestionBroker(this.events);
     this.loopGate = new LoopGate(this.events);
@@ -266,6 +278,7 @@ export class Harness {
       host: options.host,
       memory: this.memory,
       mcp: this.mcp,
+      chrome: this.chrome,
       customSkills: (roots, settings) => discoverSkills(this.layout.skills, roots, settings),
       vision: { cached: (id) => this.studio.cachedDescription(id), ensure: (id, signal) => this.studio.ensureDescription(id, signal) },
     });
@@ -391,6 +404,7 @@ export class Harness {
     // Processus d'agents externes (ACP) et serveurs MCP arrêtés avec le moteur.
     for (const a of this.adapters.values()) await a.dispose?.();
     await this.mcp.dispose();
+    await this.chrome.dispose();
     await this.webHttp.dispose();
     await this.local.dispose();
     await this.desktop?.dispose();

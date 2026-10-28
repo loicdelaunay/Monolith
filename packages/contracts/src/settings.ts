@@ -21,6 +21,8 @@ export type ReasoningDisplay = 'none' | 'collapsed' | 'expanded';
 export type Density = 'compact' | 'comfortable';
 /** Contrôle du bureau Windows : automatique (UI Automation d'abord), UI Automation seule, ou saisie physique. */
 export type DesktopInputMode = 'auto' | 'uia' | 'legacy';
+/** Navigateur piloté par l'IA : intégré à Monolith, ou Chrome du poste via Chrome DevTools MCP. */
+export type BrowserBackend = 'embedded' | 'chrome';
 
 export interface Settings {
   general: {
@@ -196,6 +198,12 @@ export interface Settings {
   updates: {
     /** off : jamais de vérification automatique ; notify : signaler ; auto : télécharger et installer à la fermeture. */
     mode: UpdateMode;
+  };
+  browser: {
+    /** embedded : navigateur intégré (interface de bureau) ; chrome : Chrome du poste via Chrome DevTools MCP (comme la v1). */
+    backend: BrowserBackend;
+    /** Exécutable de Chrome (vide : Chrome stable détecté par Chrome DevTools MCP). */
+    chromePath: string;
   };
   desktop: {
     /** Contrôle du clavier : auto = UI Automation d'abord ; uia = actions sémantiques seules ; legacy = saisie physique. */
@@ -400,6 +408,10 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   updates: {
     mode: 'notify',
+  },
+  browser: {
+    backend: 'embedded',
+    chromePath: '',
   },
   desktop: {
     keyboardMode: 'auto',

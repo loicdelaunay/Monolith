@@ -3,10 +3,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { Harness, MemoryProtector, silentLogger } from '../src/index.ts';
+import { Harness, MemoryProtector, silentLogger, type HarnessOptions } from '../src/index.ts';
 
 /** Profil isolé dans un dossier temporaire ; aucune donnée utilisateur réelle n'est touchée. */
-export function tempHarness(dir?: string): { harness: Harness; dir: string; cleanup: () => Promise<void> } {
+export function tempHarness(dir?: string, extra: Partial<HarnessOptions> = {}): { harness: Harness; dir: string; cleanup: () => Promise<void> } {
   const root = dir ?? mkdtempSync(join(tmpdir(), 'mh-test-'));
   const harness = new Harness({
     host: 'cli',
@@ -14,6 +14,7 @@ export function tempHarness(dir?: string): { harness: Harness; dir: string; clea
     logger: silentLogger,
     keyProtector: new MemoryProtector(),
     changelog: '# Changelog de test',
+    ...extra,
   });
   return {
     harness,
