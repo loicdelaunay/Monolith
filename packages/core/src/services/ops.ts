@@ -243,7 +243,7 @@ export class MaintenanceService {
     return report;
   }
 
-  /** Pièces jointes plus référencées par aucun message, brouillon, file ou description. */
+  /** Pièces jointes plus référencées par aucun message, brouillon, file, projet ou description. */
   private cleanAttachments(): number {
     const used = new Set<number>();
     const scan = (json: string | null) => {
@@ -253,6 +253,7 @@ export class MaintenanceService {
     for (const r of this.deps.db.all<{ parts_json: string }>('SELECT parts_json FROM messages')) scan(r.parts_json);
     for (const r of this.deps.db.all<{ draft_attachments_json: string }>('SELECT draft_attachments_json FROM conversations')) scan(r.draft_attachments_json);
     for (const r of this.deps.db.all<{ attachments_json: string }>('SELECT attachments_json FROM queued_inputs')) scan(r.attachments_json);
+    for (const r of this.deps.db.all<{ attachment_id: number }>('SELECT attachment_id FROM project_attachments')) used.add(r.attachment_id);
     const day = new Date(Date.now() - 86_400_000).toISOString();
     const orphans = this.deps.db.all<{ id: number; sha256: string }>('SELECT id, sha256 FROM attachments WHERE created_at < ?', day).filter((a) => !used.has(a.id));
     for (const a of orphans) this.deps.db.run('DELETE FROM attachments WHERE id = ?', a.id);

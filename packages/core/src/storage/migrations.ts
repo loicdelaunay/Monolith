@@ -424,6 +424,18 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 8,
+    name: 'project-attachments',
+    sql: /* sql */ `
+      CREATE TABLE project_attachments (
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        attachment_id INTEGER NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+        sort_order REAL NOT NULL DEFAULT 0,
+        PRIMARY KEY (project_id, attachment_id)
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

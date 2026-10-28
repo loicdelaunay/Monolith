@@ -612,6 +612,8 @@ export class Harness {
       'queue.reorder': (p) => this.queue.reorder(p.conversationId, p.ids),
       'queue.sendNext': (p) => this.generation.sendNext(p.conversationId),
 
+      'projects.addAttachments': (p) => this.projects.addAttachments(p.id, p.attachmentIds),
+      'projects.removeAttachment': (p) => this.projects.removeAttachment(p.id, p.attachmentId),
       'attachments.upload': (p) => this.attachments.upload(p.name, p.mime, p.dataBase64),
       'attachments.read': (p) => {
         const ref = this.attachments.get(p.id);

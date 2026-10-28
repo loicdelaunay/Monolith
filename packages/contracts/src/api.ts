@@ -107,6 +107,8 @@ export interface ProjectInput {
   icon?: string;
   color?: string;
   instructions?: string;
+  /** Création : pièces jointes déjà envoyées (attachments.upload) à rattacher au projet. */
+  attachmentIds?: Id[];
 }
 
 export interface ProviderInput {
@@ -197,6 +199,8 @@ export interface HarnessApi {
   'projects.reorder': { params: { ids: Id[] }; result: void };
   'projects.addFolder': { params: { id: Id; path: string; label?: string }; result: Project };
   'projects.removeFolder': { params: { folderId: Id }; result: Project };
+  'projects.addAttachments': { params: { id: Id; attachmentIds: Id[] }; result: Project };
+  'projects.removeAttachment': { params: { id: Id; attachmentId: Id }; result: Project };
 
   'conversations.list': { params: ConversationListQuery; result: Conversation[] };
   'conversations.get': { params: { id: Id }; result: Conversation };

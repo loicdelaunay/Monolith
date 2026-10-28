@@ -1,6 +1,6 @@
 import { accessSync, constants, statSync } from 'node:fs';
 import { basename, isAbsolute, resolve } from 'node:path';
-import { HarnessError, type Id, type Project, type ProjectFolder, type ProjectInput } from '@monolith/contracts';
+import { ATTACHMENT_LIMITS, HarnessError, type AttachmentKind, type Id, type Project, type ProjectFolder, type ProjectInput } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import { now } from '../util.ts';
@@ -27,6 +27,15 @@ interface FolderRow {
 const MAX_NAME = 120;
 const MAX_INSTRUCTIONS = 100_000;
 
+interface AttachmentRow {
+  project_id: number;
+  id: number;
+  name: string;
+  mime: string;
+  size: number;
+  kind: AttachmentKind;
+}
+
 function folderAvailable(path: string): boolean {
   try {
     if (!statSync(path).isDirectory()) return false;
@@ -46,13 +55,39 @@ export class ProjectService {
   list(): Project[] {
     const rows = this.db.all<ProjectRow>('SELECT * FROM projects ORDER BY sort_order, id');
     const folders = this.db.all<FolderRow>('SELECT * FROM project_folders ORDER BY sort_order, id');
-    return rows.map((r) => this.map(r, folders.filter((f) => f.project_id === r.id)));
+    const attachments = this.attachmentRows(null);
+    return rows.map((r) => this.map(r, folders.filter((f) => f.project_id === r.id), attachments.filter((a) => a.project_id === r.id)));
+  }
+
+  private attachmentRows(projectId: Id | null): AttachmentRow[] {
+    const sql = 'SELECT pa.project_id, a.id, a.name, a.mime, a.size, a.kind FROM project_attachments pa JOIN attachments a ON a.id = pa.attachment_id';
+    return projectId === null ? this.db.all<AttachmentRow>(`${sql} ORDER BY pa.sort_order, a.id`) : this.db.all<AttachmentRow>(`${sql} WHERE pa.project_id = ? ORDER BY pa.sort_order, a.id`, projectId);
+  }
+
+  /** Rattache des pièces jointes déjà validées par le service des pièces jointes (20 au plus par projet). */
+  addAttachments(id: Id, attachmentIds: unknown): Project {
+    const project = this.get(id);
+    if (!Array.isArray(attachmentIds)) throw new HarnessError('invalid_argument', 'Liste de pièces jointes invalide');
+    const ids = [...new Set(attachmentIds.map(Number))].filter((a) => !project.attachments.some((x) => x.id === a));
+    if (project.attachments.length + ids.length > ATTACHMENT_LIMITS.perProject) throw new HarnessError('invalid_argument', `${ATTACHMENT_LIMITS.perProject} pièces jointes maximum par projet`);
+    let order = this.db.get<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM project_attachments WHERE project_id = ?', id)?.m ?? 0;
+    for (const a of ids) if (!Number.isInteger(a) || !this.db.get('SELECT 1 AS x FROM attachments WHERE id = ?', a)) throw new HarnessError('not_found', `Pièce jointe ${a} introuvable`);
+    for (const a of ids) this.db.run('INSERT INTO project_attachments (project_id, attachment_id, sort_order) VALUES (?, ?, ?)', id, a, ++order);
+    this.changed();
+    return this.get(id);
+  }
+
+  removeAttachment(id: Id, attachmentId: Id): Project {
+    this.get(id);
+    this.db.run('DELETE FROM project_attachments WHERE project_id = ? AND attachment_id = ?', id, attachmentId);
+    this.changed();
+    return this.get(id);
   }
 
   get(id: Id): Project {
     const row = this.db.get<ProjectRow>('SELECT * FROM projects WHERE id = ?', id);
     if (!row) throw new HarnessError('not_found', `Projet ${id} introuvable`);
-    return this.map(row, this.db.all<FolderRow>('SELECT * FROM project_folders WHERE project_id = ? ORDER BY sort_order, id', id));
+    return this.map(row, this.db.all<FolderRow>('SELECT * FROM project_folders WHERE project_id = ? ORDER BY sort_order, id', id), this.attachmentRows(id));
   }
 
   exists(id: Id): boolean {
@@ -73,6 +108,7 @@ export class ProjectService {
       t,
       t,
     );
+    if (input.attachmentIds?.length) return this.addAttachments(lastInsertRowid, input.attachmentIds);
     this.changed();
     return this.get(lastInsertRowid);
   }
@@ -145,7 +181,7 @@ export class ProjectService {
     return this.get(row.project_id);
   }
 
-  private map(r: ProjectRow, folders: FolderRow[]): Project {
+  private map(r: ProjectRow, folders: FolderRow[], attachments: AttachmentRow[]): Project {
     return {
       id: r.id,
       name: r.name,
@@ -158,6 +194,7 @@ export class ProjectService {
       folders: folders.map(
         (f): ProjectFolder => ({ id: f.id, projectId: f.project_id, path: f.path, label: f.label, sortOrder: f.sort_order, available: folderAvailable(f.path) }),
       ),
+      attachments: attachments.map((a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size, kind: a.kind })),
     };
   }
 

@@ -9,6 +9,9 @@ import { useToast } from 'primevue/usetoast';
 import { api, errorMessage, host } from '../api.ts';
 import { store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
+import { ATTACHMENT_LIMITS, type AttachmentRef } from '@monolith/contracts';
+import { uploadFiles } from '../lib/attachments.ts';
+import AttachmentChip from './AttachmentChip.vue';
 
 const { t } = useI18n();
 const toast = useToast();
@@ -31,6 +34,7 @@ watch(
     if (!open) return;
     const p = project.value;
     Object.assign(form, { name: p?.name ?? '', icon: p?.icon ?? 'folder', color: p?.color ?? '', instructions: p?.instructions ?? '' });
+    pending.value = [];
     initial.value = JSON.stringify(form);
     await nextTick();
     if (uiState.projectDialog.focus === 'instructions') instructionsInput.value?.$el.focus();
@@ -51,7 +55,8 @@ async function save() {
       uiState.projectDialog.open = false;
     } else {
       // Après création, la fenêtre reste ouverte pour ajouter les dossiers sources.
-      const p = await api.call('projects.create', { ...form });
+      const p = await api.call('projects.create', { ...form, attachmentIds: pending.value.map((a) => a.id) });
+      pending.value = [];
       if (!store.projects.some((x) => x.id === p.id)) store.projects = [...store.projects, p];
       uiState.projectDialog.projectId = p.id;
       initial.value = JSON.stringify(form);
@@ -61,6 +66,36 @@ async function save() {
   } finally {
     saving.value = false;
   }
+}
+
+// Pièces jointes du projet : envoyées à chaque conversation du projet. Avant la création, gardées en attente
+// et rattachées à la création ; ensuite, ajout et retrait immédiats (comme les dossiers).
+const pending = ref<AttachmentRef[]>([]);
+const fileInput = ref<HTMLInputElement | null>(null);
+const dragging = ref(false);
+const projectAttachments = computed(() => (project.value ? project.value.attachments : pending.value));
+async function addAttachments(files: File[]) {
+  if (!files.length) return;
+  const room = ATTACHMENT_LIMITS.perProject - projectAttachments.value.length;
+  if (files.length > room) toast.add({ severity: 'warn', summary: t('project.tooManyAttachments', { max: ATTACHMENT_LIMITS.perProject }), life: 5000 });
+  const { refs, errors } = await uploadFiles(files.slice(0, Math.max(0, room)));
+  for (const err of errors) toast.add({ severity: 'error', summary: t('composer.attachmentRejected'), detail: err, life: 8000 });
+  if (!refs.length) return;
+  if (project.value) await api.call('projects.addAttachments', { id: project.value.id, attachmentIds: refs.map((r) => r.id) }).catch(fail);
+  else pending.value = [...pending.value, ...refs];
+}
+async function removeAttachment(id: number) {
+  if (project.value) await api.call('projects.removeAttachment', { id: project.value.id, attachmentId: id }).catch(fail);
+  else pending.value = pending.value.filter((a) => a.id !== id);
+}
+function onPick(e: Event) {
+  const input = e.target as HTMLInputElement;
+  void addAttachments([...(input.files ?? [])]);
+  input.value = '';
+}
+function onDrop(e: DragEvent) {
+  dragging.value = false;
+  void addAttachments([...(e.dataTransfer?.files ?? [])]);
 }
 
 // Import d'un permission.json : aperçu des règles, puis import explicite (opération immédiate).
@@ -125,6 +160,22 @@ async function removeFolder(folderId: number) {
         <label for="project-instructions">{{ t('project.instructions') }}</label>
         <Textarea id="project-instructions" ref="instructionsInput" v-model="form.instructions" rows="7" auto-resize fluid class="mono" />
         <p class="mh-hint">{{ t('project.instructionsHint') }}</p>
+      </div>
+
+      <div class="mh-field">
+        <div class="mh-row between">
+          <span class="mh-label">{{ t('project.attachments') }}</span>
+          <span v-if="project" class="mh-badge-immediate"><i class="pi pi-bolt" />{{ t('common.immediate') }}</span>
+        </div>
+        <div class="drop" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
+          <div v-if="projectAttachments.length" class="chips">
+            <AttachmentChip v-for="a in projectAttachments" :key="a.id" :attachment="a" removable @remove="removeAttachment(a.id)" />
+          </div>
+          <p v-else class="mh-muted">{{ t('project.noAttachments') }}</p>
+          <div><Button :label="t('project.addAttachments')" icon="pi pi-paperclip" size="small" severity="secondary" outlined @click="fileInput?.click()" /></div>
+        </div>
+        <input ref="fileInput" type="file" multiple hidden @change="onPick" />
+        <p class="mh-hint">{{ t('project.attachmentsHint', { max: ATTACHMENT_LIMITS.perProject }) }}</p>
       </div>
 
       <div v-if="project" class="mh-field">
@@ -200,6 +251,23 @@ async function removeFolder(folderId: number) {
 }
 .color-choice.none {
   background: repeating-linear-gradient(45deg, var(--mh-surface), var(--mh-surface) 4px, var(--mh-hover) 4px, var(--mh-hover) 8px);
+}
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--mh-border);
+  border-radius: var(--mh-radius-sm);
+}
+.drop.dragging {
+  border-color: var(--mh-accent);
+  background: color-mix(in srgb, var(--mh-accent) 6%, transparent);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .folders {
   list-style: none;

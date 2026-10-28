@@ -14,6 +14,8 @@ export interface Project {
   instructions: string;
   sortOrder: number;
   folders: ProjectFolder[];
+  /** Pièces jointes du projet : transmises au début de chaque conversation du projet. */
+  attachments: AttachmentRef[];
   createdAt: string;
   updatedAt: string;
 }
@@ -353,6 +355,7 @@ export const ATTACHMENT_LIMITS = {
   imageBytes: 10 * 1024 * 1024,
   textBytes: 1024 * 1024,
   perMessage: 10,
+  perProject: 20,
   imageMimes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
 } as const;
 

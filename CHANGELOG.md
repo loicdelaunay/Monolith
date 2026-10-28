@@ -6,6 +6,7 @@ Toutes les modifications visibles sont listées ici, de la plus récente à la p
 
 - **Navigateur : Chrome du poste** (comme la v1) : Réglages › Skills › Navigateur permet de choisir entre le navigateur intégré et Chrome via Chrome DevTools MCP. Chrome démarre avec un profil dédié à Monolith, conservé dans le dossier de données ; un chemin vers Chrome peut être indiqué. Node.js et Google Chrome sont requis ; fonctionne aussi dans le CLI.
 - **Adresses locales** (localhost, 127.0.0.1, réseau local) : le navigateur et le client HTTP ne les refusent plus d'office ; votre accord est demandé, une fois ou toujours pour l'hôte et le port. En mode Autoriser tout, elles passent sans question.
+- **Pièces jointes de projet** : la fenêtre Nouveau projet / Modifier le projet accepte des fichiers (texte et images, 20 au plus, glisser-déposer ou bouton) à côté des instructions. Ils sont transmis au modèle au début de chaque conversation du projet.
 - **Plan terminé** : il disparaît du haut de la zone de saisie et reste dans la conversation sous forme de carte « Plan exécuté » (repliée, étapes visibles au clic).
 
 ## 3.0.0-alpha.19 — 2026-10-28

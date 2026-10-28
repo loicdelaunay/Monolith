@@ -36,6 +36,7 @@ Un ✅ signifie que l'action est réellement exécutée par le moteur et couvert
 | P-06 | Fichier attaché = accès à ce seul fichier | ✅ | ✅ | ⬜ | T3 | Test : fichier joint accessible, dossier parent refusé. |
 | P-07 | Espace privé persistant pour conversation sans dossier | ✅ | ✅ | ⬜ | T3 | `workspace/conversations/<id>` créé à la demande (test). |
 | P-08 | Instructions de projet (menu contextuel + fenêtre) | ✅ | ⬜ | ⬜ | T1 | Menu contextuel et fenêtre ; appliquées aux prochains envois (testé côté moteur). |
+| P-09 | Pièces jointes de projet (dès la création) | ✅ | ⬜ | ⬜ | — | Texte UTF-8 et images (mêmes limites que les messages, 20 par projet) : glisser-déposer ou bouton dans la fenêtre du projet, rattachées à la création puis ajout/retrait immédiats ; transmises au début de chaque conversation du projet (images selon la vision du modèle), conservées par le nettoyage des pièces jointes. Testé côté moteur et parcours visuel. |
 | P-09 | Import + prévisualisation `permission.json` | ✅ | ⬜ | ⬜ | T3 | Fenêtre du projet : aperçu des règles puis import ; formats `rules` et `allow/deny/ask` (test). |
 | P-10 | Fichiers d'instructions du projet et sous-dossiers avec portée explicite | ✅ | ✅ | ⬜ | T3 | AGENTS.md, CLAUDE.md, .monolith/instructions.md jusqu’à 3 niveaux, chacun avec sa portée (test). |
 

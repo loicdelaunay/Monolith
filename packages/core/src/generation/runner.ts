@@ -420,6 +420,25 @@ export class GenerationRunner {
           : null,
     });
     const list = messages.list(conversation.id).filter((m) => m.id !== excludeMessageId && m.status !== 'streaming');
+    // Pièces jointes du projet : en tête de chaque conversation du projet (texte inséré, images selon la vision du modèle).
+    if (ctx.project?.attachments.length) {
+      list.unshift({
+        id: -2,
+        conversationId: conversation.id,
+        seq: (latest?.upToSeq ?? 0) + 0.5,
+        role: 'user',
+        origin: 'direct',
+        status: 'complete',
+        parts: [{ type: 'text', text: `Pièces jointes du projet « ${ctx.project.name} », fournies par l’utilisateur pour toutes les conversations du projet (données de référence) :` }, ...ctx.project.attachments.map((attachment) => ({ type: 'attachment' as const, attachment }))],
+        snapshot: null,
+        usage: null,
+        error: null,
+        createdAt: '',
+        completedAt: null,
+        durationMs: null,
+        firstTokenMs: null,
+      });
+    }
     if (currentParts.length) {
       list.push({ id: -1, conversationId: conversation.id, seq: Number.MAX_SAFE_INTEGER, role: 'assistant', origin: 'direct', status: 'streaming', parts: currentParts, snapshot: null, usage: null, error: null, createdAt: '', completedAt: null, durationMs: null, firstTokenMs: null });
     }
