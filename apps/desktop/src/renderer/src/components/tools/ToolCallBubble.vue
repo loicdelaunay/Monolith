@@ -10,6 +10,9 @@ import DiffView from './DiffView.vue';
 import QuestionCard from './QuestionCard.vue';
 import ActionsCard from './ActionsCard.vue';
 import SubagentsCard from './SubagentsCard.vue';
+import { api } from '../../api.ts';
+import { fileIcon } from '../../lib/file-icons.ts';
+import { fileMenu } from '../../lib/file-menu.ts';
 
 const props = defineProps<{ call: ToolCallRecord; conversationId: Id; messageId: Id }>();
 const { t, te } = useI18n();
@@ -37,6 +40,17 @@ const prettyArgs = computed(() => {
   }
 });
 const display = computed(() => props.call.display);
+
+// Fichier visé par un outil de fichiers : icône par type et menu contextuel (aperçu, ouvrir, dossier, copier).
+const FILE_TOOLS = new Set(['read_file', 'write_file', 'edit_file', 'list_files']);
+const isFileTarget = computed(() => !!props.call.target && FILE_TOOLS.has(props.call.name));
+const fileKind = computed(() => (isFileTarget.value ? fileIcon(props.call.target!, props.call.name === 'list_files' ? 'directory' : 'file') : null));
+async function onTargetMenu(e: MouseEvent) {
+  if (!isFileTarget.value) return;
+  e.preventDefault();
+  const [ref] = await api.call('files.stat', { conversationId: props.conversationId, references: [props.call.target!] }).catch(() => []);
+  if (ref?.exists && ref.path) fileMenu.show(e, { conversationId: props.conversationId, path: ref.path, type: ref.type === 'directory' ? 'directory' : 'file', line: ref.line ?? null });
+}
 const hasFormatted = computed(() => display.value?.kind === 'changes');
 // Les questions en attente s'affichent ouvertes : l'utilisateur doit pouvoir répondre.
 const showBody = computed(() => open.value || (display.value?.kind === 'question' && active.value) || display.value?.kind === 'actions' || display.value?.kind === 'plan' || display.value?.kind === 'image' || display.value?.kind === 'subagents');
@@ -54,7 +68,7 @@ watch(
       <button type="button" class="toggle" :aria-expanded="showBody" @click="open = !open">
         <i class="pi" :class="icon" aria-hidden="true" />
         <span class="name">{{ te(`tools.names.${call.name}`) ? t(`tools.names.${call.name}`) : call.name }}</span>
-        <span v-if="call.target" class="target" :title="call.target">{{ call.target }}</span>
+        <span v-if="call.target" class="target" :title="call.target" @contextmenu="onTargetMenu"><i v-if="fileKind" class="pi file-kind" :class="fileKind.icon" :style="{ color: fileKind.color }" aria-hidden="true" />{{ call.target }}</span>
       </button>
       <ProgressSpinner v-if="active" class="spin" stroke-width="6" :aria-label="statusLabel" />
       <span v-else class="status" :class="call.status">{{ statusLabel }}</span>
@@ -130,6 +144,10 @@ watch(
 </template>
 
 <style scoped>
+.file-kind {
+  font-size: 0.85em;
+  margin-right: 5px;
+}
 .shot {
   margin: 4px 0;
 }

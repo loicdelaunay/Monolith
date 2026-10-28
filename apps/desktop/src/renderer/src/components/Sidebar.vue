@@ -13,7 +13,7 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import type { MenuItem } from 'primevue/menuitem';
 import type { Conversation, Id, Project, SearchHit } from '@monolith/contracts';
-import { api, errorMessage } from '../api.ts';
+import { api, errorMessage, host } from '../api.ts';
 import { activeConversation, conversationsIn, openConversation, store } from '../stores/app.ts';
 import { chatActions } from '../lib/chat-actions.ts';
 import NotificationsBell from './NotificationsBell.vue';
@@ -164,6 +164,76 @@ async function confirmProjectDelete(deleteConversations: boolean) {
   if (p) await api.call('projects.delete', { id: p.id, deleteConversations }).catch(fail);
 }
 
+// ---------- Sélection multiple : Ctrl+clic (ajouter / retirer), Maj+clic (plage) ----------
+const selected = ref(new Set<Id>());
+const selectionAnchor = ref<Id | null>(null);
+/** Ordre affiché (espace personnel puis projets dépliés) : base des plages Maj+clic. */
+const visibleOrder = computed(() => [...conversationsIn(null, showArchived.value), ...store.projects.flatMap((p) => (collapsed.value.has(p.id) ? [] : conversationsIn(p.id, showArchived.value)))].map((c) => c.id));
+const selectedList = computed(() => [...selected.value].map((id) => store.conversations.get(id)).filter((c): c is Conversation => !!c));
+function clearSelection() {
+  selected.value = new Set();
+}
+function onConversationClick(e: MouseEvent, c: Conversation) {
+  if (e.ctrlKey || e.metaKey) {
+    const next = new Set(selected.value);
+    // Première sélection : la conversation ouverte en fait partie, comme dans l'explorateur.
+    if (next.size === 0 && store.activeId !== null && store.activeId !== c.id && visibleOrder.value.includes(store.activeId)) next.add(store.activeId);
+    if (next.has(c.id)) next.delete(c.id);
+    else next.add(c.id);
+    selected.value = next;
+    selectionAnchor.value = c.id;
+    return;
+  }
+  if (e.shiftKey) {
+    const order = visibleOrder.value;
+    const from = order.indexOf(selectionAnchor.value ?? store.activeId ?? c.id);
+    const to = order.indexOf(c.id);
+    if (from >= 0 && to >= 0) selected.value = new Set(order.slice(Math.min(from, to), Math.max(from, to) + 1));
+    return;
+  }
+  clearSelection();
+  selectionAnchor.value = c.id;
+  openConversation(c.id);
+}
+function onConversationMenu(e: MouseEvent | KeyboardEvent, c: Conversation) {
+  if (selected.value.size > 1 && selected.value.has(c.id)) return openMenu(e, selectionMenu());
+  clearSelection();
+  openMenu(e, conversationMenu(c));
+}
+function selectionMenu(): MenuItem[] {
+  const list = [...selected.value].map((id) => store.conversations.get(id)).filter((c): c is Conversation => !!c);
+  const allArchived = list.every((c) => c.archived);
+  return [
+    { label: t('sidebar.selection', { count: list.length }), icon: 'pi pi-check-square', disabled: true },
+    { separator: true },
+    { label: allArchived ? t('sidebar.unarchiveSelection', { count: list.length }) : t('sidebar.archiveSelection', { count: list.length }), icon: 'pi pi-inbox', command: () => archiveSelection(list, !allArchived) },
+    { label: t('sidebar.deleteSelection', { count: list.length }), icon: 'pi pi-trash', class: 'mh-danger-item', command: () => deleteSelection(list) },
+    { separator: true },
+    { label: t('sidebar.clearSelection'), icon: 'pi pi-times', command: clearSelection },
+  ];
+}
+async function archiveSelection(list: Conversation[], archived: boolean) {
+  await Promise.all(list.map((c) => api.call('conversations.update', { id: c.id, patch: { archived } }).catch(fail)));
+  clearSelection();
+}
+function deleteSelection(list: Conversation[]) {
+  // Suppression groupée : toujours confirmée, quel que soit le réglage.
+  confirm.require({
+    header: t('sidebar.deleteSelectionTitle', { count: list.length }),
+    message: t('sidebar.deleteSelectionMessage', { titles: list.slice(0, 5).map((c) => `« ${c.title} »`).join(', ') + (list.length > 5 ? '…' : '') }),
+    icon: 'pi pi-trash',
+    rejectProps: { label: t('common.cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: t('common.delete'), severity: 'danger' },
+    accept: async () => {
+      for (const c of list) await api.call('conversations.delete', { id: c.id }).catch(fail);
+      clearSelection();
+    },
+  });
+}
+const onSelectionKey = (e: KeyboardEvent) => e.key === 'Escape' && selected.value.size > 0 && clearSelection();
+window.addEventListener('keydown', onSelectionKey);
+onBeforeUnmount(() => window.removeEventListener('keydown', onSelectionKey));
+
 function openMenu(event: MouseEvent | KeyboardEvent, items: MenuItem[]) {
   menuItems.value = items;
   if (event instanceof KeyboardEvent) {
@@ -250,8 +320,7 @@ const STUDIO_TOOLS = [
 ] as const;
 function openStudio(tab: (typeof STUDIO_TOOLS)[number]['id']) {
   tools.value?.hide();
-  uiState.studio.tab = tab;
-  uiState.studio.open = true;
+  void host.openToolWindow(tab, t(`studio.tabs.${tab}`));
 }
 const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (store.projects.find((p) => p.id === id)?.name ?? ''));
 </script>
@@ -281,6 +350,12 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
       </template>
 
       <template v-else>
+        <div v-if="selected.size > 0" class="selection-bar" role="status">
+          <span>{{ t('sidebar.selection', { count: selected.size }) }}</span>
+          <button type="button" class="mh-icon-btn small" :aria-label="t('sidebar.archiveSelection', { count: selected.size })" v-tooltip="t('sidebar.archiveSelection', { count: selected.size })" @click="archiveSelection(selectedList, true)"><i class="pi pi-inbox" /></button>
+          <button type="button" class="mh-icon-btn small danger" :aria-label="t('sidebar.deleteSelection', { count: selected.size })" v-tooltip="t('sidebar.deleteSelection', { count: selected.size })" @click="deleteSelection(selectedList)"><i class="pi pi-trash" /></button>
+          <button type="button" class="mh-icon-btn small" :aria-label="t('sidebar.clearSelection')" v-tooltip="t('sidebar.clearSelection')" @click="clearSelection"><i class="pi pi-times" /></button>
+        </div>
         <!-- Espace personnel -->
         <section class="group" :class="{ drop: dropTarget === 'personal' }" @dragover.prevent="dropTarget = 'personal'" @dragleave="dropTarget = null" @drop.prevent="dropOnGroup(null)">
           <div class="group-head">
@@ -292,16 +367,16 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
             <li v-for="c in conversationsIn(null, showArchived)" :key="c.id">
               <div
                 class="conv"
-                :class="{ active: store.activeId === c.id, archived: c.archived, 'drop-before': dropTarget === `c${c.id}` }"
+                :class="{ active: store.activeId === c.id, selected: selected.has(c.id), archived: c.archived, 'drop-before': dropTarget === `c${c.id}` }"
                 draggable="true"
                 @dragstart="onDragStart($event, { kind: 'conversation', id: c.id, projectId: c.projectId })"
                 @dragend="onDragEnd"
                 @dragover.prevent.stop="dropTarget = `c${c.id}`"
                 @drop.prevent.stop="dropOnConversation(c)"
-                @contextmenu.prevent="openMenu($event, conversationMenu(c))"
+                @contextmenu.prevent="onConversationMenu($event, c)"
               >
                 <input v-if="renamingId === c.id" ref="renameInput" v-model="renameValue" class="rename" :aria-label="t('conversation.rename')" @keydown.enter.prevent="commitRename" @keydown.esc.prevent="renamingId = null" @blur="commitRename" />
-                <button v-else type="button" class="conv-main" :aria-current="store.activeId === c.id ? 'page' : undefined" @click="openConversation(c.id)" @dblclick="startRename(c)" @keydown.f2.prevent="startRename(c)" @keydown.shift.f10.prevent="openMenu($event, conversationMenu(c))">
+                <button v-else type="button" class="conv-main" :aria-current="store.activeId === c.id ? 'page' : undefined" :aria-selected="selected.has(c.id) || undefined" @click="onConversationClick($event, c)" @dblclick="startRename(c)" @keydown.f2.prevent="startRename(c)" @keydown.shift.f10.prevent="onConversationMenu($event, c)">
                   <i v-if="c.pinned" class="pi pi-thumbtack flag" :aria-label="t('conversation.pin')" />
                   <i v-else-if="c.favorite" class="pi pi-star-fill flag fav" :aria-label="t('conversation.favorite')" />
                   <span class="conv-title">{{ c.title }}</span>
@@ -341,16 +416,16 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
             <li v-for="c in conversationsIn(p.id, showArchived)" :key="c.id">
               <div
                 class="conv"
-                :class="{ active: store.activeId === c.id, archived: c.archived, 'drop-before': dropTarget === `c${c.id}` }"
+                :class="{ active: store.activeId === c.id, selected: selected.has(c.id), archived: c.archived, 'drop-before': dropTarget === `c${c.id}` }"
                 draggable="true"
                 @dragstart="onDragStart($event, { kind: 'conversation', id: c.id, projectId: c.projectId })"
                 @dragend="onDragEnd"
                 @dragover.prevent.stop="dropTarget = `c${c.id}`"
                 @drop.prevent.stop="dropOnConversation(c)"
-                @contextmenu.prevent="openMenu($event, conversationMenu(c))"
+                @contextmenu.prevent="onConversationMenu($event, c)"
               >
                 <input v-if="renamingId === c.id" ref="renameInput" v-model="renameValue" class="rename" :aria-label="t('conversation.rename')" @keydown.enter.prevent="commitRename" @keydown.esc.prevent="renamingId = null" @blur="commitRename" />
-                <button v-else type="button" class="conv-main" :aria-current="store.activeId === c.id ? 'page' : undefined" @click="openConversation(c.id)" @dblclick="startRename(c)" @keydown.f2.prevent="startRename(c)" @keydown.shift.f10.prevent="openMenu($event, conversationMenu(c))">
+                <button v-else type="button" class="conv-main" :aria-current="store.activeId === c.id ? 'page' : undefined" :aria-selected="selected.has(c.id) || undefined" @click="onConversationClick($event, c)" @dblclick="startRename(c)" @keydown.f2.prevent="startRename(c)" @keydown.shift.f10.prevent="onConversationMenu($event, c)">
                   <i v-if="c.pinned" class="pi pi-thumbtack flag" />
                   <i v-else-if="c.favorite" class="pi pi-star-fill flag fav" />
                   <span class="conv-title">{{ c.title }}</span>
@@ -399,6 +474,26 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
 </template>
 
 <style scoped>
+.conv.selected {
+  background: color-mix(in srgb, var(--mh-accent) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--mh-accent);
+}
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--mh-radius-sm);
+  background: color-mix(in srgb, var(--mh-accent) 12%, transparent);
+  font-size: 12.5px;
+}
+.selection-bar span {
+  flex: 1;
+}
+.selection-bar .danger:hover {
+  color: var(--mh-danger);
+}
 .mh-sidebar {
   position: relative;
   flex: none;

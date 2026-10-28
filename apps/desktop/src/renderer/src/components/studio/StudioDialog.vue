@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import Textarea from 'primevue/textarea';
 import InputText from 'primevue/inputtext';
@@ -25,7 +24,7 @@ import DashboardView from './DashboardView.vue';
 const { t } = useI18n();
 const toast = useToast();
 const fail = (e: unknown) => toast.add({ severity: 'error', summary: errorMessage(e), life: 8000 });
-const TABS = ['text', 'images', 'assets', 'benchmark', 'detect', 'dashboard'] as const;
+const TOOL_ICONS = { text: 'pi-language', images: 'pi-image', assets: 'pi-palette', benchmark: 'pi-gauge', detect: 'pi-search', dashboard: 'pi-chart-bar' } as const;
 const studio = computed(() => store.settings!.studio);
 const saveStudio = (patch: Partial<typeof studio.value>) => api.call('settings.update', { studio: patch }).catch(fail);
 
@@ -119,10 +118,14 @@ const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${Math.round
 </script>
 
 <template>
-  <Dialog v-model:visible="uiState.studio.open" modal :header="t('studio.title')" :style="{ width: 'min(1100px, 96vw)', height: '88vh' }" :content-style="{ display: 'flex', flexDirection: 'column', flex: '1', minHeight: 0 }">
-    <nav class="tabs" role="tablist">
-      <button v-for="tab in TABS" :key="tab" type="button" role="tab" :class="{ active: uiState.studio.tab === tab }" :aria-selected="uiState.studio.tab === tab" @click="uiState.studio.tab = tab">{{ t(`studio.tabs.${tab}`) }}</button>
-    </nav>
+  <div class="studio-window">
+    <header class="tool-head">
+      <i class="pi" :class="TOOL_ICONS[uiState.studio.tab]" aria-hidden="true" />
+      <div>
+        <h1>{{ t(`studio.tabs.${uiState.studio.tab}`) }}</h1>
+        <p class="mh-hint">{{ t(`studio.hints.${uiState.studio.tab}`) }}</p>
+      </div>
+    </header>
     <div class="body">
       <!-- Texte -->
       <template v-if="uiState.studio.tab === 'text'">
@@ -235,10 +238,37 @@ const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${Math.round
         </div>
       </template>
     </div>
-  </Dialog>
+  </div>
 </template>
 
 <style scoped>
+.studio-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 14px 18px 12px;
+  box-sizing: border-box;
+}
+.tool-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--mh-border);
+}
+.tool-head .pi {
+  font-size: 20px;
+  color: var(--mh-accent);
+}
+.tool-head h1 {
+  margin: 0;
+  font-size: 17px;
+}
+.tool-head p {
+  margin: 2px 0 0;
+}
 .tabs {
   display: flex;
   gap: 4px;

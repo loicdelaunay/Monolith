@@ -4,7 +4,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, screen,
 import { applyLaunch, readLaunch, writeLaunch } from './launch.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { EngineHost } from './engine-host.ts';
 import { BrowserManager } from './browser.ts';
 import { installUpdate, runPendingUpdate } from './updater.ts';
@@ -167,6 +167,7 @@ function smokeCapture(win: BrowserWindow, target: string): void {
       writeFileSync(target.replace(/\.png$/, `-${index + 1}.png`), image.toPNG());
       const view = await browser.captureVisible();
       if (view && !view.isEmpty()) writeFileSync(target.replace(/\.png$/, `-${index + 1}-browser.png`), view.toPNG());
+      for (const [tool, w] of toolWindows) if (!w.isDestroyed()) writeFileSync(target.replace(/\.png$/, `-${index + 1}-tool-${tool}.png`), (await w.webContents.capturePage()).toPNG());
     }
     const image = await win.webContents.capturePage();
     writeFileSync(target, image.toPNG());
@@ -176,7 +177,52 @@ function smokeCapture(win: BrowserWindow, target: string): void {
 
 function fromOurWindow(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | null {
   const win = BrowserWindow.fromWebContents(event.sender);
-  return win && win === mainWindow ? win : null;
+  return win && (win === mainWindow || [...toolWindows.values()].includes(win)) ? win : null;
+}
+
+// ---------- Outils dédiés : une fenêtre par outil ----------
+const TOOL_IDS = new Set(['text', 'images', 'assets', 'benchmark', 'detect', 'dashboard']);
+const toolWindows = new Map<string, BrowserWindow>();
+
+function openToolWindow(tool: string, title: string): void {
+  const existing = toolWindows.get(tool);
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore();
+    existing.focus();
+    return;
+  }
+  const dark = nativeTheme.shouldUseDarkColors;
+  const win = new BrowserWindow({
+    width: 1080,
+    height: 760,
+    minWidth: 560,
+    minHeight: 420,
+    show: false,
+    title: `${title} — Monolith Harness`,
+    backgroundColor: dark ? '#111214' : '#f7f7f8',
+    icon: join(__dirname, '../../build/icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      spellcheck: true,
+    },
+  });
+  toolWindows.set(tool, win);
+  win.on('closed', () => toolWindows.delete(tool));
+  win.once('ready-to-show', () => win.show());
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win.webContents.getURL()) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  if (isDev && process.env.ELECTRON_RENDERER_URL) void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}?tool=${encodeURIComponent(tool)}`);
+  else void win.loadFile(join(__dirname, '../renderer/index.html'), { query: { tool } });
 }
 
 function registerIpc(): void {
@@ -184,11 +230,18 @@ function registerIpc(): void {
     if (!fromOurWindow(event)) return;
     engine.connect(event.sender);
   });
+  ipcMain.handle('host:openToolWindow', (event, tool: unknown, title: unknown) => {
+    if (!fromOurWindow(event) || typeof tool !== 'string' || !TOOL_IDS.has(tool)) return false;
+    openToolWindow(tool, typeof title === 'string' ? title.slice(0, 80) : tool);
+    return true;
+  });
   ipcMain.handle('host:info', (event): RendererInfo | null => {
-    if (!fromOurWindow(event)) return null;
+    const win = fromOurWindow(event);
+    if (!win) return null;
     return {
       platform: process.platform,
-      customTitleBar: customTitleBarActive,
+      // Fenêtres d'outils : cadre natif (la barre personnalisée appartient à la fenêtre principale).
+      customTitleBar: win === mainWindow && customTitleBarActive,
       titleBarHeight: TITLE_BAR_HEIGHT,
       controlsWidth: customTitleBarActive ? 138 : 0,
       isPackaged: app.isPackaged,
@@ -211,6 +264,12 @@ function registerIpc(): void {
     if (!fromOurWindow(event) || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
     await shell.openExternal(url);
     return true;
+  });
+  // « Ouvrir » depuis le menu d'un fichier du chat : chemin absolu existant, jamais un exécutable ou un raccourci.
+  ipcMain.handle('host:openPath', async (event, path: unknown) => {
+    if (!fromOurWindow(event) || typeof path !== 'string' || !isAbsolute(path) || !existsSync(path)) return 'Fichier introuvable.';
+    if (/\.(exe|bat|cmd|com|msi|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|scr|lnk|url|reg|hta|cpl|jar|sh|app|appimage|deb|rpm|dll|sys|pif|application|gadget|msc|msp|scf|inf)$/i.test(path)) return 'Ouverture refusée : fichier exécutable. Utilisez « Afficher dans le dossier ».';
+    return shell.openPath(path);
   });
   ipcMain.handle('host:showItemInFolder', (event, path: unknown) => {
     if (fromOurWindow(event) && typeof path === 'string') shell.showItemInFolder(path);
@@ -328,7 +387,11 @@ if (!smoke && !app.requestSingleInstanceLock()) {
       return;
     }
     mainWindow = createWindow();
-    mainWindow.on('closed', () => (mainWindow = null));
+    mainWindow.on('closed', () => {
+      mainWindow = null;
+      // Les fenêtres d'outils se ferment avec la fenêtre principale.
+      for (const w of toolWindows.values()) if (!w.isDestroyed()) w.close();
+    });
   });
 
   app.on('window-all-closed', () => app.quit());

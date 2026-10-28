@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { APP_VERSION } from '@monolith/contracts';
 import { activeConversation, store } from '../stores/app.ts';
+import { api } from '../api.ts';
 import { uiState } from '../ui-state.ts';
 import logo from '../assets/logo.png';
 import { brand } from '../lib/brand.ts';
@@ -16,6 +17,10 @@ const projectName = computed(() => {
   return c.projectId === null ? t('sidebar.personal') : (store.projects.find((p) => p.id === c.projectId)?.name ?? null);
 });
 const brandName = computed(() => brand.value.name);
+const sidebarHidden = computed(() => !!store.settings?.layout.sidebarCollapsed);
+function toggleSidebar() {
+  void api.call('settings.update', { layout: { sidebarCollapsed: !sidebarHidden.value } });
+}
 const brandLogo = computed(() => brand.value.logo ?? logo);
 </script>
 
@@ -26,6 +31,7 @@ const brandLogo = computed(() => brand.value.logo ?? logo);
   -->
   <header class="mh-titlebar">
     <div class="identity">
+      <button type="button" class="burger" :aria-label="sidebarHidden ? t('titlebar.showSidebar') : t('titlebar.hideSidebar')" :aria-expanded="!sidebarHidden" v-tooltip.bottom="`${sidebarHidden ? t('titlebar.showSidebar') : t('titlebar.hideSidebar')} (Ctrl+B)`" @click="toggleSidebar"><i class="pi pi-bars" /></button>
       <img :src="brandLogo" alt="" height="18" class="logo" />
       <span class="name">{{ brandName }}</span>
     </div>
@@ -68,6 +74,23 @@ const brandLogo = computed(() => brand.value.logo ?? logo);
   font-weight: 600;
   font-size: 13px;
   flex: none;
+}
+.burger {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--mh-radius-sm);
+  background: transparent;
+  color: var(--mh-muted);
+  cursor: pointer;
+}
+.burger:hover {
+  background: var(--mh-hover);
+  color: var(--mh-text);
 }
 .identity img {
   border-radius: 4px;

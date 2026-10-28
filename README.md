@@ -15,9 +15,8 @@
 
 <table>
   <tr>
-    <th align="center" width="33%">Desktop GUI</th>
-    <th align="center" width="33%">CLI</th>
-    <th align="center" width="33%">Version 2 (.NET)</th>
+    <th align="center" width="50%">Desktop GUI</th>
+    <th align="center" width="50%">CLI</th>
   </tr>
   <tr>
     <td align="center" valign="top">
@@ -34,13 +33,6 @@
       <br><br>
       <a href="https://github.com/loicdelaunay/Monolith/releases/tag/v3.0.0-alpha.16"><strong>Download CLI</strong></a>
     </td>
-    <td align="center" valign="top">
-      <img src="resources/branding/android.png" alt="Version 2 logo" width="80">
-      <br><br>
-      Desktop, CLI, Android, Server
-      <br><br>
-      <a href="https://github.com/loicdelaunay/Monolith-Harness"><strong>Monolith Harness v2</strong></a>
-    </td>
   </tr>
 </table>
 
@@ -52,7 +44,7 @@
 
 Monolith Harness lets you work with AI agents on your projects and run several conversations at once. Version 3 is a complete rewrite in TypeScript — Electron, Vue 3 and PrimeVue for the desktop, Ink for the terminal, and one shared engine with an embedded SQLite database — so both interfaces apply exactly the same rules.
 
-> **Status: 3.0.0 alpha.** Most of the version 2 desktop workflow is already here; the [feature matrix](docs/FEATURE-MATRIX.md) states, feature by feature, what is done, partial or still planned — nothing is marked done without real processing behind it. The Android app and the optional Server from version 2 are not part of version 3 yet; the Server and the full CLI are scheduled for later.
+> **Status: 3.0.0 alpha.** The [feature matrix](docs/FEATURE-MATRIX.md) states, feature by feature, what is done, partial or still planned — nothing is marked done without real processing behind it. The optional Server and the full CLI are scheduled for later.
 
 ## Take a look
 
@@ -185,7 +177,6 @@ See [development](docs/DEVELOPMENT.md) for tests, packaging and releases, and [a
 - [Feature matrix](docs/FEATURE-MATRIX.md) — status of every feature on desktop, CLI and server.
 - [Roadmap](docs/ROADMAP.md) — implementation slices.
 - [Performance](docs/PERFORMANCE.md) — measured startup, rendering and memory figures.
-- [Version 2 inventory](docs/V1-INVENTORY.md) — features and differences carried over from version 2.
 - [Dependency licenses](docs/LICENSES.md).
 
 Monolith Harness is available under the [MIT license](LICENSE). Provider logos come from [Lobe Icons](https://github.com/lobehub/lobe-icons) (MIT) and are trademarks of their respective owners.

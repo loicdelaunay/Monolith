@@ -9,6 +9,10 @@ Première version publiée de la v3 (réécriture complète en TypeScript) ; l'e
 - **Objectif de la discussion** : la fenêtre d'édition ne se referme plus aussitôt après son ouverture (menu « … », puce de l'objectif, commande /goal).
 - **Mise à jour intégrée** : vérification de l'empreinte et extraction du paquet par .NET, indépendamment des modules PowerShell installés.
 - Raccourcis affichés dans la langue de l'interface (Ctrl+Shift+M / Ctrl+Maj+M).
+- **Sélection multiple des conversations** : Ctrl+clic pour ajouter ou retirer, Maj+clic pour une plage ; clic droit (ou barre de sélection) pour archiver ou supprimer toutes les conversations choisies ; Échap annule.
+- **Fichiers dans le chat** : icône colorée selon le type de fichier ; clic droit sur un fichier cité ou sur le fichier d'une carte d'outil pour l'aperçu, l'ouverture avec l'application par défaut (jamais un exécutable), l'affichage dans le dossier ou la copie du chemin.
+- **Barre latérale repliable** : bouton ☰ dans la barre de titre et raccourci Ctrl+B.
+- **Outils dédiés dans leur propre fenêtre** : traducteur, images, assets, benchmark, détection IA et tableau de bord s'ouvrent chacun dans une fenêtre séparée (ramenée au premier plan si elle est déjà ouverte, fermée avec la fenêtre principale).
 - **Vertex AI / Gemini 3 et suivants (dont Gemini 4)** : correction de l'erreur « Requests ending with a model turn are not supported » après une capture d'écran par un outil. Les images rendues par un outil sont désormais placées dans la réponse de fonction, comme l'exige Google ; chaque tour d'outils est rejoué séparément avec sa signature de réflexion ; les niveaux de réflexion de Gemini 4 sont reconnus.
 - **Plan épinglé** : le plan de l'agent s'affiche au-dessus de la zone de saisie (dernière version, progression, repliable) au lieu de cartes répétées dans la conversation.
 - **Sélecteur de modèle** : il reste ouvert après le choix d'un modèle (pour régler la réflexion juste après) et se ferme par un clic à l'extérieur.

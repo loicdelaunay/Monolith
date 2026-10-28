@@ -56,6 +56,10 @@ export interface HostApi {
   pickFiles(title?: string): Promise<string[]>;
   openExternal(url: string): Promise<boolean>;
   showItemInFolder(path: string): Promise<void>;
+  /** Ouvre (ou ramène au premier plan) la fenêtre d'un outil dédié. */
+  openToolWindow(tool: string, title: string): Promise<boolean>;
+  /** Ouvre un fichier existant avec l'application par défaut (exécutables refusés) ; message d'erreur ou chaîne vide. */
+  openPath(path: string): Promise<string>;
   /** Dialogue « Enregistrer sous » puis écriture du texte ; retourne le chemin ou null si annulé. */
   saveTextFile(defaultName: string, content: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   /** Dialogue « Enregistrer sous » puis écriture binaire (base64). */

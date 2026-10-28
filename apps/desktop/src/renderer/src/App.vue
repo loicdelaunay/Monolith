@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FileContextMenu from './components/FileContextMenu.vue';
 import FirstUseDialog from './components/FirstUseDialog.vue';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -54,16 +55,36 @@ watch(
 );
 
 const customTitleBar = computed(() => store.renderer?.customTitleBar ?? false);
+/** Fenêtre d'un outil dédié (?tool=…) : l'outil seul, sans barre latérale ni conversation. */
+const toolWindow = (() => {
+  const tool = new URLSearchParams(location.search).get('tool');
+  return tool && ['text', 'images', 'assets', 'benchmark', 'detect', 'dashboard'].includes(tool) ? (tool as typeof uiState.studio.tab) : null;
+})();
+if (toolWindow) uiState.studio.tab = toolWindow;
+watch(
+  () => [toolWindow, locale.value] as const,
+  () => toolWindow && (document.title = `${t(`studio.tabs.${toolWindow}`)} — Monolith Harness`),
+  { immediate: true },
+);
 watch(() => brand.value.name, (name) => (document.title = name), { immediate: true });
 const layout = computed(() => store.settings?.layout);
 watch(() => store.settings?.render, (r) => r && setRenderOptions({ ...r }), { deep: true, immediate: true });
 
-// Raccourcis : Ctrl+J (panneau), intégrés (mode, réflexion) et personnalisés (fournisseur, modèle, mode, réflexion).
+function toggleSidebar() {
+  void api.call('settings.update', { layout: { sidebarCollapsed: !store.settings?.layout.sidebarCollapsed } });
+}
+
+// Raccourcis : Ctrl+B (barre latérale), Ctrl+J (panneau), intégrés (mode, réflexion) et personnalisés (fournisseur, modèle, mode, réflexion).
 function onKey(e: KeyboardEvent) {
   const s = store.settings;
   if (!s || uiState.settingsOpen) return;
   const combo = comboFromEvent(e);
   if (!combo) return;
+  if (combo === 'Ctrl+B') {
+    e.preventDefault();
+    toggleSidebar();
+    return;
+  }
   if (combo === 'Ctrl+J') {
     e.preventDefault();
     void api.call('settings.update', { layout: { panelOpen: !s.layout.panelOpen } });
@@ -142,8 +163,12 @@ onBeforeUnmount(() => {
         <span class="mh-muted">{{ t('app.loading') }}</span>
       </template>
     </div>
+    <div v-else-if="toolWindow" class="mh-tool-window">
+      <StudioDialog />
+    </div>
     <div v-else class="mh-main">
-      <Sidebar @open-settings="openSettings" />
+      <button v-if="!customTitleBar" type="button" class="mh-burger-floating" :aria-label="layout?.sidebarCollapsed ? t('titlebar.showSidebar') : t('titlebar.hideSidebar')" :aria-expanded="!layout?.sidebarCollapsed" @click="toggleSidebar"><i class="pi pi-bars" /></button>
+      <Sidebar v-show="!layout?.sidebarCollapsed" @open-settings="openSettings" />
       <ChatView v-show="!(layout?.panelOpen && layout.panelMaximized)" @open-settings="openSettings" />
       <WorkPanel v-if="layout?.panelOpen" />
     </div>
@@ -152,14 +177,37 @@ onBeforeUnmount(() => {
     <ProjectDialog v-if="store.ready" />
     <PermissionDialog v-if="store.ready" />
     <LoopDialog v-if="store.ready" />
-    <StudioDialog v-if="store.ready && uiState.studio.open" />
     <Toast position="bottom-right" />
     <ConfirmDialog />
     <FirstUseDialog />
+    <FileContextMenu />
   </div>
 </template>
 
 <style scoped>
+.mh-tool-window {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mh-burger-floating {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--mh-radius-sm);
+  background: transparent;
+  color: var(--mh-muted);
+  cursor: pointer;
+}
+.mh-burger-floating:hover {
+  background: var(--mh-hover);
+  color: var(--mh-text);
+}
 .mh-app {
   position: relative;
   isolation: isolate;

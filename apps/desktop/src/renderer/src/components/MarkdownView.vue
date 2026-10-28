@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fileMenu } from '../lib/file-menu.ts';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import type { Id } from '@monolith/contracts';
 import { api, host } from '../api.ts';
@@ -60,6 +61,15 @@ function togglePreview(button: HTMLElement) {
   block.append(holder);
 }
 
+/** Clic droit sur un fichier cité : menu des actions sur le fichier (aperçu, ouvrir, dossier, copier). */
+function onContextMenu(e: MouseEvent | KeyboardEvent) {
+  const badge = (e.target as HTMLElement).closest<HTMLElement>('.mh-file-badge');
+  if (!badge?.dataset.file || props.conversationId === undefined) return;
+  e.preventDefault();
+  const event = e instanceof MouseEvent ? e : new MouseEvent('contextmenu', { clientX: badge.getBoundingClientRect().left, clientY: badge.getBoundingClientRect().bottom });
+  fileMenu.show(event, { conversationId: props.conversationId, path: badge.dataset.file, type: badge.dataset.type === 'directory' ? 'directory' : 'file', line: badge.dataset.line ? Number(badge.dataset.line) : null });
+}
+
 async function onClick(e: MouseEvent) {
   const target = e.target as HTMLElement;
   const copy = target.closest<HTMLElement>('[data-copy]');
@@ -103,7 +113,7 @@ async function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers }" @click="onClick">
+  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu">
     <div v-for="(html, i) in blocks" :key="i" class="mh-md-block" v-html="html" />
   </div>
 </template>

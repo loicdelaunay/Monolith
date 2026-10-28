@@ -1,3 +1,4 @@
+import { fileIcon } from './file-icons.ts';
 import type { FileReference, Id } from '@monolith/contracts';
 import { api } from '../api.ts';
 
@@ -89,8 +90,11 @@ export async function decorateFileBadges(root: HTMLElement, conversationId: Id):
     node.title = ref.display ?? ref.path;
     node.setAttribute('role', 'button');
     node.tabIndex = 0;
+    const kind = fileIcon(ref.path, ref.type ?? 'file');
     const icon = document.createElement('i');
-    icon.className = `pi ${ref.type === 'directory' ? 'pi-folder' : 'pi-file'}`;
+    icon.className = `pi ${kind.icon}`;
+    icon.style.color = kind.color;
+    icon.setAttribute('aria-hidden', 'true');
     node.prepend(icon);
   }
 }
