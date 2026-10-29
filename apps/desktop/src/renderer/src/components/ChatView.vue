@@ -19,6 +19,7 @@ import MessageItem from './MessageItem.vue';
 import Composer from './Composer.vue';
 import QueuePanel from './QueuePanel.vue';
 import ResourcesButton from './tools/ResourcesButton.vue';
+import ConversationChips from './ConversationChips.vue';
 import ProposalsPanel from './tools/ProposalsPanel.vue';
 import SandboxDialog from './tools/SandboxDialog.vue';
 
@@ -137,6 +138,7 @@ const sandboxOpen = ref(false);
           <i class="pi pi-sitemap" /> {{ t('subagents.parentOf', { title: store.conversations.get(activeConversation.parentId)!.title }) }}
         </button>
         <ResourcesButton :key="activeConversation.id" :conversation="activeConversation" />
+        <ConversationChips :conversation="activeConversation" />
         <span ref="goalAnchor" class="goal-anchor">
           <button v-if="activeConversation.goal" type="button" class="goal-chip" :title="activeConversation.goal" @click="openGoal($event)"><i class="pi pi-flag" /> {{ activeConversation.goal }}</button>
         </span>

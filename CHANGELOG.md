@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Puces de la conversation** : dans l'en-tête, une puce pour chaque réglage propre à la conversation — skill imposé (/skill-…), orchestration forcée (/orchestration), serveur MCP activé ou désactivé ici autrement que dans les réglages. Un clic sur la croix retire le réglage (ou revient au réglage global pour MCP).
+
 ## 3.0.0-alpha.27 — 2026-10-29
 
 - **/skill-<nom> pour tous les skills** : les skills intégrés (Terminal, Navigateur, Web, Git, Mémoire…) apparaissent dans l'autocomplétion, en plus des skills personnalisés. Un skill imposé est activé pour la conversation même s'il est désactivé dans les réglages ; le modèle reçoit ses outils et la consigne de les utiliser, et, si le mode bloque certains outils (Terminal en Plan ou Proposition), il le signale et propose de passer en Exécution.

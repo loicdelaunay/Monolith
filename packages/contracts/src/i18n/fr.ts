@@ -253,6 +253,16 @@ export const fr = {
     tokensOut: 'Tokens de sortie (total)',
     speedHint: 'Vitesse : tokens de sortie par seconde, après le premier token.',
   },
+  chips: {
+    title: 'Réglages propres à cette conversation',
+    skillHint: 'Skill « {name} » imposé dans cette conversation (/skill-…)',
+    orchestration: 'Orchestration forcée',
+    orchestrationHint: 'Le travail est confié à des sous-agents dans cette conversation (/orchestration)',
+    mcpOnHint: 'Serveur MCP « {name} » activé dans cette conversation (désactivé dans les réglages)',
+    mcpOffHint: 'Serveur MCP « {name} » désactivé dans cette conversation (activé dans les réglages)',
+    remove: 'Retirer « {name} »',
+    reset: 'Revenir au réglage global pour « {name} »',
+  },
   diagram: {
     title: 'Diagramme',
     open: 'Agrandir le diagramme',

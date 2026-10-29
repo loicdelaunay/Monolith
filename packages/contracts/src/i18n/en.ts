@@ -255,6 +255,16 @@ export const en: Messages = {
     tokensOut: 'Output tokens (total)',
     speedHint: 'Speed: output tokens per second, after the first token.',
   },
+  chips: {
+    title: 'Settings specific to this conversation',
+    skillHint: 'Skill “{name}” forced in this conversation (/skill-…)',
+    orchestration: 'Forced orchestration',
+    orchestrationHint: 'Work is delegated to subagents in this conversation (/orchestration)',
+    mcpOnHint: 'MCP server “{name}” enabled in this conversation (disabled in settings)',
+    mcpOffHint: 'MCP server “{name}” disabled in this conversation (enabled in settings)',
+    remove: 'Remove “{name}”',
+    reset: 'Back to the global setting for “{name}”',
+  },
   diagram: {
     title: 'Diagram',
     open: 'Enlarge diagram',
