@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.28 — 2026-10-29
 
 - **Puces de la conversation** : dans l'en-tête, une puce pour chaque réglage propre à la conversation — skill imposé (/skill-…), orchestration forcée (/orchestration), serveur MCP activé ou désactivé ici autrement que dans les réglages. Un clic sur la croix retire le réglage (ou revient au réglage global pour MCP).
 
