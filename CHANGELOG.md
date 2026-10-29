@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.26 — 2026-10-29
 
 - **Vitesse (tokens/s)** : mesurée sur le seul temps de génération, tour par tour — l'exécution des outils et l'attente de vos autorisations ne la font plus chuter ; une réflexion non transmise par le fournisseur est comptée avec son temps. En direct, la vitesse suit la réflexion, le texte et les arguments d'outils sur les dernières secondes (plus de pic au démarrage).
 - **Contexte lu chez le fournisseur** : après une réponse à plusieurs tours d'outils, seule la dernière requête compte (les tours ne s'additionnent plus), ce qui évitait aussi des compactages automatiques trop précoces. La fenêtre d'un modèle du catalogue est mise à jour au rafraîchissement ; la fenêtre annoncée par Mistral est lue.
