@@ -6,7 +6,7 @@ import Button from 'primevue/button';
 import Popover from 'primevue/popover';
 import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
-import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage, type ConversationPatch, type ReasoningLevel, type CustomSkill } from '@monolith/contracts';
+import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage, type ConversationPatch, type ReasoningLevel, type CustomSkill, type SkillInfo } from '@monolith/contracts';
 import { api, errorCode, errorMessage, host } from '../api.ts';
 import { messagesOf, store } from '../stores/app.ts';
 import { attachPaths, uploadFiles, formatSize } from '../lib/attachments.ts';
@@ -169,15 +169,17 @@ const effortLevels = computed<ReasoningLevel[]>(() => {
   const known = (caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l));
   return known.length ? ['auto', ...known.filter((l) => l !== 'auto')] : EFFORTS;
 });
-// Skills personnalisés (dossier global et dossiers du projet) : /skill-<nom> les impose dans la conversation.
+// Skills intégrés (Terminal, Navigateur, Web…) et personnalisés : /skill-<id> les impose dans la conversation.
 const customSkills = ref<CustomSkill[]>([]);
+const builtInSkills = ref<SkillInfo[]>([]);
 watch(
   () => [props.conversation.id, props.conversation.projectId] as const,
   async ([, projectId]) => {
-    customSkills.value = await api.call('skills.custom', { projectId }).catch(() => []);
+    [customSkills.value, builtInSkills.value] = await Promise.all([api.call('skills.custom', { projectId }).catch(() => []), api.call('skills.list').catch(() => [])]);
   },
   { immediate: true },
 );
+const skillLabel = (id: string) => (te(`skills.names.${id}`) ? t(`skills.names.${id}`) : id);
 function toggleSkill(name: string) {
   const forced = props.conversation.forcedSkills.includes(name);
   const next = forced ? props.conversation.forcedSkills.filter((n) => n !== name) : [...props.conversation.forcedSkills, name];
@@ -202,7 +204,15 @@ const COMMANDS = computed<SlashCommand[]>(() => [
     hint: t('composer.slash.effort', { level: t(`reasoningLevels.${level}`) }),
     run: () => patchConversation({ reasoningLevel: level }, t('composer.slash.effortDone', { level: t(`reasoningLevels.${level}`) })),
   })),
-  ...customSkills.value.map((k) => ({
+  ...builtInSkills.value
+    .filter((k) => k.available)
+    .map((k) => ({
+      name: `skill-${k.id}`,
+      icon: 'pi-bolt',
+      hint: props.conversation.forcedSkills.includes(k.id) ? t('composer.slash.skillRemove', { description: skillLabel(k.id) }) : t('composer.slash.skillForce', { description: skillLabel(k.id) }),
+      run: () => toggleSkill(k.id),
+    })),
+  ...customSkills.value.filter((k) => !builtInSkills.value.some((b) => b.id === k.name)).map((k) => ({
     name: `skill-${k.name}`,
     icon: 'pi-book',
     hint: props.conversation.forcedSkills.includes(k.name) ? t('composer.slash.skillRemove', { description: k.description }) : t('composer.slash.skillForce', { description: k.description }),

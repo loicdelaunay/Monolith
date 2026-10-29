@@ -258,7 +258,10 @@ export class GenerationRunner {
   private async prepare(conversationId: Id): Promise<JobContext> {
     const { conversations, settings, providers, projects } = this.deps;
     const conversation = conversations.get(conversationId);
-    const s = settings.get();
+    // Skills imposés (/skill-<id>) : activés pour cette conversation, même désactivés dans les réglages.
+    const base = settings.get();
+    const forcedBuiltIn = conversation.forcedSkills.filter((n) => this.isBuiltInSkill(n));
+    const s = forcedBuiltIn.length ? { ...base, skills: { ...base.skills, enabled: { ...base.skills.enabled, ...Object.fromEntries(forcedBuiltIn.map((n) => [n, true])) } } } : base;
     const providerId = conversation.providerId ?? s.chat.defaultProviderId;
     // Sans fournisseur propre (jamais choisi ou connexion supprimée), la conversation suit le couple par défaut.
     const model = conversation.providerId !== null ? conversation.model : s.chat.defaultModel;
@@ -508,10 +511,23 @@ export class GenerationRunner {
     if (ctx.conversation.parentId !== null) {
       out.push(`Tu es un sous-agent (rôle : ${ctx.conversation.role ?? 'général'}). Travaille uniquement sur la tâche confiée, sans demander de précisions sauf blocage, puis termine par un rapport final concis : résultat, fichiers concernés, points incertains.`);
     }
-    // Skills imposés par l'utilisateur (/skill-<nom>) : instructions complètes jointes à chaque requête.
-    if (this.deps.customSkills && ctx.conversation.forcedSkills.length) {
+    // Skills intégrés imposés (/skill-<id>) : leurs outils sont proposés, le modèle doit s'en servir.
+    for (const id of ctx.conversation.forcedSkills.filter((n) => this.isBuiltInSkill(n))) {
+      const belongs = (t: ToolDefinition) => t.skill === id || !!t.alsoSkills?.includes(id);
+      const tools = ctx.tools.filter(belongs).map((t) => t.name);
+      // Outils du skill retirés par le mode de la conversation (pas par l'hôte ou le système).
+      const blocked = this.deps.tools.all().filter((t) => belongs(t) && !tools.includes(t.name) && !modeAllows(t, ctx.snapshot.mode, ctx.snapshot.agentMode).ok).map((t) => t.name);
+      const mode = ctx.snapshot.mode === 'agent' ? `Agent · ${ctx.snapshot.agentMode}` : 'Chat';
+      const switchHint = `si la demande les exige, dis-le à l’utilisateur et propose-lui de passer en mode Agent · Exécution (réglages rapides ou /execute)`;
+      if (tools.length) out.push(`Skill « ${id} » imposé par l’utilisateur pour cette conversation : utilise ses outils (${tools.join(', ')}) pour répondre.${blocked.length ? ` Indisponibles dans le mode actuel (${mode}) : ${blocked.join(', ')} — ${switchHint}.` : ''}`);
+      else if (INSTRUCTION_SKILLS[id]) out.push(`Skill « ${id} » imposé par l’utilisateur pour cette conversation : applique-le obligatoirement.`);
+      else out.push(`Skill « ${id} » imposé par l’utilisateur, mais ses outils ne sont pas disponibles dans le mode actuel (${mode}) ou sur cet hôte : ${switchHint}.`);
+    }
+    // Skills personnalisés imposés par l'utilisateur (/skill-<nom>) : instructions complètes jointes à chaque requête.
+    const forcedCustom = ctx.conversation.forcedSkills.filter((n) => !this.isBuiltInSkill(n));
+    if (this.deps.customSkills && forcedCustom.length) {
       const all = this.deps.customSkills(ctx.scope.roots, s);
-      for (const name of ctx.conversation.forcedSkills) {
+      for (const name of forcedCustom) {
         const skill = all.find((k) => k.name === name);
         if (!skill) {
           out.push(`Skill « ${name} » imposé par l’utilisateur mais introuvable : signale-le dans ta réponse.`);
@@ -1262,6 +1278,11 @@ export class GenerationRunner {
     const tail = estimateRequestTokens(buildHistory(after, { attachments: { text: () => '', dataUrl: () => '' }, vision: null }).messages);
     const counted = lastApi.usage!.contextTokens ?? (lastApi.usage!.inputTokens ?? 0) + (lastApi.usage!.outputTokens ?? 0);
     return { tokens: Math.max(estimate, counted + tail), source: 'api' };
+  }
+
+  /** Skill intégré (outils de Monolith ou skill d'instructions), par opposition à un skill personnalisé. */
+  private isBuiltInSkill(id: string): boolean {
+    return id in INSTRUCTION_SKILLS || this.deps.tools.all().some((t) => t.skill === id || t.alsoSkills?.includes(id));
   }
 
   /** AI Info : postes du contexte de la prochaine requête (estimations), à côté du compteur d'utilisation. */
