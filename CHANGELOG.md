@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.27 — 2026-10-29
 
 - **/skill-<nom> pour tous les skills** : les skills intégrés (Terminal, Navigateur, Web, Git, Mémoire…) apparaissent dans l'autocomplétion, en plus des skills personnalisés. Un skill imposé est activé pour la conversation même s'il est désactivé dans les réglages ; le modèle reçoit ses outils et la consigne de les utiliser, et, si le mode bloque certains outils (Terminal en Plan ou Proposition), il le signale et propose de passer en Exécution.
 
