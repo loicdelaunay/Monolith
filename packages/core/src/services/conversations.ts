@@ -40,6 +40,7 @@ interface ConversationRow {
   role: string | null;
   budget_json: string | null;
   orchestration: number;
+  forced_skills_json: string;
 }
 
 const REASONING: ReasoningLevel[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'on'];
@@ -140,6 +141,10 @@ export class ConversationService {
     if (patch.archived !== undefined) set('archived', patch.archived ? 1 : 0);
     if (patch.goal !== undefined) set('goal', String(patch.goal).slice(0, 20_000));
     if (patch.orchestration !== undefined) set('orchestration', patch.orchestration ? 1 : 0);
+    if (patch.forcedSkills !== undefined) {
+      if (!Array.isArray(patch.forcedSkills)) throw new HarnessError('invalid_argument', 'Liste de skills attendue');
+      set('forced_skills_json', JSON.stringify([...new Set(patch.forcedSkills.map((n) => String(n).trim().slice(0, 80)).filter(Boolean))].slice(0, 10)));
+    }
     if (patch.mode !== undefined) {
       if (!(['chat', 'agent'] as ConversationMode[]).includes(patch.mode)) throw new HarnessError('invalid_argument', 'Mode inconnu');
       set('mode', patch.mode);
@@ -295,6 +300,7 @@ export class ConversationService {
       role: r.role ?? null,
       budget: r.budget_json ? json<ConversationBudget | null>(r.budget_json, null) : null,
       orchestration: !!r.orchestration,
+      forcedSkills: json<string[]>(r.forced_skills_json, []),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       lastMessageAt: r.last_message_at,

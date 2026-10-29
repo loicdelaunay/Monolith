@@ -104,6 +104,7 @@ export interface ConversationPatch {
   reasoningLevel?: ReasoningLevel;
   projectId?: Id | null;
   orchestration?: boolean;
+  forcedSkills?: string[];
 }
 
 export interface ProjectInput {

@@ -455,6 +455,21 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE conversations ADD COLUMN orchestration INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 11,
+    name: 'conversation-forced-skills',
+    sql: /* sql */ `
+      ALTER TABLE conversations ADD COLUMN forced_skills_json TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    version: 12,
+    name: 'memory-expiration',
+    sql: /* sql */ `
+      ALTER TABLE memories ADD COLUMN expires_at TEXT;
+      CREATE INDEX memories_expires ON memories(expires_at) WHERE expires_at IS NOT NULL;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

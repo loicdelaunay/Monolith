@@ -98,6 +98,7 @@ export async function decorateFileBadges(root: HTMLElement, conversationId: Id):
     node.dataset.file = ref.path;
     node.dataset.type = ref.type ?? 'file';
     if (ref.line) node.dataset.line = String(ref.line);
+    if (ref.endLine) node.dataset.endLine = String(ref.endLine);
     node.title = ref.display ?? ref.path;
     node.setAttribute('role', 'button');
     node.tabIndex = 0;

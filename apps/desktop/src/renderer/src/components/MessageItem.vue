@@ -41,6 +41,8 @@ const hasVisible = computed(() => parts.value.some((p) => (p.type === 'text' && 
 const reasoningOnly = computed(() => streaming.value && parts.value.at(-1)?.type === 'reasoning' && display.value === 'none');
 
 const generation = computed(() => store.generations.get(props.message.conversationId));
+/** Compactage automatique avant l'envoi : affiché à la place de « Raisonnement… » pour cette réponse. */
+const compacting = computed(() => streaming.value && generation.value?.messageId === props.message.id && generation.value.status === 'compacting');
 const retryInfo = computed(() => {
   const g = generation.value;
   if (!g || g.messageId !== props.message.id || g.status !== 'retrying') return null;
@@ -177,7 +179,12 @@ function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
           </div>
         </template>
 
-        <div v-if="streaming && (!hasVisible || reasoningOnly)" class="pending" role="status">
+        <div v-if="compacting" class="mh-compacting" role="status">
+          <ProgressSpinner class="tiny" stroke-width="6" />
+          <i class="pi pi-compress" />
+          <span><strong>{{ t('chat.compactingNow') }}</strong> {{ t('chat.compactingHint') }}</span>
+        </div>
+        <div v-else-if="streaming && (!hasVisible || reasoningOnly)" class="pending" role="status">
           <ProgressSpinner class="tiny" stroke-width="6" />
           <span>{{ retryInfo ?? t('chat.thinking') }}</span>
         </div>

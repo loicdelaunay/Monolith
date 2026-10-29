@@ -44,16 +44,16 @@ export function memoryTools(memory: () => MemoryService): ToolDefinition[] {
       family: 'memory',
       skill: 'memory',
       description: 'Enregistre un fait durable utile plus tard (préférence, décision, contexte). Avec « id », met à jour une mémoire existante (version précédente conservée). Portées : conversation, project, global, user.',
-      parameters: obj({ id: { type: 'number' }, scope: { type: 'string', enum: SCOPES }, title: { type: 'string' }, content: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, ['title', 'content']),
+      parameters: obj({ id: { type: 'number' }, scope: { type: 'string', enum: SCOPES }, title: { type: 'string' }, content: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, expires_at: { type: 'string', description: 'Date d’expiration facultative (AAAA-MM-JJ) pour un fait temporaire ; la mémoire est supprimée ensuite.' } }, ['title', 'content']),
       effects: ['interact'],
       target: (a) => ({ label: str(a, 'title', false), resources: [] }),
       async execute(args, ctx) {
         const scope = (SCOPES.includes(str(args, 'scope', false)) ? str(args, 'scope', false) : ctx.projectId !== null ? 'project' : 'global') as MemoryScope;
         const m = memory().save(
-          { ...(typeof args.id === 'number' ? { id: args.id } : {}), scope, projectId: ctx.projectId, conversationId: ctx.conversationId, title: str(args, 'title'), content: str(args, 'content'), tags: Array.isArray(args.tags) ? args.tags.map(String) : [] },
+          { ...(typeof args.id === 'number' ? { id: args.id } : {}), scope, projectId: ctx.projectId, conversationId: ctx.conversationId, title: str(args, 'title'), content: str(args, 'content'), tags: Array.isArray(args.tags) ? args.tags.map(String) : [], ...(typeof args.expires_at === 'string' && args.expires_at ? { expiresAt: args.expires_at } : {}) },
           { source: 'agent', conversationId: ctx.conversationId, messageId: ctx.messageId },
         );
-        return { result: `Mémoire #${m.id} enregistrée (${m.scope}, version ${m.version}).` };
+        return { result: `Mémoire #${m.id} enregistrée (${m.scope}, version ${m.version}${m.expiresAt ? `, expire le ${m.expiresAt.slice(0, 10)}` : ''}).` };
       },
     },
     {

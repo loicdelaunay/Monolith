@@ -218,3 +218,26 @@ select {
     animation-duration: 0s !important;
   }
 }
+
+/* Compactage du contexte en cours (automatique avant l'envoi, ou demandé) : indicateur dans le fil. */
+.mh-compacting {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 8px 12px;
+  border: 1px dashed color-mix(in srgb, var(--mh-accent) 50%, var(--mh-border));
+  border-radius: var(--mh-radius);
+  background: color-mix(in srgb, var(--mh-accent) 6%, transparent);
+  color: var(--mh-muted);
+  font-size: 13px;
+}
+.mh-compacting .pi-compress {
+  color: var(--mh-accent);
+}
+.mh-compacting strong {
+  color: var(--mh-text);
+  font-weight: 600;
+}

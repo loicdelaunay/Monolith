@@ -81,6 +81,8 @@ interface ModelEntry {
   context_length?: number;
   context_window?: number;
   max_model_len?: number;
+  /** Mistral. */
+  max_context_length?: number;
   top_provider?: { context_length?: number; max_completion_tokens?: number };
   architecture?: { input_modalities?: string[] };
   supported_parameters?: string[];
@@ -198,7 +200,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
           id,
           label: m.name && m.name !== m.id ? m.name : id,
           owner: m.owned_by ?? null,
-          contextWindow: m.context_length ?? m.context_window ?? m.top_provider?.context_length ?? m.max_model_len ?? null,
+          contextWindow: m.context_length ?? m.context_window ?? m.top_provider?.context_length ?? m.max_model_len ?? m.max_context_length ?? null,
           maxOutputTokens: m.top_provider?.max_completion_tokens ?? null,
           capabilities: {
             // Catalogue OpenRouter : le paramètre unifié `reasoning` accepte les intensités low/medium/high.

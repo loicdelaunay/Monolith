@@ -75,6 +75,8 @@ createServer((req, res) => {
     }
     // Requêtes auxiliaires du moteur : nommage et compactage.
     if (system.includes('titre court') || system.includes('Tu résumes')) {
+      // MOCK_SLOW_COMPACT=ms : compactage ralenti (vérification de l'indicateur « compactage en cours »).
+      if (system.includes('Tu résumes') && Number(process.env.MOCK_SLOW_COMPACT) > 0) await new Promise((r) => setTimeout(r, Number(process.env.MOCK_SLOW_COMPACT)));
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       const out = system.includes('titre court') ? 'Démonstration Markdown complète' : 'Résumé : l’utilisateur explore la démonstration Markdown.';
       res.write(chunk({ content: out }));

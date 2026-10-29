@@ -391,8 +391,9 @@ export class ProviderService {
       const keepUser = m.capabilities.reasoningSource === 'user';
       return {
         ...m,
-        contextWindow: m.contextWindow ?? c?.contextWindow ?? null,
-        maxOutputTokens: m.maxOutputTokens ?? c?.maxOutputTokens ?? null,
+        // Modèle du catalogue : la fenêtre annoncée par le fournisseur fait foi ; saisie manuelle : conservée.
+        contextWindow: m.source === 'catalog' ? (c?.contextWindow ?? m.contextWindow ?? null) : (m.contextWindow ?? c?.contextWindow ?? null),
+        maxOutputTokens: m.source === 'catalog' ? (c?.maxOutputTokens ?? m.maxOutputTokens ?? null) : (m.maxOutputTokens ?? c?.maxOutputTokens ?? null),
         capabilities: {
           reasoningLevels: keepUser ? m.capabilities.reasoningLevels : known.reasoningLevels,
           reasoningSource: keepUser ? 'user' : known.reasoningSource,

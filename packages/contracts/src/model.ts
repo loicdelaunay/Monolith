@@ -66,6 +66,8 @@ export interface Conversation {
   budget: ConversationBudget | null;
   /** Orchestration forcée pour cette conversation (/orchestration) : délégation à des sous-agents demandée au modèle. */
   orchestration: boolean;
+  /** Skills personnalisés imposés dans cette conversation (/skill-<nom>) : leurs instructions accompagnent chaque requête. */
+  forcedSkills: string[];
   createdAt: string;
   updatedAt: string;
   lastMessageAt: string | null;
@@ -102,6 +104,16 @@ export interface MessageUsage {
   reasoningTokens: number | null;
   /** true lorsque les compteurs sont estimés localement et non fournis par l'API. */
   estimated: boolean;
+  /**
+   * Temps de génération cumulé des tours (ms) : du premier token à la fin du flux, ou depuis l'envoi
+   * quand la réflexion n'est pas transmise ; sans l'exécution des outils ni les attentes d'autorisation.
+   */
+  generationMs?: number | null;
+  /**
+   * Taille réelle du contexte après la réponse, d'après le fournisseur : entrée + sortie de la dernière
+   * requête (les tours d'outils précédents ne s'additionnent pas). Absent si les compteurs sont estimés.
+   */
+  contextTokens?: number | null;
 }
 
 /** Niveau de réflexion : demandé, réellement envoyé, paramètre utilisé et éventuel repli. */

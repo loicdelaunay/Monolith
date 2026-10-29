@@ -61,20 +61,22 @@ export class WorkspaceFiles {
     return { ...base, kind: 'text', mime: MIME[ext] ?? 'text/plain', text: buf.toString('utf8') };
   }
 
-  /** Références citées (`chemin`, `chemin:ligne`, `chemin#L12`) : seules celles qui existent deviennent des badges. */
+  /** Références citées (`chemin`, `chemin:ligne`, `chemin:10-20`, `chemin#L12`, `chemin#L10-L20`) : seules celles qui existent deviennent des badges. */
   stat(scope: ResourceScope, references: string[]): FileReference[] {
     return references.slice(0, 200).map((input) => {
-      const m = /^(.+?)(?::(\d+)(?::\d+)?|#L(\d+)(?:-L?\d+)?)?$/.exec(input.trim());
+      const m = /^(.+?)(?::(\d+)(?:[-–](\d+)|:\d+)?|#L(\d+)(?:-L?(\d+))?)?$/.exec(input.trim());
       const raw = m?.[1] ?? input;
-      const line = m?.[2] ? Number(m[2]) : m?.[3] ? Number(m[3]) : null;
-      const none: FileReference = { input, exists: false, path: null, display: null, type: null, line };
+      const line = m?.[2] ? Number(m[2]) : m?.[4] ? Number(m[4]) : null;
+      const end = m?.[3] ? Number(m[3]) : m?.[5] ? Number(m[5]) : null;
+      const endLine = line !== null && end !== null && end > line ? end : null;
+      const none: FileReference = { input, exists: false, path: null, display: null, type: null, line, endLine };
       if (!raw || raw.length > 400 || /[<>|"*?\n]/.test(raw)) return none;
       const candidates = isAbsolute(raw) ? [raw] : scope.roots.map((r) => join(r, raw));
       for (const c of candidates) {
         try {
           const full = scope.resolve(c);
           const st = statSync(full);
-          return { input, exists: true, path: full, display: scope.display(full), type: st.isDirectory() ? 'directory' : 'file', line };
+          return { input, exists: true, path: full, display: scope.display(full), type: st.isDirectory() ? 'directory' : 'file', line, endLine };
         } catch {
           /* candidat suivant */
         }

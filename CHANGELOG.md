@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Vitesse (tokens/s)** : mesurée sur le seul temps de génération, tour par tour — l'exécution des outils et l'attente de vos autorisations ne la font plus chuter ; une réflexion non transmise par le fournisseur est comptée avec son temps. En direct, la vitesse suit la réflexion, le texte et les arguments d'outils sur les dernières secondes (plus de pic au démarrage).
+- **Contexte lu chez le fournisseur** : après une réponse à plusieurs tours d'outils, seule la dernière requête compte (les tours ne s'additionnent plus), ce qui évitait aussi des compactages automatiques trop précoces. La fenêtre d'un modèle du catalogue est mise à jour au rafraîchissement ; la fenêtre annoncée par Mistral est lue.
+- **Zone de saisie** : revient à sa taille normale après l'envoi d'un long message (éditeur agrandi compris).
+- **Lignes citées** : `fichier.ts:10-20` ou `fichier.ts#L10-L20` ouvrent l'aperçu sur ces lignes, surlignées, en mode code.
+- **/skill-<nom>** : impose un skill personnalisé dans la conversation (ses instructions accompagnent chaque requête) ; la même commande le retire.
+- **Mémoire** : nombre maximum de mémoires (500 par défaut, 0 = illimité ; les plus anciennes de l'agent sont retirées, jamais les vôtres) et date d'expiration par mémoire (l'agent peut aussi en fixer une).
+- **Compactage en cours** : indicateur clair dans la conversation pendant tout le compactage, automatique (à la place de « Raisonnement… ») ou demandé (/compact) ; « Rien à compacter » est une information, plus une erreur.
+
 ## 3.0.0-alpha.25 — 2026-10-28
 
 - **Sous-agents dans la barre latérale** : les conversations des agents délégués s'affichent sous leur conversation parente (« 3 sous-agents », repliable, avec le rôle de chaque agent et un indicateur d'activité) ; le groupe s'ouvre de lui-même quand un sous-agent travaille ou est affiché.

@@ -35,6 +35,8 @@ export const store = reactive({
   presets: [] as ProviderPreset[],
   conversations: new Map<Id, Conversation>(),
   generations: new Map<Id, GenerationState>(),
+  /** Compactages manuels en cours (/compact, menu) : affichés dans la conversation jusqu'à leur fin. */
+  compacting: new Set<Id>(),
   activeId: null as Id | null,
   loadingMessages: false,
   queues: new Map<Id, QueuedInput[]>(),

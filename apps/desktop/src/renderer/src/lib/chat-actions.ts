@@ -1,6 +1,6 @@
 import type { ToastServiceMethods } from 'primevue/toastservice';
 import type { Id } from '@monolith/contracts';
-import { api, errorMessage, host } from '../api.ts';
+import { api, errorCode, errorMessage, host } from '../api.ts';
 import { i18n } from '../i18n.ts';
 import { openConversation, store } from '../stores/app.ts';
 
@@ -51,12 +51,17 @@ export function chatActions(toast: ToastServiceMethods) {
     },
 
     async compact(id: Id) {
+      if (store.compacting.has(id)) return;
+      store.compacting.add(id);
       try {
-        toast.add({ severity: 'info', summary: t('actions.compacting'), life: 2500 });
         const c = await api.call('conversations.compact', { id });
         toast.add({ severity: 'success', summary: t('actions.compacted'), detail: t('actions.compactedDetail', { count: c.upToSeq }), life: 5000 });
       } catch (e) {
-        fail(e);
+        // Rien à compacter (échanges récents conservés) : une information, pas une erreur.
+        if (errorCode(e) === 'invalid_argument') toast.add({ severity: 'info', summary: t('actions.compactNothing'), detail: errorMessage(e), life: 5000 });
+        else fail(e);
+      } finally {
+        store.compacting.delete(id);
       }
     },
   };

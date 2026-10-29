@@ -8,6 +8,7 @@ import Select from 'primevue/select';
 import Slider from 'primevue/slider';
 import ToggleSwitch from 'primevue/toggleswitch';
 import Paginator from 'primevue/paginator';
+import InputNumber from 'primevue/inputnumber';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import type { Memory, MemoryQuery, MemoryScope, MemoryVersion, Settings } from '@monolith/contracts';
@@ -55,17 +56,20 @@ const projectOptions = computed(() => store.projects.map((p) => ({ label: p.name
 const projectName = (id: number | null) => store.projects.find((p) => p.id === id)?.name ?? '';
 
 // ---------- Édition ----------
-const edit = reactive({ open: false, id: null as number | null, scope: 'global' as MemoryScope, projectId: null as number | null, conversationId: null as number | null, title: '', content: '', tags: '', versions: [] as MemoryVersion[] });
+const edit = reactive({ open: false, id: null as number | null, scope: 'global' as MemoryScope, projectId: null as number | null, conversationId: null as number | null, title: '', content: '', tags: '', expires: '', versions: [] as MemoryVersion[] });
+/** Date locale AAAA-MM-JJ d'une échéance ISO (champ date). */
+const dayOf = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10) : '');
+const tomorrow = computed(() => dayOf(new Date(Date.now() + 86_400_000).toISOString()));
 async function open(m: Memory | null) {
   if (m) {
     const full = await api.call('memory.get', { id: m.id }).catch((e) => (fail(e), null));
     if (!full) return;
-    Object.assign(edit, { open: true, id: m.id, scope: m.scope, projectId: m.projectId, conversationId: m.conversationId, title: m.title, content: m.content, tags: m.tags.join(', '), versions: full.versions });
-  } else Object.assign(edit, { open: true, id: null, scope: 'global', projectId: null, conversationId: null, title: '', content: '', tags: '', versions: [] });
+    Object.assign(edit, { open: true, id: m.id, scope: m.scope, projectId: m.projectId, conversationId: m.conversationId, title: m.title, content: m.content, tags: m.tags.join(', '), expires: dayOf(m.expiresAt), versions: full.versions });
+  } else Object.assign(edit, { open: true, id: null, scope: 'global', projectId: null, conversationId: null, title: '', content: '', tags: '', expires: '', versions: [] });
 }
 async function save() {
   try {
-    await api.call('memory.save', { ...(edit.id !== null ? { id: edit.id } : {}), scope: edit.scope, projectId: edit.projectId, conversationId: edit.conversationId, title: edit.title, content: edit.content, tags: edit.tags.split(',').map((x) => x.trim()).filter(Boolean) });
+    await api.call('memory.save', { ...(edit.id !== null ? { id: edit.id } : {}), scope: edit.scope, projectId: edit.projectId, conversationId: edit.conversationId, title: edit.title, content: edit.content, tags: edit.tags.split(',').map((x) => x.trim()).filter(Boolean), expiresAt: edit.expires || null });
     edit.open = false;
   } catch (e) {
     fail(e);
@@ -104,7 +108,13 @@ const date = (iso: string) => new Date(iso).toLocaleString(locale.value, { dateS
     <ToggleSwitch input-id="mem-fw" v-model="draft.memory.forcedWrite" />
   </div>
 
-  <h3 class="mh-section-title">{{ t('settings.memorySettings.admin') }} <span class="mh-hint">({{ total }})</span></h3>
+  <div class="mh-field">
+    <label for="mem-max">{{ t('settings.memorySettings.maxItems') }}</label>
+    <InputNumber input-id="mem-max" v-model="draft.memory.maxItems" :min="0" :max="100000" :step="50" show-buttons />
+    <p class="mh-hint">{{ t('settings.memorySettings.maxItemsHint') }}</p>
+  </div>
+
+  <h3 class="mh-section-title">{{ t('settings.memorySettings.admin') }} <span class="mh-hint">({{ total }}<template v-if="draft.memory.maxItems"> / {{ draft.memory.maxItems }}</template>)</span></h3>
   <div class="mh-row wrap bar">
     <InputText v-model="query.text" :placeholder="t('settings.memorySettings.search')" :aria-label="t('settings.memorySettings.search')" size="small" class="grow" />
     <Select v-model="query.scope" :options="scopeOptions" option-label="label" option-value="value" size="small" :placeholder="t('settings.memorySettings.allScopes')" :aria-label="t('settings.memorySettings.scope')" />
@@ -130,10 +140,17 @@ const date = (iso: string) => new Date(iso).toLocaleString(locale.value, { dateS
       <label for="mem-content">{{ t('settings.memorySettings.content') }}</label>
       <Textarea id="mem-content" v-model="edit.content" rows="4" auto-resize fluid />
     </div>
-    <div class="mh-field">
-      <label for="mem-tags">{{ t('settings.memorySettings.tags') }}</label>
-      <InputText id="mem-tags" v-model="edit.tags" fluid />
+    <div class="mh-row wrap">
+      <div class="mh-field grow">
+        <label for="mem-tags">{{ t('settings.memorySettings.tags') }}</label>
+        <InputText id="mem-tags" v-model="edit.tags" fluid />
+      </div>
+      <div class="mh-field">
+        <label for="mem-exp">{{ t('settings.memorySettings.expires') }}</label>
+        <InputText id="mem-exp" v-model="edit.expires" type="date" :min="tomorrow" />
+      </div>
     </div>
+    <p class="mh-hint">{{ t('settings.memorySettings.expiresHint') }}</p>
     <details v-if="edit.id !== null">
       <summary>{{ t('settings.memorySettings.versions') }} ({{ edit.versions.length }})</summary>
       <p v-if="!edit.versions.length" class="mh-hint">{{ t('settings.memorySettings.noVersions') }}</p>
@@ -165,7 +182,7 @@ const date = (iso: string) => new Date(iso).toLocaleString(locale.value, { dateS
           <div class="mh-hint clip">{{ m.content }}</div>
         </td>
         <td>{{ t(`settings.memorySettings.scopes.${m.scope}`) }}<span v-if="m.projectId" class="mh-hint"> · {{ projectName(m.projectId) }}</span></td>
-        <td class="nowrap">{{ date(m.updatedAt) }}<div class="mh-hint">v{{ m.version }} · {{ t(`settings.memorySettings.sources.${m.source}`) }}</div></td>
+        <td class="nowrap">{{ date(m.updatedAt) }}<div class="mh-hint">v{{ m.version }} · {{ t(`settings.memorySettings.sources.${m.source}`) }}</div><div v-if="m.expiresAt" class="mh-hint expires"><i class="pi pi-hourglass" /> {{ t('settings.memorySettings.expiresOn', { date: date(m.expiresAt) }) }}</div></td>
         <td><Button icon="pi pi-trash" text rounded size="small" severity="danger" :aria-label="t('common.delete')" @click="remove(m)" /></td>
       </tr>
     </tbody>

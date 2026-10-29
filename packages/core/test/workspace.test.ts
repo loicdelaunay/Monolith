@@ -65,6 +65,9 @@ describe('fichiers du panneau', () => {
     expect(refs[1]).toMatchObject({ exists: true, line: 2 });
     expect(refs[2]!.exists).toBe(false);
     expect(refs[3]!.exists).toBe(false);
+    // Plages : surlignées dans l'aperçu.
+    const ranges = await h.call('files.stat', { conversationId, references: ['src/main.ts:3-8', 'README.md#L2-L5', 'src/main.ts:4:2'] });
+    expect(ranges.map((r) => [r.exists, r.line, r.endLine])).toEqual([[true, 3, 8], [true, 2, 5], [true, 4, null]]);
   });
 
   it('cherche par nom et dans le contenu', async () => {

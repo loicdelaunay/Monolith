@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'primevue/button';
 import type { FileContent, Id } from '@monolith/contracts';
@@ -27,6 +27,9 @@ watch(
     if (!p) return;
     try {
       file.value = await api.call('files.read', { conversationId: props.conversationId, path: p.path });
+      // Ligne ou plage citée : affichée dans le code source, surlignée.
+      if (p.line) mode.value = 'source';
+      scrolled = false;
     } catch (e) {
       error.value = errorMessage(e);
     }
@@ -41,6 +44,38 @@ const isSvg = computed(() => file.value?.mime === 'image/svg+xml');
 const renderable = computed(() => isMarkdown.value || isHtml.value || isSvg.value);
 const source = computed(() => (file.value?.text !== undefined ? fenced(file.value.text, ext.value) : ''));
 const svgUrl = computed(() => (isSvg.value && file.value?.text ? `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(file.value.text)))}` : ''));
+
+// ---------- Lignes citées surlignées (le code peut être re-rendu : coloration chargée à la demande) ----------
+const content = ref<HTMLElement | null>(null);
+let scrolled = false;
+function highlightLines() {
+  const el = content.value;
+  const p = target.value;
+  if (!el || !p?.line) return;
+  const lines = el.querySelectorAll<HTMLElement>('.mh-code .line');
+  if (!lines.length) return;
+  const first = Math.max(1, p.line);
+  const last = Math.max(first, p.endLine ?? first);
+  lines.forEach((node, i) => node.classList.toggle('mh-line-hl', i + 1 >= first && i + 1 <= last));
+  if (!scrolled) {
+    scrolled = true;
+    lines[first - 1]?.scrollIntoView({ block: 'center' });
+  }
+}
+let observer: MutationObserver | null = null;
+watch(
+  content,
+  (el) => {
+    observer?.disconnect();
+    if (!el) return;
+    observer = new MutationObserver(() => highlightLines());
+    observer.observe(el, { childList: true, subtree: true });
+    void nextTick(highlightLines);
+  },
+  { flush: 'post' },
+);
+watch([target, mode, file], () => void nextTick(highlightLines), { flush: 'post' });
+onBeforeUnmount(() => observer?.disconnect());
 
 async function openInBrowser() {
   if (!file.value) return;
@@ -57,7 +92,7 @@ async function openInBrowser() {
     <template v-else-if="file">
       <div class="bar">
         <i class="pi pi-file mh-muted" />
-        <span class="path" :title="file.path">{{ file.display }}<template v-if="target.line">:{{ target.line }}</template></span>
+        <span class="path" :title="file.path">{{ file.display }}<template v-if="target.line">:{{ target.line }}<template v-if="target.endLine">-{{ target.endLine }}</template></template></span>
         <span class="mh-muted size">{{ formatBytes(file.size) }}</span>
         <div v-if="renderable" class="seg" role="group">
           <button type="button" :class="{ active: mode === 'rendered' }" :aria-pressed="mode === 'rendered'" @click="mode = 'rendered'">{{ t('panel.preview.rendered') }}</button>
@@ -66,7 +101,7 @@ async function openInBrowser() {
         <Button v-if="isHtml" size="small" text icon="pi pi-globe" :label="t('panel.preview.openInBrowser')" @click="openInBrowser" />
         <button type="button" class="mh-icon-btn" :aria-label="t('panel.files.reveal')" v-tooltip.left="t('panel.files.reveal')" @click="host.showItemInFolder(file.path)"><i class="pi pi-external-link" /></button>
       </div>
-      <div class="content">
+      <div ref="content" class="content">
         <img v-if="file.kind === 'image'" :src="`data:${file.mime};base64,${file.dataBase64}`" :alt="file.display" class="img" />
         <p v-else-if="file.kind === 'binary'" class="mh-muted note">{{ t('panel.preview.binary') }}</p>
         <p v-else-if="file.kind === 'too_large'" class="mh-muted note">{{ t('panel.preview.tooLarge', { size: formatBytes(file.size) }) }}</p>
@@ -157,5 +192,11 @@ async function openInBrowser() {
 .small {
   font-size: 12px;
   margin: 0 0 6px;
+}
+.content :deep(.mh-code .line.mh-line-hl) {
+  display: inline-block;
+  min-width: 100%;
+  background: color-mix(in srgb, var(--mh-accent) 20%, transparent);
+  box-shadow: inset 3px 0 0 var(--mh-accent);
 }
 </style>

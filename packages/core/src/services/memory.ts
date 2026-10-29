@@ -17,6 +17,7 @@ interface MemoryRow {
   version: number;
   created_at: string;
   updated_at: string;
+  expires_at: string | null;
 }
 
 const SCOPES: MemoryScope[] = ['conversation', 'project', 'global', 'user'];
@@ -46,7 +47,18 @@ const map = (r: MemoryRow): Memory => ({
   version: r.version,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  expiresAt: r.expires_at ?? null,
 });
+
+/** Date d'expiration saisie : ISO complète, ou AAAA-MM-JJ (fin de cette journée, heure locale). */
+function cleanExpiry(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  const raw = String(value).trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T23:59:59`) : new Date(raw);
+  if (Number.isNaN(date.getTime())) throw new HarnessError('invalid_argument', `Date d’expiration invalide : ${raw}`);
+  if (date.getTime() <= Date.now()) throw new HarnessError('invalid_argument', 'La date d’expiration doit être dans le futur');
+  return date.toISOString();
+}
 
 /**
  * Mémoire persistante : conversation, projet, générale et utilisateur. Chaque modification crée
@@ -57,9 +69,19 @@ export class MemoryService {
   constructor(
     private readonly db: Database,
     private readonly events: EventBus,
+    /** Nombre maximum de mémoires (réglage ; 0 : illimité). */
+    private readonly maxItems: () => number = () => 0,
   ) {}
 
+  /** Mémoires expirées : supprimées (avec leurs versions) avant toute lecture ou écriture. */
+  purgeExpired(): number {
+    const { changes } = this.db.run('DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at <= ?', new Date().toISOString());
+    if (changes) this.events.emit('memory.changed', { id: null });
+    return changes;
+  }
+
   list(q: MemoryQuery): { items: Memory[]; total: number } {
+    this.purgeExpired();
     const where: string[] = [];
     const params: (string | number)[] = [];
     if (q.scope) {
@@ -110,6 +132,9 @@ export class MemoryService {
     const tags = (input.tags ?? []).map((t) => String(t).trim().replace(/,/g, ' ').slice(0, 40)).filter(Boolean).slice(0, 20).join(',');
     const projectId = input.scope === 'project' ? (input.projectId ?? null) : null;
     const conversationId = input.scope === 'conversation' ? (input.conversationId ?? null) : null;
+    const expiresAt = input.expiresAt === undefined && input.id !== undefined ? undefined : cleanExpiry(input.expiresAt);
+    this.purgeExpired();
+    if (input.id === undefined) this.makeRoom();
     if (input.scope === 'project' && projectId === null) throw new HarnessError('invalid_argument', 'Mémoire de projet sans projet');
     if (input.scope === 'conversation' && conversationId === null) throw new HarnessError('invalid_argument', 'Mémoire de conversation sans conversation');
     const t = now();
@@ -120,7 +145,7 @@ export class MemoryService {
         // L'ancienne version est conservée avant modification.
         this.db.run('INSERT INTO memory_versions (memory_id, version, title, content, tags, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', prev.id, prev.version, prev.title, prev.content, prev.tags, prev.source, prev.updated_at);
         this.db.run(
-          'UPDATE memories SET scope = ?, project_id = ?, conversation_id = ?, title = ?, content = ?, tags = ?, source = ?, source_conversation_id = ?, source_message_id = ?, version = version + 1, updated_at = ? WHERE id = ?',
+          'UPDATE memories SET scope = ?, project_id = ?, conversation_id = ?, title = ?, content = ?, tags = ?, source = ?, source_conversation_id = ?, source_message_id = ?, version = version + 1, updated_at = ?, expires_at = ? WHERE id = ?',
           input.scope,
           projectId,
           conversationId,
@@ -131,12 +156,13 @@ export class MemoryService {
           provenance.conversationId ?? null,
           provenance.messageId ?? null,
           t,
+          expiresAt === undefined ? prev.expires_at : expiresAt,
           prev.id,
         );
         return prev.id;
       }
       return this.db.run(
-        'INSERT INTO memories (scope, project_id, conversation_id, title, content, tags, source, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO memories (scope, project_id, conversation_id, title, content, tags, source, source_conversation_id, source_message_id, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         input.scope,
         projectId,
         conversationId,
@@ -148,10 +174,27 @@ export class MemoryService {
         provenance.messageId ?? null,
         t,
         t,
+        expiresAt ?? null,
       ).lastInsertRowid;
     });
     this.events.emit('memory.changed', { id });
     return map(this.db.get<MemoryRow>('SELECT * FROM memories WHERE id = ?', id)!);
+  }
+
+  /**
+   * Limite du nombre de mémoires : avant un ajout, retire les plus anciennes mémoires de l'agent ou de
+   * l'écriture forcée ; celles de l'utilisateur ne sont jamais retirées automatiquement (ajout refusé).
+   */
+  private makeRoom(): void {
+    const max = this.maxItems();
+    if (!max) return;
+    const count = this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM memories')!.n;
+    const excess = count - max + 1;
+    if (excess <= 0) return;
+    const victims = this.db.all<{ id: number }>("SELECT id FROM memories WHERE source != 'user' ORDER BY updated_at ASC, id ASC LIMIT ?", excess);
+    if (victims.length < excess) throw new HarnessError('invalid_argument', `Limite de ${max} mémoires atteinte (mémoires saisies par l’utilisateur) : supprimez-en ou augmentez la limite dans Réglages › Mémoire.`);
+    for (const v of victims) this.db.run('DELETE FROM memories WHERE id = ?', v.id);
+    this.events.emit('memory.changed', { id: null });
   }
 
   delete(id: Id): void {
@@ -162,6 +205,7 @@ export class MemoryService {
 
   /** Mémoires visibles depuis une conversation : la sienne, son projet, générales et utilisateur. */
   visible(conversationId: Id, projectId: Id | null, query: string | null, limit: number): Memory[] {
+    this.purgeExpired();
     const scopeSql = `(m.scope IN ('global', 'user') OR (m.scope = 'conversation' AND m.conversation_id = ?) OR (m.scope = 'project' AND m.project_id = ?))`;
     const fts = query ? ftsQuery(query) : null;
     if (query && fts) {

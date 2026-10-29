@@ -186,6 +186,8 @@ export interface Settings {
     forcedReadCount: number;
     /** Écriture forcée : extraction automatique de souvenirs après chaque réponse (requête dédiée). */
     forcedWrite: boolean;
+    /** Nombre maximum de mémoires (0 : illimité). Au-delà, les plus anciennes de l'agent sont retirées. */
+    maxItems: number;
   };
   web: {
     /** none : pas de moteur, l'agent n'utilise que le client HTTP intégré (comme la v1). */
@@ -402,6 +404,7 @@ export const DEFAULT_SETTINGS: Settings = {
     forcedRead: false,
     forcedReadCount: 20,
     forcedWrite: false,
+    maxItems: 500,
   },
   web: {
     searchProvider: 'duckduckgo',
@@ -472,6 +475,7 @@ export const SETTINGS_BOUNDS = {
   'loop.threshold': [2, 20],
   'loop.window': [3, 100],
   'memory.forcedReadCount': [1, 100],
+  'memory.maxItems': [0, 100_000],
   'maintenance.autoArchiveDays': [0, 3650],
   'local.contextSize': [512, 262_144],
   'local.gpuLayers': [-1, 999],

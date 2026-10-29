@@ -20,6 +20,8 @@ export interface Memory {
   version: number;
   createdAt: string;
   updatedAt: string;
+  /** Date d'expiration (ISO) : la mémoire est supprimée une fois passée ; null = permanente. */
+  expiresAt: string | null;
 }
 
 export interface MemoryVersion {
@@ -50,6 +52,8 @@ export interface MemoryInput {
   title: string;
   content: string;
   tags?: string[];
+  /** Date d'expiration (ISO, ou AAAA-MM-JJ = fin de journée) ; null = permanente. */
+  expiresAt?: string | null;
 }
 
 // ---------- MCP ----------

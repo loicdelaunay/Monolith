@@ -281,6 +281,8 @@ export interface FileReference {
   display: string | null;
   type: 'file' | 'directory' | null;
   line: number | null;
+  /** Fin d'une plage citée (`chemin:10-20`, `chemin#L10-L20`). */
+  endLine: number | null;
 }
 
 export interface GitStatusInfo {

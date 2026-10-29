@@ -17,7 +17,11 @@ export function formatDuration(ms: number | null | undefined): string {
 
 /** Débit de sortie (tokens/s) mesuré après le premier élément reçu. */
 export function throughput(m: Message): number | null {
-  if (!m.usage?.outputTokens || !m.durationMs) return null;
+  if (!m.usage?.outputTokens) return null;
+  // Temps de génération mesuré tour par tour (hors outils et autorisations) quand il est connu.
+  const gen = m.usage.generationMs;
+  if (gen) return gen < 200 ? null : m.usage.outputTokens / (gen / 1000);
+  if (!m.durationMs) return null;
   const window = m.durationMs - (m.firstTokenMs ?? 0);
   if (window < 200) return null;
   return m.usage.outputTokens / (window / 1000);

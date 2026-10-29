@@ -121,7 +121,6 @@ function fork(m: Message) {
   const c = activeConversation.value;
   if (c) void actions.fork(c.id, m.id);
 }
-const generationStatus = computed(() => (activeConversation.value ? store.generations.get(activeConversation.value.id)?.status : undefined));
 const openSource = (id: Id) => openConversation(id);
 const sandboxOpen = ref(false);
 </script>
@@ -169,7 +168,11 @@ const sandboxOpen = ref(false);
               <div class="compaction-text">{{ compactionsBySeq.get(m.seq)!.summary }}</div>
             </details>
           </template>
-          <div v-if="generationStatus === 'compacting'" class="compacting" role="status"><ProgressSpinner style="width: 14px; height: 14px" stroke-width="6" /> {{ t('chat.compactingNow') }}</div>
+          <div v-if="store.compacting.has(activeConversation.id)" class="mh-compacting" role="status">
+            <ProgressSpinner style="width: 14px; height: 14px" stroke-width="6" />
+            <i class="pi pi-compress" />
+            <span><strong>{{ t('chat.compactingManual') }}</strong> {{ t('chat.compactingHint') }}</span>
+          </div>
         </div>
       </div>
 
@@ -305,14 +308,7 @@ const sandboxOpen = ref(false);
   white-space: pre-wrap;
   padding: 0 4px 10px;
 }
-.compacting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--mh-muted);
-  font-size: 13px;
-  padding: 6px 0;
-}
+
 .bottom {
   padding: 0 20px;
 }

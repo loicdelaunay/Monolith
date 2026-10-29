@@ -41,7 +41,7 @@ const PATHLIKE = /^(?![a-z][\w+.-]*:\/\/)(?!-)[^\s<>|"*?`]{2,300}$/i;
 export function looksLikePath(s: string): boolean {
   if (!PATHLIKE.test(s)) return false;
   if (/[\\/]/.test(s)) return /[\w.-]/.test(s.replace(/[\\/]/g, ''));
-  return /^[\w.-]+\.[a-z0-9]{1,8}(:\d+(:\d+)?|#L\d+)?$/i.test(s) && !/^\d+(\.\d+)+$/.test(s);
+  return /^[\w.-]+\.[a-z0-9]{1,8}(:\d+([-–:]\d+)?|#L\d+(-L?\d+)?)?$/i.test(s) && !/^\d+(\.\d+)+$/.test(s);
 }
 md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
   const content = tokens[idx]!.content;

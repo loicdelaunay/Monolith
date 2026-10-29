@@ -114,7 +114,7 @@ async function onClick(e: MouseEvent) {
     return;
   }
   if (badge?.dataset.file && props.conversationId !== undefined) {
-    uiState.preview = { conversationId: props.conversationId, path: badge.dataset.file, line: badge.dataset.line ? Number(badge.dataset.line) : null };
+    uiState.preview = { conversationId: props.conversationId, path: badge.dataset.file, line: badge.dataset.line ? Number(badge.dataset.line) : null, endLine: badge.dataset.endLine ? Number(badge.dataset.endLine) : null };
     await api.call('settings.update', { layout: { panelOpen: true, panelTab: 'preview' } });
     return;
   }

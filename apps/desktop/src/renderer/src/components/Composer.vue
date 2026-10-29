@@ -6,7 +6,7 @@ import Button from 'primevue/button';
 import Popover from 'primevue/popover';
 import Menu from 'primevue/menu';
 import { useToast } from 'primevue/usetoast';
-import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage, type ConversationPatch, type ReasoningLevel } from '@monolith/contracts';
+import { ATTACHMENT_LIMITS, type AttachmentRef, type Conversation, type ContextUsage, type ConversationPatch, type ReasoningLevel, type CustomSkill } from '@monolith/contracts';
 import { api, errorCode, errorMessage, host } from '../api.ts';
 import { messagesOf, store } from '../stores/app.ts';
 import { attachPaths, uploadFiles, formatSize } from '../lib/attachments.ts';
@@ -55,10 +55,15 @@ function scheduleDraft() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushDraft, 400);
 }
-watch(text, () => {
-  scheduleDraft();
-  autoSize();
-});
+// Après la mise à jour du DOM : un texte vidé par programme (envoi, éditeur agrandi) est mesuré vide.
+watch(
+  text,
+  () => {
+    scheduleDraft();
+    autoSize();
+  },
+  { flush: 'post' },
+);
 watch(attachments, scheduleDraft, { deep: true });
 watch(
   () => props.conversation.id,
@@ -164,6 +169,21 @@ const effortLevels = computed<ReasoningLevel[]>(() => {
   const known = (caps?.reasoningLevels ?? []).filter((l) => !caps?.rejectedLevels.includes(l));
   return known.length ? ['auto', ...known.filter((l) => l !== 'auto')] : EFFORTS;
 });
+// Skills personnalisés (dossier global et dossiers du projet) : /skill-<nom> les impose dans la conversation.
+const customSkills = ref<CustomSkill[]>([]);
+watch(
+  () => [props.conversation.id, props.conversation.projectId] as const,
+  async ([, projectId]) => {
+    customSkills.value = await api.call('skills.custom', { projectId }).catch(() => []);
+  },
+  { immediate: true },
+);
+function toggleSkill(name: string) {
+  const forced = props.conversation.forcedSkills.includes(name);
+  const next = forced ? props.conversation.forcedSkills.filter((n) => n !== name) : [...props.conversation.forcedSkills, name];
+  return patchConversation({ forcedSkills: next }, forced ? t('composer.slash.skillOff', { name }) : t('composer.slash.skillOn', { name }));
+}
+
 const COMMANDS = computed<SlashCommand[]>(() => [
   { name: 'compact', icon: 'pi-compress', run: () => actions.compact(props.conversation.id) },
   { name: 'export', icon: 'pi-download', run: () => actions.exportMarkdown(props.conversation.id, false) },
@@ -181,6 +201,12 @@ const COMMANDS = computed<SlashCommand[]>(() => [
     icon: 'pi-sparkles',
     hint: t('composer.slash.effort', { level: t(`reasoningLevels.${level}`) }),
     run: () => patchConversation({ reasoningLevel: level }, t('composer.slash.effortDone', { level: t(`reasoningLevels.${level}`) })),
+  })),
+  ...customSkills.value.map((k) => ({
+    name: `skill-${k.name}`,
+    icon: 'pi-book',
+    hint: props.conversation.forcedSkills.includes(k.name) ? t('composer.slash.skillRemove', { description: k.description }) : t('composer.slash.skillForce', { description: k.description }),
+    run: () => toggleSkill(k.name),
   })),
   {
     name: 'orchestration',
@@ -312,15 +338,19 @@ watch(
     clearInterval(speedTimer);
     liveSpeed.value = null;
     if (!gen || !show) return;
-    let start: number | null = null;
+    // Vitesse en direct : réflexion, texte et arguments d'outils produits sur les 3 dernières secondes.
+    // Pendant l'exécution d'un outil (rien de nouveau), la dernière vitesse mesurée reste affichée.
+    const samples: { at: number; chars: number }[] = [];
     speedTimer = setInterval(() => {
       const m = messagesOf(props.conversation.id).value.at(-1);
       if (!m || m.role !== 'assistant' || m.status !== 'streaming') return;
-      const chars = m.parts.reduce((n, p) => n + (p.type === 'text' || p.type === 'reasoning' ? p.text.length : 0), 0);
-      if (!chars) return;
-      start ??= performance.now();
-      const sec = (performance.now() - start) / 1000;
-      if (sec > 0.5) liveSpeed.value = chars / 4 / sec;
+      const chars = m.parts.reduce((n, p) => n + (p.type === 'text' || p.type === 'reasoning' ? p.text.length : p.type === 'tool' ? p.call.arguments.length : 0), 0);
+      const at = performance.now();
+      samples.push({ at, chars });
+      while (samples.length > 1 && at - samples[0]!.at > 3000) samples.shift();
+      const first = samples[0]!;
+      const sec = (at - first.at) / 1000;
+      if (sec >= 0.9 && chars > first.chars) liveSpeed.value = (chars - first.chars) / 4 / sec;
     }, 500);
   },
   { immediate: true },

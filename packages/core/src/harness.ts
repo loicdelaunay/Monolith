@@ -249,7 +249,7 @@ export class Harness {
     this.local = new LocalModelService({ dir: join(this.layout.root, 'local'), events: this.events, settings: () => this.settings.get(), secrets: this.secrets, logger: this.logger, ...(options.localEndpoints ?? {}) });
     this.studio = new StudioService({ db: this.db, providers: this.providers, usage: this.usage, attachments: this.attachments, events: this.events, http, settings: () => this.settings.get() });
     this.assets = new AssetService(join(this.layout.workspace, 'assets'), this.events);
-    this.memory = new MemoryService(this.db, this.events);
+    this.memory = new MemoryService(this.db, this.events, () => this.settings.get().memory.maxItems);
     this.localAi = new LocalAiService({ dir: join(this.layout.root, 'local', 'ai'), events: this.events, logger: this.logger, ...(options.localAi ?? {}) });
     this.rag = new RagService(this.db, this.events, this.providers, http, () => this.settings.get(), this.localAi);
     this.sandbox = new SandboxService(this.resources, join(this.layout.workspace, 'sandboxes'));

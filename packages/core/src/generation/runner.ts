@@ -1,3 +1,6 @@
+import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { parseSkillFile } from '../tools/knowledge.ts';
 import { randomUUID } from 'node:crypto';
 import {
   HarnessError,
@@ -505,6 +508,23 @@ export class GenerationRunner {
     if (ctx.conversation.parentId !== null) {
       out.push(`Tu es un sous-agent (rôle : ${ctx.conversation.role ?? 'général'}). Travaille uniquement sur la tâche confiée, sans demander de précisions sauf blocage, puis termine par un rapport final concis : résultat, fichiers concernés, points incertains.`);
     }
+    // Skills imposés par l'utilisateur (/skill-<nom>) : instructions complètes jointes à chaque requête.
+    if (this.deps.customSkills && ctx.conversation.forcedSkills.length) {
+      const all = this.deps.customSkills(ctx.scope.roots, s);
+      for (const name of ctx.conversation.forcedSkills) {
+        const skill = all.find((k) => k.name === name);
+        if (!skill) {
+          out.push(`Skill « ${name} » imposé par l’utilisateur mais introuvable : signale-le dans ta réponse.`);
+          continue;
+        }
+        try {
+          const body = parseSkillFile(readFileSync(join(skill.path, 'SKILL.md'), 'utf8'))?.body ?? '';
+          out.push(`Skill « ${skill.name} » imposé par l’utilisateur pour cette conversation : applique-le obligatoirement à chaque réponse.${ctx.tools.some((t) => t.name === 'read_skill_resource') ? ' Ses ressources se lisent avec read_skill_resource.' : ''}\n${body.trim()}`);
+        } catch {
+          out.push(`Skill « ${name} » imposé par l’utilisateur mais illisible : signale-le dans ta réponse.`);
+        }
+      }
+    }
     if (this.deps.customSkills && ctx.snapshot.mode === 'agent' && (s.skills.enabled.custom_skills ?? true) && ctx.tools.some((t) => t.name === 'load_skill')) {
       const skills = this.deps.customSkills(ctx.scope.roots, s).filter((k) => k.enabled);
       if (skills.length) out.push(`Skills personnalisés disponibles (chargez-les avec load_skill avant de les appliquer) :\n${skills.map((k) => `- ${k.name} : ${k.description}`).join('\n')}`);
@@ -603,7 +623,7 @@ export class GenerationRunner {
     let lastPersist = performance.now();
     let snapshot = ctx.snapshot;
     // Compteurs cumulés sur tous les tours d'outils de la réponse.
-    const totals = { input: 0, output: 0, cached: 0, reasoning: 0, estimated: false, any: false };
+    const totals = { input: 0, output: 0, cached: 0, reasoning: 0, estimated: false, any: false, generationMs: 0, contextTokens: null as number | null };
     let lastFinish: Extract<StreamEvent, { type: 'finish' }> | null = null;
     let lastRequest: ChatRequest | null = null;
 
@@ -819,7 +839,14 @@ export class GenerationRunner {
         ? { inputTokens: apiUsage.inputTokens, outputTokens: apiUsage.outputTokens, cachedInputTokens: apiUsage.cachedInputTokens, reasoningTokens: apiUsage.reasoningTokens, estimated: false }
         : { inputTokens: estimateRequestTokens(request.messages), outputTokens: estimateTokens(roundText + calls.map((c) => c.arguments).join('')), cachedInputTokens: null, reasoningTokens: null, estimated: true };
       usage.finish(usageId, { firstTokenMs: roundFirst, ...roundUsage, status: roundStatus });
+      // Vitesse : temps de génération du tour seulement. Réflexion non transmise (comptée dans les tokens
+      // de sortie) ou tour sans texte : depuis l'envoi de la requête ; sinon depuis le premier token.
+      const streamedReasoning = parts.slice(roundStart).some((p) => p.type === 'reasoning');
+      const hiddenWork = ((roundUsage.reasoningTokens ?? 0) > 0 && !streamedReasoning) || roundFirst === null;
+      totals.generationMs += Math.max(0, performance.now() - roundStarted - (hiddenWork ? 0 : (roundFirst ?? 0)));
       totals.any = true;
+      // Contexte : la dernière requête contient tout l'historique ; les tours précédents ne s'additionnent pas.
+      totals.contextTokens = !roundUsage.estimated && roundUsage.inputTokens !== null ? roundUsage.inputTokens + (roundUsage.outputTokens ?? 0) : null;
       totals.input += roundUsage.inputTokens ?? 0;
       totals.output += roundUsage.outputTokens ?? 0;
       totals.cached += roundUsage.cachedInputTokens ?? 0;
@@ -880,7 +907,7 @@ export class GenerationRunner {
 
     const durationMs = performance.now() - started;
     const finalUsage: MessageUsage = totals.any
-      ? { inputTokens: totals.input, outputTokens: totals.output, cachedInputTokens: totals.cached || null, reasoningTokens: totals.reasoning || null, estimated: totals.estimated }
+      ? { inputTokens: totals.input, outputTokens: totals.output, cachedInputTokens: totals.cached || null, reasoningTokens: totals.reasoning || null, estimated: totals.estimated, generationMs: Math.round(totals.generationMs) || null, contextTokens: totals.contextTokens }
       : { inputTokens: lastRequest ? estimateRequestTokens(lastRequest.messages) : 0, outputTokens: 0, cachedInputTokens: null, reasoningTokens: null, estimated: true };
 
     if (flushTimer) clearTimeout(flushTimer);
@@ -1226,11 +1253,15 @@ export class GenerationRunner {
     const estimate = estimateRequestTokens(request.messages) + (request.tools?.length ? estimateTokens(JSON.stringify(request.tools)) : 0);
     const list = this.deps.messages.list(ctx.conversation.id).filter((m) => m.id !== excludeMessageId);
     const latest = this.deps.compactions.latest(ctx.conversation.id);
-    const lastApi = [...list].reverse().find((m) => m.role === 'assistant' && m.usage && !m.usage.estimated && m.usage.inputTokens !== null && (!latest || m.seq > latest.upToSeq));
+    // Dernier compteur du fournisseur : taille du contexte après la dernière requête de la réponse
+    // (contextTokens) ; les anciennes réponses sans ce champ n'ont qu'un tour fiable (sans outils).
+    const reliable = (m: Message) => m.usage?.contextTokens != null || (m.usage?.inputTokens != null && !m.parts.some((p) => p.type === 'tool'));
+    const lastApi = [...list].reverse().find((m) => m.role === 'assistant' && m.usage && !m.usage.estimated && reliable(m) && (!latest || m.seq > latest.upToSeq));
     if (!lastApi) return { tokens: estimate, source: 'estimate' };
     const after = list.filter((m) => m.seq > lastApi.seq);
     const tail = estimateRequestTokens(buildHistory(after, { attachments: { text: () => '', dataUrl: () => '' }, vision: null }).messages);
-    return { tokens: Math.max(estimate, (lastApi.usage!.inputTokens ?? 0) + (lastApi.usage!.outputTokens ?? 0) + tail), source: 'api' };
+    const counted = lastApi.usage!.contextTokens ?? (lastApi.usage!.inputTokens ?? 0) + (lastApi.usage!.outputTokens ?? 0);
+    return { tokens: Math.max(estimate, counted + tail), source: 'api' };
   }
 
   /** AI Info : postes du contexte de la prochaine requête (estimations), à côté du compteur d'utilisation. */
