@@ -2,12 +2,9 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.30 — 2026-11-02
 
 - **Compactage automatique trop précoce** : le seuil porte désormais sur la fenêtre de contexte affichée par l'indicateur (80 % = 80 % de l'anneau). La place gardée pour la réponse est plafonnée à 20 % de la fenêtre : un modèle annonçant une sortie maximale égale à sa fenêtre (fréquent chez OpenRouter) faisait compacter la conversation à chaque envoi. La réflexion, jamais renvoyée au modèle, n'est plus comptée dans le contexte.
-
-## 3.0.0-alpha.29 — 2026-11-02
-
 - **Données copiées sur un autre PC** : enregistrer une clé d'API n'échoue plus avec « La clé maître ne peut pas être déchiffrée ». La clé maître de l'ancien poste (illisible ici) est remplacée à la première clé ressaisie ; les autres clés, indéchiffrables sur ce poste, apparaissent sans clé et sont à ressaisir. L'ancienne clé maître est conservée dans `data/keys/` ; rien n'est modifié si l'échec n'était que passager.
 
 ## 3.0.0-alpha.28 — 2026-10-29
