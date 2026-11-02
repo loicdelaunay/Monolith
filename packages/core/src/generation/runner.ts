@@ -58,7 +58,7 @@ import { LoopDetector, type LoopGate, type ProposalService, type QuestionBroker 
 import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
 import { decideRetry } from './retry.ts';
-import { buildHistory, buildSystemPrompt, compactionCut, estimateRequestTokens, transcriptText } from './prompt.ts';
+import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, estimateRequestTokens, transcriptText, visibleOutput } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
 import { estimateTokens, sleep } from '../util.ts';
 
@@ -862,7 +862,7 @@ export class GenerationRunner {
       totals.generationMs += Math.max(0, performance.now() - roundStarted - (hiddenWork ? 0 : (roundFirst ?? 0)));
       totals.any = true;
       // Contexte : la dernière requête contient tout l'historique ; les tours précédents ne s'additionnent pas.
-      totals.contextTokens = !roundUsage.estimated && roundUsage.inputTokens !== null ? roundUsage.inputTokens + (roundUsage.outputTokens ?? 0) : null;
+      totals.contextTokens = !roundUsage.estimated && roundUsage.inputTokens !== null ? roundUsage.inputTokens + visibleOutput(roundUsage) : null;
       totals.input += roundUsage.inputTokens ?? 0;
       totals.output += roundUsage.outputTokens ?? 0;
       totals.cached += roundUsage.cachedInputTokens ?? 0;
@@ -1276,7 +1276,7 @@ export class GenerationRunner {
     if (!lastApi) return { tokens: estimate, source: 'estimate' };
     const after = list.filter((m) => m.seq > lastApi.seq);
     const tail = estimateRequestTokens(buildHistory(after, { attachments: { text: () => '', dataUrl: () => '' }, vision: null }).messages);
-    const counted = lastApi.usage!.contextTokens ?? (lastApi.usage!.inputTokens ?? 0) + (lastApi.usage!.outputTokens ?? 0);
+    const counted = lastApi.usage!.contextTokens ?? (lastApi.usage!.inputTokens ?? 0) + visibleOutput(lastApi.usage!);
     return { tokens: Math.max(estimate, counted + tail), source: 'api' };
   }
 
@@ -1363,10 +1363,8 @@ export class GenerationRunner {
   private async maybeAutoCompact(job: Job, ctx: JobContext, assistantId: Id): Promise<void> {
     const s = ctx.settings.chat;
     if (!s.autoCompact || !ctx.contextWindow || ctx.provider.kind === 'acp') return;
-    const reserve = ctx.snapshot.maxOutputTokens ?? Math.min(8192, Math.round(ctx.contextWindow * 0.2));
-    const budget = Math.max(1024, ctx.contextWindow - reserve);
     const { tokens } = this.measure(ctx, assistantId);
-    if (tokens <= (budget * s.compactThreshold) / 100) return;
+    if (tokens <= compactionLimit(ctx.contextWindow, ctx.snapshot.maxOutputTokens, s.compactThreshold)) return;
     // Rien à résumer (seuls les derniers échanges conservés) : pas de requête, pas d'état « compactage ».
     const all = this.deps.messages.list(ctx.conversation.id).filter((m) => m.id !== assistantId);
     if (compactionCut(all, s.compactKeepTurns, this.deps.compactions.latest(ctx.conversation.id)?.upToSeq ?? null) === null) return;

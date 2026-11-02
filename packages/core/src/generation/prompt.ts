@@ -234,6 +234,25 @@ export function estimateRequestTokens(messages: ChatMessage[]): number {
   return total;
 }
 
+/**
+ * Sortie qui restera dans le contexte : les tokens de réflexion, comptés dans la sortie par les
+ * fournisseurs, ne sont jamais renvoyés au modèle (voir buildHistory).
+ */
+export function visibleOutput(u: { outputTokens?: number | null; reasoningTokens?: number | null }): number {
+  return Math.max(0, (u.outputTokens ?? 0) - (u.reasoningTokens ?? 0));
+}
+
+/**
+ * Taille du contexte au-delà de laquelle le compactage automatique se déclenche : `threshold` % de la
+ * fenêtre (le pourcentage affiché par l'indicateur de contexte), en gardant toujours de la place pour la
+ * réponse. Cette réserve est plafonnée à 20 % de la fenêtre : plusieurs catalogues annoncent une sortie
+ * maximale égale à la fenêtre entière, ce qui faisait compacter à chaque envoi.
+ */
+export function compactionLimit(contextWindow: number, maxOutputTokens: number | null, threshold: number): number {
+  const reserve = Math.min(maxOutputTokens ?? 8192, Math.round(contextWindow * 0.2));
+  return Math.min((contextWindow * threshold) / 100, contextWindow - reserve);
+}
+
 /** Texte brut d'un message (export, compactage, nommage). */
 export function plainText(m: Message): string {
   return m.parts
