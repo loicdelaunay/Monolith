@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.29 — 2026-11-02
 
 - **Données copiées sur un autre PC** : enregistrer une clé d'API n'échoue plus avec « La clé maître ne peut pas être déchiffrée ». La clé maître de l'ancien poste (illisible ici) est remplacée à la première clé ressaisie ; les autres clés, indéchiffrables sur ce poste, apparaissent sans clé et sont à ressaisir. L'ancienne clé maître est conservée dans `data/keys/` ; rien n'est modifié si l'échec n'était que passager.
 
