@@ -202,6 +202,8 @@ export interface ModelCapabilities {
   rejectedLevels: ReasoningLevel[];
   vision: boolean | null;
   tools: boolean | null;
+  /** Images acceptées par requête, apprises d'un refus du fournisseur ; absent = limite par défaut. */
+  maxImages?: number | null;
 }
 
 export interface Provider {

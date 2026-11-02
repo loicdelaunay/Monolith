@@ -58,7 +58,7 @@ import { LoopDetector, type LoopGate, type ProposalService, type QuestionBroker 
 import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
 import { decideRetry } from './retry.ts';
-import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, estimateRequestTokens, transcriptText, visibleOutput } from './prompt.ts';
+import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, countImages, DEFAULT_MAX_IMAGES, estimateRequestTokens, imageLimitRejection, transcriptText, visibleOutput } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
 import { estimateTokens, sleep } from '../util.ts';
 
@@ -430,7 +430,7 @@ export class GenerationRunner {
    * Requête complète : instructions, résumé de compactage, historique reconstruit pour le modèle cible,
    * puis le message en cours (texte et outils des tours précédents) et les outils exposés.
    */
-  private buildRequest(ctx: JobContext, excludeMessageId: Id | null, currentParts: MessagePart[] = []): { request: ChatRequest; droppedImages: number } {
+  private buildRequest(ctx: JobContext, excludeMessageId: Id | null, currentParts: MessagePart[] = []): { request: ChatRequest; droppedImages: number; limitedImages: number } {
     const { messages, compactions, attachments } = this.deps;
     const conversation = this.deps.conversations.get(ctx.conversation.id);
     const latest = compactions.latest(conversation.id);
@@ -483,9 +483,12 @@ export class GenerationRunner {
       vision: ctx.caps?.vision ?? null,
       ...(this.deps.vision && ctx.settings.studio.visionFallback ? { describe: (id: number) => this.deps.vision!.cached(id) } : {}),
       compactedUpToSeq: latest?.upToSeq ?? null,
+      // Limite apprise d'un refus du fournisseur ; sinon les images les plus récentes seulement.
+      imageLimit: ctx.caps?.maxImages != null ? { max: ctx.caps.maxImages, strict: true } : { max: DEFAULT_MAX_IMAGES, strict: false },
     });
     return {
       droppedImages: history.droppedImages,
+      limitedImages: history.limitedImages,
       request: {
         model: ctx.snapshot.model,
         messages: [{ role: 'system', content: system }, ...history.messages],
@@ -740,6 +743,7 @@ export class GenerationRunner {
     if (ctx.snapshot.reasoning?.fallback) notice('info', 'reasoning_fallback', `Réflexion : ${ctx.snapshot.reasoning.fallback} ; requête envoyée en Auto.`);
     let reasoningRetried = false;
     let droppedNoticeShown = false;
+    let limitedNoticeShown = false;
 
     rounds: for (let round = 0; ; round++) {
       const built = this.buildRequest(ctx, messageId, parts);
@@ -749,7 +753,12 @@ export class GenerationRunner {
         droppedNoticeShown = true;
         notice('warning', 'images_dropped', `${built.droppedImages} image(s) non transmise(s) : le modèle « ${ctx.snapshot.model} » est déclaré sans vision.`);
       }
+      if (built.limitedImages && !limitedNoticeShown) {
+        limitedNoticeShown = true;
+        notice('warning', 'images_limited', `${built.limitedImages} image(s) de votre message non transmise(s) : « ${ctx.snapshot.model} » accepte au plus ${ctx.caps?.maxImages ?? DEFAULT_MAX_IMAGES} image(s) par requête.`);
+      }
       const roundStart = parts.length;
+      let imagesRetried = false;
       const calls: ToolCallRequest[] = [];
       let apiUsage: Extract<StreamEvent, { type: 'usage' }> | null = null;
       let finish: Extract<StreamEvent, { type: 'finish' }> | null = null;
@@ -813,6 +822,26 @@ export class GenerationRunner {
             messages.saveSnapshot(messageId, snapshot);
             notice('warning', 'reasoning_rejected', `Le fournisseur a refusé le niveau de réflexion « ${sent} » ; requête renvoyée en Auto. Ce niveau n’est plus proposé jusqu’à la prochaine actualisation des modèles.`);
             request = { ...request, extraBody: {} };
+            attempt--;
+            continue;
+          }
+          // Trop d'images pour le fournisseur : limite retenue pour ce modèle, puis la requête est reconstruite
+          // avec les images les plus récentes seulement (une fois par tour).
+          const sentImages = countImages(request.messages);
+          const tooMany = !outputStarted && !imagesRetried && sentImages > 0 && e instanceof ProviderError ? imageLimitRejection(e.status, `${e.message}\n${e.body}`) : null;
+          if (tooMany) {
+            imagesRetried = true;
+            const max = Math.max(0, Math.min(tooMany.limit ?? Math.floor(sentImages / 2), sentImages - 1));
+            providers.limitImages(ctx.provider.id, ctx.snapshot.model, max);
+            ctx.caps = { ...(ctx.caps ?? { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null }), maxImages: max };
+            const rebuilt = this.buildRequest(ctx, messageId, parts);
+            request = { ...rebuilt.request, extraBody: request.extraBody };
+            lastRequest = request;
+            notice('info', 'images_limit', `Le fournisseur accepte au plus ${max} image(s) par requête pour « ${ctx.snapshot.model} » : seules les plus récentes sont désormais renvoyées.`);
+            if (rebuilt.limitedImages && !limitedNoticeShown) {
+              limitedNoticeShown = true;
+              notice('warning', 'images_limited', `${rebuilt.limitedImages} image(s) de votre message non transmise(s) : « ${ctx.snapshot.model} » accepte au plus ${max} image(s) par requête.`);
+            }
             attempt--;
             continue;
           }

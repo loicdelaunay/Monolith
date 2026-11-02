@@ -87,13 +87,24 @@ export interface HistoryOptions {
   compactedUpToSeq?: number | null;
   /** Vision de secours : description d'une image (null : aucune). */
   describe?: (attachmentId: number) => string | null;
+  /**
+   * Images renvoyées par requête : les plus récentes sont gardées, les plus anciennes remplacées par une
+   * mention. Les images du dernier message de l'utilisateur ne sont retirées qu'avec `strict` (limite
+   * annoncée par le fournisseur), en dernier recours.
+   */
+  imageLimit?: { max: number; strict: boolean } | null;
 }
 
 export interface HistoryResult {
   messages: ChatMessage[];
   /** Images retirées car le modèle n'accepte pas les images. */
   droppedImages: number;
+  /** Images du dernier message de l'utilisateur retirées pour respecter la limite du fournisseur. */
+  limitedImages: number;
 }
+
+/** Nombre d'images renvoyées par défaut à chaque requête (les plus récentes). */
+export const DEFAULT_MAX_IMAGES = 8;
 
 /** Bloc texte d'une pièce jointe : délimité, avec son nom, pour que le modèle la distingue de la consigne. */
 export function attachmentBlock(ref: AttachmentRef, content: string): string {
@@ -114,13 +125,17 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
   type Out = { role: 'user' | 'assistant' | 'tool'; parts: ContentPart[]; toolCalls?: ToolCallRequest[]; toolCallId?: string; toolImagesFor?: string[] };
   const out: Out[] = [];
   let droppedImages = 0;
+  // Images envoyées, dans l'ordre : de quoi retirer les plus anciennes au-delà de la limite.
+  type Slot = { part: ContentPart; name: string; toolCallId: string | null; protected: boolean };
+  const slots: Slot[] = [];
+  const lastUser = messages.findLastIndex((m) => m.role === 'user' && !(options?.compactedUpToSeq != null && m.seq <= options.compactedUpToSeq));
   const pushText = (role: 'user' | 'assistant', parts: ContentPart[]) => {
     if (parts.length === 0) return;
     const last = out.at(-1);
     if (last && last.role === role && !last.toolCalls) last.parts.push({ type: 'text', text: '\n\n' }, ...parts);
     else out.push({ role, parts });
   };
-  for (const m of messages) {
+  for (const [index, m] of messages.entries()) {
     if (m.role === 'system') continue;
     if (options?.compactedUpToSeq != null && m.seq <= options.compactedUpToSeq) continue;
     if (m.role === 'user') {
@@ -138,7 +153,11 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
             } else if (options.vision === false) {
               droppedImages++;
               parts.push({ type: 'text', text: `[Image « ${ref.name} » non transmise : le modèle utilisé n’accepte pas les images.]` });
-            } else parts.push({ type: 'image_url', image_url: { url: options.attachments.dataUrl(ref) } });
+            } else {
+              const part: ContentPart = { type: 'image_url', image_url: { url: options.attachments.dataUrl(ref) } };
+              parts.push(part);
+              slots.push({ part, name: ref.name, toolCallId: null, protected: index === lastUser });
+            }
           } catch {
             parts.push({ type: 'text', text: `[Pièce jointe « ${ref.name} » introuvable dans l’espace de travail.]` });
           }
@@ -163,8 +182,10 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
         const toolImagesFor: string[] = [];
         for (const c of images) {
           try {
-            parts.push({ type: 'image_url', image_url: { url: options.attachments.dataUrl({ id: (c.display as { attachmentId: number }).attachmentId, name: 'capture.png', mime: 'image/png', size: 0, kind: 'image' }) } });
+            const part: ContentPart = { type: 'image_url', image_url: { url: options.attachments.dataUrl({ id: (c.display as { attachmentId: number }).attachmentId, name: 'capture.png', mime: 'image/png', size: 0, kind: 'image' }) } };
+            parts.push(part);
             toolImagesFor.push(c.id);
+            slots.push({ part, name: c.name, toolCallId: c.id, protected: false });
           } catch {
             /* image introuvable : le résultat texte de l'outil suffit */
           }
@@ -196,14 +217,68 @@ export function buildHistory(messages: Message[], options?: HistoryOptions): His
     if (text.trim() && m.status === 'streaming' && calls) calls.parts.push({ type: 'text', text: calls.parts.length ? `\n\n${text}` : text });
     else if (text.trim()) pushText('assistant', [{ type: 'text', text }]);
   }
+  const limitedImages = limitImages(out, slots, options?.imageLimit ?? null);
   return {
     droppedImages,
+    limitedImages,
     messages: out.map(({ role, parts, toolCalls, toolCallId, toolImagesFor }): ChatMessage => {
       // Contenu simple (chaîne) lorsqu'il n'y a pas d'image : compatibilité maximale.
       const content = parts.every((p) => p.type === 'text') ? parts.map((p) => (p as { text: string }).text).join('') : parts;
       return { role, content, ...(toolCalls ? { toolCalls } : {}), ...(toolCallId ? { toolCallId } : {}), ...(toolImagesFor ? { toolImagesFor } : {}) };
     }),
   };
+}
+
+/**
+ * Retire les images les plus anciennes au-delà de la limite (l'historique complet les renverrait toutes à
+ * chaque requête) : une mention remplace l'image d'un message de l'utilisateur ; une capture d'outil est
+ * simplement retirée, le résultat texte de l'outil restant dans l'historique. Retourne le nombre d'images
+ * du dernier message de l'utilisateur retirées.
+ */
+function limitImages(
+  out: { role: string; parts: ContentPart[]; toolImagesFor?: string[] }[],
+  slots: { part: ContentPart; name: string; toolCallId: string | null; protected: boolean }[],
+  limit: { max: number; strict: boolean } | null,
+): number {
+  if (!limit || slots.length <= limit.max) return 0;
+  const recent = slots.filter((s) => s.protected).length;
+  const keep = limit.strict ? Math.max(0, limit.max) : Math.max(limit.max, recent);
+  // Les plus anciennes d'abord ; celles du dernier message de l'utilisateur en dernier recours.
+  const order = [...slots.filter((s) => !s.protected), ...slots.filter((s) => s.protected)];
+  const removed = order.slice(0, slots.length - keep);
+  for (const slot of removed) {
+    const entry = out.find((o) => o.parts.includes(slot.part));
+    if (!entry) continue;
+    const at = entry.parts.indexOf(slot.part);
+    if (slot.toolCallId === null) {
+      entry.parts[at] = { type: 'text', text: `[Image « ${slot.name} » ${slot.protected ? 'non transmise : le fournisseur limite le nombre d’images par requête' : 'déjà envoyée plus tôt dans la conversation, non renvoyée'}.]` };
+    } else {
+      entry.parts.splice(at, 1);
+      entry.toolImagesFor = entry.toolImagesFor?.filter((id) => id !== slot.toolCallId);
+    }
+  }
+  // Message de captures sans plus aucune image : retiré (seule la mention resterait).
+  for (let i = out.length - 1; i >= 0; i--) {
+    const o = out[i]!;
+    if (o.toolImagesFor && !o.parts.some((p) => p.type === 'image_url')) out.splice(i, 1);
+  }
+  return removed.filter((s) => s.protected).length;
+}
+
+/** Nombre d'images d'une requête. */
+export function countImages(messages: ChatMessage[]): number {
+  return messages.reduce((n, m) => n + (typeof m.content === 'string' ? 0 : m.content.filter((p) => p.type === 'image_url').length), 0);
+}
+
+/**
+ * Refus du fournisseur pour trop d'images (vLLM : « At most 8 image(s) may be provided in one prompt »,
+ * « too many images », « maximum of 5 images »…). Retourne la limite annoncée si elle est lisible.
+ */
+export function imageLimitRejection(status: number | null, text: string): { limit: number | null } | null {
+  if (status !== null && ![400, 413, 422].includes(status)) return null;
+  const m = /(?:at most|up to|maximum(?: of)?|max(?:imum)?(?: number of)?(?: images?)?(?: is)?:?|no more than|limit(?:ed)? (?:of|to))\s*(\d+)\s*(?:images?|image\(s\))/i.exec(text);
+  if (m) return { limit: Number(m[1]) };
+  return /too many images|images? (?:limit|count) exceeded|exceeds? the (?:maximum|limit) (?:number )?of images/i.test(text) ? { limit: null } : null;
 }
 
 /** Résultat d'un appel tel que renvoyé au modèle : fidèle au statut réel (jamais « réussi » après un refus). */

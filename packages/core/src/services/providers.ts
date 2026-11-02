@@ -166,6 +166,7 @@ function cleanCapabilities(c: Partial<ModelCapabilities> | undefined): ModelCapa
     rejectedLevels: Array.isArray(c?.rejectedLevels) ? c.rejectedLevels.filter((l) => REASONING.includes(l)) : [],
     vision: typeof c?.vision === 'boolean' ? c.vision : null,
     tools: typeof c?.tools === 'boolean' ? c.tools : null,
+    ...(Number.isInteger(c?.maxImages) && c!.maxImages! >= 0 ? { maxImages: c!.maxImages! } : {}),
   };
 }
 
@@ -413,6 +414,17 @@ export class ProviderService {
     const caps = cleanCapabilities(json<Partial<ModelCapabilities>>(row.capabilities_json, EMPTY_CAPS));
     if (caps.rejectedLevels.includes(level)) return;
     caps.rejectedLevels.push(level);
+    this.db.run('UPDATE provider_models SET capabilities_json = ?, updated_at = ? WHERE provider_id = ? AND model_id = ?', JSON.stringify(caps), now(), id, modelId);
+    this.changed();
+  }
+
+  /** Le fournisseur limite les images par requête : retenu pour les requêtes suivantes, jusqu'à la prochaine réévaluation. */
+  limitImages(id: Id, modelId: string, max: number): void {
+    const row = this.db.get<ModelRow>('SELECT * FROM provider_models WHERE provider_id = ? AND model_id = ?', id, modelId);
+    if (!row) return;
+    const caps = cleanCapabilities(json<Partial<ModelCapabilities>>(row.capabilities_json, EMPTY_CAPS));
+    if (caps.maxImages != null && caps.maxImages <= max) return;
+    caps.maxImages = max;
     this.db.run('UPDATE provider_models SET capabilities_json = ?, updated_at = ? WHERE provider_id = ? AND model_id = ?', JSON.stringify(caps), now(), id, modelId);
     this.changed();
   }
