@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HarnessError, type SecretProtectionInfo } from '@monolith/contracts';
 import type { Database } from '../storage/database.ts';
@@ -143,6 +143,13 @@ export function systemProtector(platform: NodeJS.Platform = process.platform): K
   return null;
 }
 
+const UNAVAILABLE = 'Aucun mécanisme de protection des clés disponible sur ce système.';
+const UNREADABLE = 'La clé maître ne peut pas être déchiffrée par ce compte ou ce poste. Les clés enregistrées doivent être ressaisies.';
+
+function fingerprint(key: Buffer): string {
+  return createHash('sha256').update(key).digest('hex').slice(0, 16);
+}
+
 interface MasterFile {
   version: 1;
   keyId: string;
@@ -168,6 +175,7 @@ export class SecretStore {
   private keyPromise: Promise<Buffer> | null = null;
   private protectorInUse: KeyProtector | null = null;
   private lastError: string | null = null;
+  private replacing: Promise<Buffer> | null = null;
 
   constructor(private readonly options: SecretStoreOptions) {}
 
@@ -193,15 +201,21 @@ export class SecretStore {
     };
   }
 
-  private async pickProtector(): Promise<KeyProtector | null> {
-    const existing = this.readMaster();
+  /** Mécanisme pour une nouvelle clé maître : celui du système s'il est disponible, sinon le repli fichier autorisé. */
+  private async newKeyProtector(): Promise<KeyProtector | null> {
     const sys = this.options.protector;
-    if (existing) {
-      if (existing.mechanism === 'file') return new FileProtector();
-      return sys && sys.mechanism === existing.mechanism ? sys : null;
-    }
     if (sys && (await sys.isAvailable())) return sys;
     return this.options.allowFileFallback ? new FileProtector() : null;
+  }
+
+  private async pickProtector(): Promise<KeyProtector | null> {
+    const existing = this.readMaster();
+    if (existing) {
+      if (existing.mechanism === 'file') return new FileProtector();
+      const sys = this.options.protector;
+      return sys && sys.mechanism === existing.mechanism ? sys : null;
+    }
+    return this.newKeyProtector();
   }
 
   private readMaster(): MasterFile | null {
@@ -214,6 +228,7 @@ export class SecretStore {
   }
 
   private key(): Promise<Buffer> {
+    if (this.replacing) return this.replacing;
     if (!this.keyPromise) {
       this.keyPromise = this.loadOrCreate().catch((error: unknown) => {
         this.keyPromise = null;
@@ -223,56 +238,121 @@ export class SecretStore {
     return this.keyPromise;
   }
 
-  private async loadOrCreate(): Promise<Buffer> {
-    const protector = await this.pickProtector();
-    if (!protector) {
-      this.lastError = 'Aucun mécanisme de protection des clés disponible sur ce système.';
-      throw new HarnessError('secret_unavailable', this.lastError);
-    }
-    this.protectorInUse = protector;
-    const master = this.readMaster();
-    if (master) {
-      try {
-        const key = await protector.unprotect(master.data, master.keyId);
-        if (createHash('sha256').update(key).digest('hex').slice(0, 16) !== master.check) throw new Error('empreinte invalide');
-        this.lastError = null;
-        return key;
-      } catch (error) {
-        this.lastError = 'La clé maître ne peut pas être déchiffrée par ce compte ou ce poste. Les clés enregistrées doivent être ressaisies.';
-        this.options.logger.warn('secrets', 'Clé maître illisible', { error: (error as Error).message });
-        throw new HarnessError('secret_unreadable', this.lastError);
-      }
-    }
+  private async unwrap(protector: KeyProtector, master: MasterFile): Promise<Buffer> {
+    const key = await protector.unprotect(master.data, master.keyId);
+    if (fingerprint(key) !== master.check) throw new Error('empreinte invalide');
+    return key;
+  }
+
+  /** Nouvelle clé protégée, relue aussitôt : une clé que ce poste ne saurait pas relire n'est jamais enregistrée. */
+  private async wrapNew(protector: KeyProtector): Promise<{ key: Buffer; master: MasterFile }> {
     const key = randomBytes(32);
     const keyId = randomBytes(12).toString('hex');
-    const data = await protector.protect(key, keyId);
-    const file: MasterFile = { version: 1, keyId, mechanism: protector.mechanism, data, check: createHash('sha256').update(key).digest('hex').slice(0, 16) };
+    const master: MasterFile = { version: 1, keyId, mechanism: protector.mechanism, data: await protector.protect(key, keyId), check: fingerprint(key) };
+    await this.unwrap(protector, master);
+    return { key, master };
+  }
+
+  /** Écriture atomique : `master.json` n'est jamais absent, même pendant un remplacement. */
+  private writeMaster(master: MasterFile): void {
     mkdirSync(this.options.keysDir, { recursive: true });
     const tmp = `${this.file}.tmp`;
-    writeFileSync(tmp, JSON.stringify(file, null, 2), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify(master, null, 2), { mode: 0o600 });
     renameSync(tmp, this.file);
     try {
       chmodSync(this.file, 0o600);
     } catch {
       /* Windows : ACL héritées du dossier */
     }
-    this.lastError = null;
-    this.options.logger.info('secrets', 'Clé maître créée', { mechanism: protector.mechanism });
-    return key;
   }
 
-  /** Remplace une clé maître illisible : les secrets existants deviennent irrécupérables et sont supprimés. */
+  private async loadOrCreate(): Promise<Buffer> {
+    const master = this.readMaster();
+    if (!master) {
+      const protector = await this.newKeyProtector();
+      if (!protector) {
+        this.lastError = UNAVAILABLE;
+        throw new HarnessError('secret_unavailable', this.lastError);
+      }
+      const created = await this.wrapNew(protector);
+      this.writeMaster(created.master);
+      this.protectorInUse = protector;
+      this.lastError = null;
+      this.options.logger.info('secrets', 'Clé maître créée', { mechanism: protector.mechanism });
+      return created.key;
+    }
+    const protector = await this.pickProtector();
+    try {
+      // Mécanisme d'un autre système (dossier de données copié depuis un autre OS) : clé illisible ici.
+      if (!protector) throw new Error(`mécanisme ${master.mechanism} indisponible sur ce système`);
+      this.protectorInUse = protector;
+      const key = await this.unwrap(protector, master);
+      this.lastError = null;
+      return key;
+    } catch (error) {
+      this.lastError = UNREADABLE;
+      this.options.logger.warn('secrets', 'Clé maître illisible', { error: (error as Error).message });
+      throw new HarnessError('secret_unreadable', this.lastError);
+    }
+  }
+
+  /**
+   * Remplace une clé maître illisible (données copiées depuis un autre poste ou un autre compte) :
+   * les secrets chiffrés avec l'ancienne clé sont irrécupérables ici et sont supprimés ; l'ancien
+   * fichier est conservé à côté (`master.json.unreadable-<date>`). Rien n'est modifié si l'ancienne
+   * clé redevient lisible (échec passager) ou si la nouvelle ne peut pas être protégée.
+   */
   async resetMasterKey(): Promise<void> {
-    const backup = `${this.file}.unreadable-${Date.now()}`;
-    if (existsSync(this.file)) renameSync(this.file, backup);
+    await this.replaceMaster();
+  }
+
+  private replaceMaster(): Promise<Buffer> {
+    this.replacing ??= this.doReplaceMaster().finally(() => {
+      this.replacing = null;
+    });
+    return this.replacing;
+  }
+
+  private async doReplaceMaster(): Promise<Buffer> {
+    const protector = await this.newKeyProtector();
+    if (!protector) throw new HarnessError('secret_unavailable', UNAVAILABLE);
+    const old = this.readMaster();
+    if (old) {
+      const oldProtector = await this.pickProtector();
+      const key = oldProtector ? await this.unwrap(oldProtector, old).catch(() => null) : null;
+      if (oldProtector && key) {
+        this.protectorInUse = oldProtector;
+        this.lastError = null;
+        this.keyPromise = Promise.resolve(key);
+        return key;
+      }
+    }
+    const created = await this.wrapNew(protector).catch((error: unknown) => {
+      this.options.logger.warn('secrets', 'Nouvelle clé maître impossible à protéger', { error: (error as Error).message });
+      throw new HarnessError('secret_unavailable', `La clé maître est illisible sur ce poste et une nouvelle clé ne peut pas y être protégée (${protector.mechanism}).`);
+    });
+    if (old) copyFileSync(this.file, `${this.file}.unreadable-${Date.now()}`);
+    this.writeMaster(created.master);
     this.options.db.run('DELETE FROM secrets');
-    this.keyPromise = null;
+    this.protectorInUse = protector;
     this.lastError = null;
-    await this.key();
+    this.keyPromise = Promise.resolve(created.key);
+    this.options.logger.warn('secrets', 'Clé maître illisible remplacée ; les secrets précédents sont à ressaisir', { mechanism: protector.mechanism });
+    return created.key;
+  }
+
+  /** Clé pour une écriture : une clé maître illisible sur ce poste est remplacée, puisque l'utilisateur ressaisit ses clés. */
+  private async writableKey(): Promise<Buffer> {
+    try {
+      return await this.key();
+    } catch (error) {
+      if (!(error instanceof HarnessError) || error.code !== 'secret_unreadable') throw error;
+      return this.replaceMaster();
+    }
   }
 
   async set(id: string, plaintext: string): Promise<string> {
-    const key = await this.key();
+    const key = await this.writableKey();
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv);
     cipher.setAAD(Buffer.from(id));
@@ -303,6 +383,10 @@ export class SecretStore {
     } catch {
       throw new HarnessError('secret_unreadable', 'Ce secret ne peut pas être déchiffré ; ressaisissez-le.');
     }
+  }
+
+  has(id: string): boolean {
+    return this.options.db.get('SELECT 1 AS x FROM secrets WHERE id = ?', id) !== undefined;
   }
 
   hint(id: string): string | null {

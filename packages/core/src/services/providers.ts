@@ -429,7 +429,9 @@ export class ProviderService {
   }
 
   private map(r: ProviderRow, models: ModelRow[]): Provider {
-    const keyUnreadable = r.secret_id !== null && this.secrets.unreadable;
+    // Secret absent : supprimé avec une clé maître illisible remplacée, la clé est à ressaisir.
+    const hasKey = r.secret_id !== null && this.secrets.has(r.secret_id);
+    const keyUnreadable = hasKey && this.secrets.unreadable;
     return {
       id: r.id,
       name: r.name,
@@ -438,8 +440,8 @@ export class ProviderService {
       baseUrl: r.base_url,
       enabled: bool(r.enabled),
       sortOrder: r.sort_order,
-      hasKey: r.secret_id !== null,
-      keyHint: r.secret_id ? this.secrets.hint(r.secret_id) : null,
+      hasKey,
+      keyHint: hasKey ? this.secrets.hint(r.secret_id!) : null,
       keyUnreadable,
       options: { ...DEFAULT_PROVIDER_OPTIONS, ...json<Partial<ProviderOptions>>(r.options_json, {}) },
       models: models.map((m) => ({
