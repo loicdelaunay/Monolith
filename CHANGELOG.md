@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.34 — 2026-11-03
 
 - **Anciens paquets de mise à jour supprimés** : chaque version téléchargée laissait son zip (environ 160 Mo) dans `data/updates`. Au démarrage, Monolith supprime les paquets des versions déjà installées ou dépassées, les téléchargements interrompus et une extraction abandonnée ; un nouveau téléchargement remplace le paquet précédent. Seule la version précédente (dossier `previous`, pour revenir en arrière) est conservée.
 
