@@ -32,7 +32,7 @@ export interface PromptContext {
 
 const AGENT_MODE: Record<AgentMode, string> = {
   plan: 'Mode Agent — Plan : inspection et analyse uniquement. Vous pouvez lire et rechercher, mais aucune modification de fichier ni commande n’est possible (le moteur les refuse). Navigateur, web et commandes ne sont pas disponibles dans ce mode : si la demande les exige, dites à l’utilisateur de passer en mode Proposition ou Exécution (réglages rapides).',
-  propose: 'Mode Agent — Proposition : préparez des changements consultables. Les écritures de fichiers sont enregistrées comme propositions que l’utilisateur appliquera ou rejettera. Le navigateur et le web sont disponibles (avec autorisations) ; les commandes et le contrôle du bureau ne le sont pas : si la demande les exige, dites à l’utilisateur de passer en mode Exécution (réglages rapides).',
+  propose: 'Mode Agent — Proposition : tous les outils sont disponibles (commandes, navigateur, MCP, bureau…), dans la limite des autorisations. Seule différence avec l’Exécution : les modifications de fichiers faites avec les outils d’écriture (write_file, edit_file…) sont enregistrées comme propositions que l’utilisateur appliquera ou rejettera. Ne contournez pas ce principe : ne modifiez pas les fichiers du projet par des commandes ou des scripts ; utilisez les outils d’écriture.',
   execute: 'Mode Agent — Exécution : les outils agissent réellement sur les fichiers et le système, dans la limite des autorisations.',
 };
 

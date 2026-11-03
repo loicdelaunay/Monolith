@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Mode Proposition : tous les outils** (commandes, Chrome MCP, navigateur, serveurs MCP, contrôle du bureau), comme le mode Exécution et avec les mêmes autorisations. Seule différence : les modifications de fichiers faites avec les outils d'écriture sont enregistrées comme propositions à valider au lieu d'être appliquées ; le modèle est invité à ne pas modifier les fichiers du projet par des commandes. Le mode Plan reste en lecture seule.
+
 ## 3.0.0-alpha.31 — 2026-11-02
 
 - **« At most 8 images may be provided in one prompt »** : chaque requête renvoyait toutes les images de la conversation (pièces jointes et captures des outils). Seules les 8 plus récentes sont désormais renvoyées ; les plus anciennes sont remplacées par une mention (pour une pièce jointe) ou retirées (pour une capture, dont le résultat texte reste). Les images du message en cours sont toujours envoyées. Si le fournisseur annonce une limite plus basse (vLLM, Groq…), elle est retenue pour ce modèle et la requête est renvoyée aussitôt avec les images les plus récentes.

@@ -118,6 +118,9 @@ describe('boucle d’outils', () => {
     const call = toolParts((await lastAssistant(h, c.id)).parts)[0]!;
     expect(call.status).toBe('proposed');
     expect(readFileSync(join(folder, 'src', 'a.ts'), 'utf8')).toBe('export const a = 1;\n');
+    // Mêmes outils qu'en Exécution (commandes comprises) ; seule l'écriture de fichiers devient une proposition.
+    expect((m.bodies[0]!.tools ?? []).map((x) => x.function.name)).toEqual(expect.arrayContaining(['run_command', 'edit_file', 'write_file']));
+    expect(String(m.bodies[0]!.messages[0]!.content)).toContain('tous les outils sont disponibles');
     const [proposal] = await h.call('proposals.list', { conversationId: c.id });
     expect(proposal!.change).toMatchObject({ path: 'src/a.ts', before: 'export const a = 1;\n', after: 'export const a = 2;\n' });
     await h.call('proposals.apply', { id: proposal!.id });

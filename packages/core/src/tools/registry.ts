@@ -11,23 +11,13 @@ export function modeAllows(tool: ToolDefinition, mode: ConversationMode, agentMo
       ? { ok: true, reason: '' }
       : { ok: false, reason: 'Mode Chat : seuls les outils conversationnels (informations, questions, propositions) sont disponibles. Passez en mode Agent.' };
   }
-  const allowed: Record<AgentMode, string[]> = {
-    plan: ['read', 'interact'],
-    propose: ['read', 'interact', 'write', 'network'],
-    execute: ['read', 'interact', 'write', 'exec', 'network', 'desktop'],
-  };
-  // Proposition : le navigateur (intégré ou Chrome du poste) agit dans ses propres pages, avec autorisations ;
-  // commandes et contrôle du bureau restent réservés à l'Exécution.
-  const effects = agentMode === 'propose' && tool.family === 'browser' ? tool.effects.filter((e) => e !== 'desktop') : tool.effects;
-  const bad = effects.find((e) => !allowed[agentMode].includes(e));
+  // Proposition et Exécution disposent des mêmes outils (avec autorisations) ; seule la façon de modifier les
+  // fichiers diffère : en Proposition, les écritures sont enregistrées comme propositions à valider.
+  const all = ['read', 'interact', 'write', 'exec', 'network', 'desktop'];
+  const allowed: Record<AgentMode, string[]> = { plan: ['read', 'interact'], propose: all, execute: all };
+  const bad = tool.effects.find((e) => !allowed[agentMode].includes(e));
   if (!bad) return { ok: true, reason: '' };
-  return {
-    ok: false,
-    reason:
-      agentMode === 'plan'
-        ? 'Mode Plan : inspection et analyse uniquement, aucune modification ni commande.'
-        : 'Mode Proposition : les changements de fichiers sont préparés pour validation ; commandes et contrôle du bureau indisponibles (mode Exécution).',
-  };
+  return { ok: false, reason: 'Mode Plan : inspection et analyse uniquement, aucune modification ni commande.' };
 }
 
 /** Capacités déclarées par système : le contrôle du bureau n'existe que sous Windows dans cette version. */

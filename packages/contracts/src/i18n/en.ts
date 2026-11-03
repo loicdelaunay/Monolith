@@ -537,7 +537,7 @@ export const en: Messages = {
     hint: {
       chat: 'Conversation, without file or command access.',
       plan: 'Inspection and analysis: read-only.',
-      propose: 'Changes prepared, applied after your approval.',
+      propose: 'All tools; file changes are proposed and applied after your approval.',
       execute: 'Tools active according to permissions.',
     },
   },

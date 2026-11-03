@@ -535,7 +535,7 @@ export const fr = {
     hint: {
       chat: 'Conversation, sans accès aux fichiers ni aux commandes.',
       plan: 'Inspection et analyse : lecture seule.',
-      propose: 'Changements préparés, appliqués après votre validation.',
+      propose: 'Tous les outils ; les modifications de fichiers sont proposées et appliquées après votre validation.',
       execute: 'Outils actifs selon les autorisations.',
     },
   },

@@ -99,15 +99,16 @@ describe('adresses locales demandées par le modèle', () => {
 
 describe('navigateur selon le mode Agent', () => {
   const tool = (name: string, family: ToolDefinition['family'], effects: ToolDefinition['effects']) => ({ name, family, skill: 'x', effects }) as unknown as ToolDefinition;
-  it('Proposition : navigateur (intégré et Chrome) et web, mais ni commandes ni bureau ; Plan : lecture seule', () => {
+  it('Proposition : mêmes outils que l’Exécution (navigateur, web, commandes, MCP, bureau) ; Plan : lecture seule', () => {
     const allowed = (t: ToolDefinition, m: 'plan' | 'propose' | 'execute') => modeAllows(t, 'agent', m).ok;
     expect(allowed(tool('browser_open', 'browser', ['network']), 'propose')).toBe(true);
     expect(allowed(tool('browser_click', 'browser', ['desktop']), 'propose')).toBe(true);
     expect(allowed(tool('chrome__click', 'browser', ['network', 'desktop']), 'propose')).toBe(true);
     expect(allowed(tool('web_http_request', 'web', ['network']), 'propose')).toBe(true);
-    expect(allowed(tool('run_command', 'terminal' as never, ['exec']), 'propose')).toBe(false);
-    expect(allowed(tool('desktop_mouse', 'desktop', ['desktop']), 'propose')).toBe(false);
-    expect(allowed(tool('mcp__x__do', 'mcp', ['exec', 'network']), 'propose')).toBe(false);
+    expect(allowed(tool('run_command', 'terminal' as never, ['exec']), 'propose')).toBe(true);
+    expect(allowed(tool('desktop_mouse', 'desktop', ['desktop']), 'propose')).toBe(true);
+    expect(allowed(tool('mcp__x__do', 'mcp', ['exec', 'network']), 'propose')).toBe(true);
+    expect(allowed(tool('run_command', 'terminal' as never, ['exec']), 'plan')).toBe(false);
     expect(allowed(tool('browser_open', 'browser', ['network']), 'plan')).toBe(false);
     expect(allowed(tool('chrome__take_snapshot', 'browser', ['read', 'network']), 'plan')).toBe(false);
   });
