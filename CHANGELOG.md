@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.33 — 2026-11-03
 
 - **Bouton de mise à jour** (comme Discord) : quand une nouvelle version est disponible, un petit bouton vert avec une flèche apparaît en haut à droite. Un clic télécharge la mise à jour (anneau de progression, empreinte vérifiée) puis redémarre Monolith pour l'installer ; confirmation seulement si une génération est en cours. Version installée par l'installateur : le bouton ouvre la page de téléchargement.
 - **Vérification des mises à jour toutes les 2 h**, réglable (1 à 168 h) dans Réglages › À propos ; l'intervalle suit l'heure réelle (mise en veille comprise) et un changement de réglage s'applique sans redémarrer.
