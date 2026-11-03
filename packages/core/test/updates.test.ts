@@ -126,11 +126,16 @@ describe('mises à jour', () => {
     expect(s).toMatchObject({ status: 'available', current: APP_VERSION, release: { version: '4.0.0-beta.2', prerelease: true, sha256: SHA, size: PKG.length, notes: 'Notes' } });
     expect((await h.call('notifications.list', {})).map((n) => n.title)).toContain('Mise à jour disponible : 4.0.0-beta.2');
 
+    // Paquet téléchargé auparavant pour une autre version : remplacé par le nouveau.
+    const stale = join(root, 'updates', 'MonolithHarness-v5.0.0-win-x64.zip');
+    mkdirSync(join(root, 'updates'), { recursive: true });
+    writeFileSync(stale, 'ancien');
     await h.call('updates.download');
     await h.updates.idle();
     expect(h.updates.state()).toMatchObject({ status: 'ready', progress: 1 });
     const zip = join(root, 'updates', 'MonolithHarness-v4.0.0-beta.2-win-x64.zip');
     expect(readFileSync(zip).equals(PKG)).toBe(true);
+    expect(existsSync(stale)).toBe(false);
 
     expect(await h.call('backup.list')).toHaveLength(0);
     const after = await h.call('updates.install');
@@ -154,6 +159,27 @@ describe('mises à jour', () => {
     await redirected.h.call('updates.download');
     await redirected.h.updates.idle();
     expect(redirected.h.updates.state().error).toMatch(/non officielle/);
+  });
+
+  it('au démarrage, ne garde que le paquet d’une version plus récente ; la version précédente reste', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mh-upd-'));
+    const dir = join(root, 'updates');
+    const file = (name: string) => join(dir, name);
+    mkdirSync(join(dir, 'staging', 'app'), { recursive: true });
+    mkdirSync(join(dir, 'previous'), { recursive: true });
+    writeFileSync(join(dir, 'previous', 'Monolith Harness.exe'), 'v-1');
+    for (const name of ['MonolithHarness-v3.0.0-alpha.1-win-x64.zip', `MonolithHarness-v${APP_VERSION}-win-x64.zip`, 'MonolithHarness-v99.0.0-win-x64.zip', 'MonolithHarness-v99.0.1-win-x64.zip.part', 'apply-update.ps1', 'notes.txt']) writeFileSync(file(name), 'x');
+    harness('http://127.0.0.1:1', root);
+    // Versions installées ou dépassées, téléchargement interrompu et extraction abandonnée supprimés.
+    expect(existsSync(file('MonolithHarness-v3.0.0-alpha.1-win-x64.zip'))).toBe(false);
+    expect(existsSync(file(`MonolithHarness-v${APP_VERSION}-win-x64.zip`))).toBe(false);
+    expect(existsSync(file('MonolithHarness-v99.0.1-win-x64.zip.part'))).toBe(false);
+    expect(existsSync(file('staging'))).toBe(false);
+    // Paquet prêt pour une version plus récente, retour en arrière et autres fichiers conservés.
+    expect(existsSync(file('MonolithHarness-v99.0.0-win-x64.zip'))).toBe(true);
+    expect(readFileSync(join(dir, 'previous', 'Monolith Harness.exe'), 'utf8')).toBe('v-1');
+    expect(existsSync(file('apply-update.ps1'))).toBe(true);
+    expect(existsSync(file('notes.txt'))).toBe(true);
   });
 
   it('résultat de l’installation précédente signalé au démarrage', async () => {

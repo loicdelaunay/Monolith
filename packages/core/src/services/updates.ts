@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HarnessError, UPDATE_REPOSITORY, type Settings, type UpdateRelease, type UpdateState } from '@monolith/contracts';
 import type { EventBus } from '../events.ts';
@@ -95,6 +95,7 @@ export class UpdateService {
     this.downloads = (o.downloadBase ?? 'https://github.com').replace(/\/+$/, '');
     this.platform = o.platform ?? process.platform;
     this.st = { status: 'idle', current: o.current, release: null, progress: null, error: null, checkedAt: null, installable: o.installable.ok, installReason: o.installable.reason, lastResult: this.readResult() };
+    this.cleanup();
   }
 
   state(): UpdateState {
@@ -208,6 +209,7 @@ export class UpdateService {
         if (received !== release.size) throw new Error(`Paquet incomplet (${received} / ${release.size} octets).`);
         if (hash.digest('hex') !== release.sha256) throw new Error('Empreinte SHA-256 incorrecte : paquet rejeté.');
         renameSync(part, dest);
+        this.cleanup(release.asset);
         this.set({ status: 'ready', progress: 1 });
         this.o.logger.info('app', `Mise à jour ${release.version} téléchargée et vérifiée`);
         if (this.o.settings().updates.mode === 'auto') await this.install('exit');
@@ -220,6 +222,27 @@ export class UpdateService {
     })();
     this.busy = run;
     return this.state();
+  }
+
+  /**
+   * Dossier des mises à jour : un seul paquet conservé. Au démarrage, retire les paquets des versions déjà
+   * installées ou dépassées, les téléchargements interrompus et une extraction abandonnée ; après un
+   * téléchargement, retire tous les autres paquets. La version précédente (`previous`, retour en arrière)
+   * est gérée par l'installateur, qui n'en garde qu'une.
+   */
+  private cleanup(keep: string | null = null): void {
+    if (!existsSync(this.o.dir)) return;
+    let freed = 0;
+    for (const name of readdirSync(this.o.dir)) {
+      const m = /^MonolithHarness-v(.+?)-[a-z0-9]+-[a-z0-9]+\.(?:zip|AppImage|tar\.gz)(\.part)?$/.exec(name);
+      if (!m || name === keep) continue;
+      if (keep !== null || m[2] || compareVersions(m[1]!, this.o.current) <= 0) {
+        rmSync(join(this.o.dir, name), { force: true });
+        freed++;
+      }
+    }
+    rmSync(join(this.o.dir, 'staging'), { recursive: true, force: true });
+    if (freed) this.o.logger.info('app', 'Anciens paquets de mise à jour supprimés', { count: freed });
   }
 
   /** Attend la fin d'un téléchargement en cours (tests). */
