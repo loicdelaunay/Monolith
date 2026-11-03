@@ -2,6 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Bouton de mise à jour** (comme Discord) : quand une nouvelle version est disponible, un petit bouton vert avec une flèche apparaît en haut à droite. Un clic télécharge la mise à jour (anneau de progression, empreinte vérifiée) puis redémarre Monolith pour l'installer ; confirmation seulement si une génération est en cours. Version installée par l'installateur : le bouton ouvre la page de téléchargement.
+- **Vérification des mises à jour toutes les 2 h**, réglable (1 à 168 h) dans Réglages › À propos ; l'intervalle suit l'heure réelle (mise en veille comprise) et un changement de réglage s'applique sans redémarrer.
+
 ## 3.0.0-alpha.32 — 2026-11-03
 
 - **Mode Proposition : tous les outils** (commandes, Chrome MCP, navigateur, serveurs MCP, contrôle du bureau), comme le mode Exécution et avec les mêmes autorisations. Seule différence : les modifications de fichiers faites avec les outils d'écriture sont enregistrées comme propositions à valider au lieu d'être appliquées ; le modèle est invité à ne pas modifier les fichiers du projet par des commandes. Le mode Plan reste en lecture seule.

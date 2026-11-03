@@ -95,7 +95,7 @@ export interface HarnessOptions {
   /** Mises à jour : vérification automatique (version installée) et adresses (tests). */
   /** Tests : commande remplaçant `npx chrome-devtools-mcp` (navigateur Chrome du poste). */
   chromeMcp?: { command: string; args: string[] };
-  updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean; platform?: NodeJS.Platform };
+  updates?: { autoCheck?: boolean; apiBase?: string; downloadBase?: string; repository?: string; installable?: boolean; platform?: NodeJS.Platform; now?: () => number };
 }
 
 type Handler<M extends HarnessMethod> = (params: ParamsOf<M>) => Promise<ResultOf<M>> | ResultOf<M>;
@@ -324,6 +324,7 @@ export class Harness {
       ...(options.updates?.downloadBase ? { downloadBase: options.updates.downloadBase } : {}),
       ...(options.updates?.repository ? { repository: options.updates.repository } : {}),
       ...(options.updates?.platform ? { platform: options.updates.platform } : {}),
+      ...(options.updates?.now ? { now: options.updates.now } : {}),
     });
     if (options.updates?.autoCheck) this.updates.start();
     this.scheduler = new SchedulerService({ db: this.db, events: this.events, conversations: this.conversations, generation: () => this.generation, notifications: this.notifications, notify: () => this.settings.get().notifications.onScheduled, logger: this.logger });

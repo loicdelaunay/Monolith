@@ -34,6 +34,17 @@ export const fr = {
     learnMore: 'En savoir plus',
     seconds: 's',
   },
+  update: {
+    available: 'Mise à jour {version} disponible — cliquer pour l’installer (Monolith redémarre)',
+    ready: 'Mise à jour {version} prête — cliquer pour redémarrer et l’installer',
+    downloading: 'Téléchargement de la mise à jour {version}… {percent} %',
+    installing: 'Installation de la mise à jour {version}…',
+    openPage: 'Mise à jour {version} disponible — ouvrir la page de téléchargement',
+    failed: 'Mise à jour impossible',
+    confirmTitle: 'Installer la mise à jour {version} ?',
+    confirmBusy: 'Une génération est en cours : le redémarrage l’interrompra.',
+    restart: 'Redémarrer et installer',
+  },
   titlebar: {
     version: 'Version {version} — voir les nouveautés',
     settings: 'Réglages',
@@ -1252,6 +1263,7 @@ export const fr = {
       states: { available: 'Disponible', planned: 'Prévu', unavailable: 'Indisponible' },
       network: 'Sont contactés : les fournisseurs que vous configurez et, selon le réglage des mises à jour, GitHub (versions publiées) ; chaque appel aux fournisseurs est journalisé (hôte, chemin, statut, durée).',
       updates: {
+        interval: 'Vérifier toutes les',
         title: 'Mises à jour',
         mode: 'Vérification automatique',
         modes: { off: 'Désactivée', notify: 'Signaler seulement', auto: 'Télécharger et installer à la fermeture' },

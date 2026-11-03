@@ -1,22 +1,5 @@
 import { computed, reactive, shallowRef, triggerRef, type ShallowRef } from 'vue';
-import type {
-  AppInfo,
-  Compaction,
-  Conversation,
-  FileProposal,
-  LoopReport,
-  PermissionRequest,
-  MessageTemplate,
-  QueuedInput,
-  GenerationState,
-  Id,
-  Message,
-  MessageDelta,
-  Project,
-  Provider,
-  ProviderPreset,
-  Settings,
-} from '@monolith/contracts';
+import type { AppInfo, Compaction, Conversation, FileProposal, LoopReport, PermissionRequest, MessageTemplate, QueuedInput, GenerationState, Id, Message, MessageDelta, Project, Provider, ProviderPreset, Settings, UpdateState } from '@monolith/contracts';
 import { api, host } from '../api.ts';
 import type { RendererInfo } from '../../../shared/bridge.ts';
 
@@ -25,6 +8,8 @@ import type { RendererInfo } from '../../../shared/bridge.ts';
  * Le moteur reste la source de vérité ; aucune règle métier n'est dupliquée ici.
  */
 export const store = reactive({
+  /** État des mises à jour (bouton en haut à droite quand une version est disponible). */
+  update: null as UpdateState | null,
   ready: false,
   fatal: null as string | null,
   info: null as AppInfo | null,
@@ -169,6 +154,7 @@ function wireEvents(): void {
     if (messageCache.has(conversationId)) void loadMessages(conversationId);
   });
   api.on('log.error', (e) => store.engineErrors.push(e));
+  api.on('updates.changed', (state) => (store.update = state));
   api.on('permission.requested', (r) => store.permissionRequests.push(r));
   api.on('permission.resolved', ({ requestId }) => {
     store.permissionRequests = store.permissionRequests.filter((r) => r.requestId !== requestId);
@@ -198,6 +184,7 @@ export async function reloadAll(): Promise<void> {
     api.call('templates.list'),
   ]);
   store.permissionRequests = await api.call('permissions.pending');
+  store.update = await api.call('updates.status').catch(() => null);
   Object.assign(store, { info, settings, projects, providers, presets, templates });
   store.conversations = new Map(conversations.map((c) => [c.id, c]));
   store.generations = new Map(active.map((g) => [g.conversationId, g]));

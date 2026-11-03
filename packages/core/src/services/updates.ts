@@ -7,7 +7,8 @@ import type { Logger } from '../log/logger.ts';
 import { UPDATER_SCRIPT } from '../desktop/updater-script.ts';
 
 const MAX_SIZE = 1024 * 1024 * 1024;
-const CHECK_EVERY_MS = 2 * 60 * 60_000;
+/** Fréquence à laquelle l'échéance de vérification est réévaluée (réglage modifiable à chaud, mise en veille). */
+const TICK_MS = 60_000;
 const OFFICIAL_HOSTS = ['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'];
 
 /** Ordre SemVer (préversions comprises : 3.0.0-alpha.10 > 3.0.0-alpha.9, 3.0.0 > 3.0.0-beta.1). */
@@ -67,6 +68,8 @@ export interface UpdateServiceOptions {
   apiBase?: string;
   downloadBase?: string;
   platform?: NodeJS.Platform;
+  /** Tests : horloge. */
+  now?: () => number;
 }
 
 /**
@@ -78,6 +81,8 @@ export class UpdateService {
   private timer: NodeJS.Timeout | null = null;
   private first: NodeJS.Timeout | null = null;
   private notified = new Set<string>();
+  /** Dernière vérification automatique (horloge murale : une mise en veille compte dans l'intervalle). */
+  private lastAuto = 0;
   private busy: Promise<unknown> | null = null;
   private readonly repo: string;
   private readonly api: string;
@@ -96,16 +101,24 @@ export class UpdateService {
     return structuredClone(this.st);
   }
 
-  /** Vérification au démarrage puis toutes les deux heures, selon le réglage. */
+  /** Vérification au démarrage, puis à l'intervalle réglé (2 h par défaut), sauf en mode « off ». */
   start(): void {
-    const tick = () => {
-      if (this.o.settings().updates.mode === 'off') return;
-      void this.check().catch(() => undefined);
-    };
-    this.first = setTimeout(tick, 15_000);
-    this.timer = setInterval(tick, CHECK_EVERY_MS);
+    this.first = setTimeout(() => this.tick(), 15_000);
+    this.timer = setInterval(() => this.tick(), TICK_MS);
     this.first.unref();
     this.timer.unref();
+  }
+
+  /** Vérifie si l'intervalle réglé est écoulé depuis la dernière vérification automatique. */
+  tick(): boolean {
+    const s = this.o.settings().updates;
+    if (s.mode === 'off') return false;
+    const now = (this.o.now ?? Date.now)();
+    const every = Math.max(1, s.checkIntervalHours || 2) * 3_600_000;
+    if (this.lastAuto && now - this.lastAuto < every) return false;
+    this.lastAuto = now;
+    void this.check().catch(() => undefined);
+    return true;
   }
 
   dispose(): void {

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'primevue/button';
+import InputNumber from 'primevue/inputnumber';
 import Tag from 'primevue/tag';
 import Select from 'primevue/select';
 import ProgressBar from 'primevue/progressbar';
@@ -89,6 +90,10 @@ const severity = (state: string) => (state === 'available' ? 'success' : state =
     <div class="mh-field">
       <label for="upd-mode">{{ t('settings.about.updates.mode') }}</label>
       <Select input-id="upd-mode" :aria-label="t('settings.about.updates.mode')" v-model="props.draft.updates.mode" :options="modeOptions" option-label="label" option-value="value" />
+    </div>
+    <div class="mh-field">
+      <label for="upd-every">{{ t('settings.about.updates.interval') }}</label>
+      <InputNumber input-id="upd-every" v-model="props.draft.updates.checkIntervalHours" :min="1" :max="168" suffix=" h" show-buttons :disabled="props.draft.updates.mode === 'off'" />
     </div>
     <Button :label="t('settings.about.updates.check')" icon="pi pi-sync" size="small" severity="secondary" outlined :loading="update?.status === 'checking'" @click="run('updates.check')" />
   </div>

@@ -36,6 +36,17 @@ export const en: Messages = {
     learnMore: 'Learn more',
     seconds: 's',
   },
+  update: {
+    available: 'Update {version} available — click to install (Monolith restarts)',
+    ready: 'Update {version} ready — click to restart and install',
+    downloading: 'Downloading update {version}… {percent}%',
+    installing: 'Installing update {version}…',
+    openPage: 'Update {version} available — open the download page',
+    failed: 'Update failed',
+    confirmTitle: 'Install update {version}?',
+    confirmBusy: 'A generation is running: restarting will interrupt it.',
+    restart: 'Restart and install',
+  },
   titlebar: {
     version: 'Version {version} — see what’s new',
     settings: 'Settings',
@@ -1254,6 +1265,7 @@ export const en: Messages = {
       states: { available: 'Available', planned: 'Planned', unavailable: 'Unavailable' },
       network: 'Contacted: the providers you configure and, depending on the update setting, GitHub (published releases); every provider call is logged (host, path, status, duration).',
       updates: {
+        interval: 'Check every',
         title: 'Updates',
         mode: 'Automatic check',
         modes: { off: 'Disabled', notify: 'Notify only', auto: 'Download and install on exit' },

@@ -71,6 +71,45 @@ function harness(base: string, root = mkdtempSync(join(tmpdir(), 'mh-upd-'))) {
 }
 
 describe('mises à jour', () => {
+  it('vérification automatique à l’intervalle réglé (2 h par défaut), heure réelle, jamais en mode off', async () => {
+    let now = 1_000_000;
+    let requests = 0;
+    const server = createServer((_req, res) => {
+      requests++;
+      res.writeHead(200, { 'content-type': 'application/json' }).end('[]');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    cleanups.push(() => new Promise<void>((r) => (server.closeAllConnections(), server.close(() => r()))));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const root = mkdtempSync(join(tmpdir(), 'mh-upd-'));
+    const h = new Harness({ host: 'desktop', data: { dir: root, source: 'argument', portable: false, locationFile: null }, logger: silentLogger, keyProtector: new MemoryProtector(), changelog: '', updates: { apiBase: base, downloadBase: base, installable: true, platform: 'win32', now: () => now } });
+    cleanups.push(() => rmSync(root, { recursive: true, force: true }));
+    cleanups.push(() => h.close());
+    const settle = () => new Promise((r) => setTimeout(r, 150));
+
+    expect((await h.call('settings.get')).updates.checkIntervalHours).toBe(2);
+    expect(h.updates.tick()).toBe(true); // au démarrage
+    await settle();
+    now += 60 * 60_000;
+    expect(h.updates.tick()).toBe(false); // 1 h : trop tôt
+    now += 60 * 60_000 + 1;
+    expect(h.updates.tick()).toBe(true); // 2 h écoulées
+    await settle();
+    expect(requests).toBe(2);
+    // Réglage modifié à chaud : pris en compte à l'échéance suivante.
+    await h.call('settings.update', { updates: { checkIntervalHours: 6 } });
+    now += 3 * 60 * 60_000;
+    expect(h.updates.tick()).toBe(false);
+    await h.call('settings.update', { updates: { checkIntervalHours: 0 } });
+    expect((await h.call('settings.get')).updates.checkIntervalHours).toBe(1); // borné à 1 h minimum
+    expect(h.updates.tick()).toBe(true);
+    await h.call('settings.update', { updates: { mode: 'off' } });
+    now += 10 * 60 * 60_000;
+    expect(h.updates.tick()).toBe(false);
+    await settle();
+    expect(requests).toBe(3);
+  });
+
   it('ordre des versions SemVer, préversions comprises', () => {
     expect(compareVersions('3.0.0-alpha.10', '3.0.0-alpha.9')).toBeGreaterThan(0);
     expect(compareVersions('3.0.0', '3.0.0-beta.1')).toBeGreaterThan(0);

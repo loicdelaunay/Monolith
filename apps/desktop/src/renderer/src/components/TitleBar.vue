@@ -7,6 +7,7 @@ import { api } from '../api.ts';
 import { uiState } from '../ui-state.ts';
 import logo from '../assets/logo.png';
 import { brand } from '../lib/brand.ts';
+import UpdateButton from './UpdateButton.vue';
 
 defineEmits<{ 'open-settings': [] }>();
 const { t } = useI18n();
@@ -43,6 +44,7 @@ const brandLogo = computed(() => brand.value.logo ?? logo);
       </template>
     </div>
     <div class="actions">
+      <UpdateButton />
       <button type="button" class="version" :aria-label="`v${APP_VERSION} — ${t('titlebar.version', { version: APP_VERSION })}`" v-tooltip.bottom="t('titlebar.version', { version: APP_VERSION })" @click="uiState.changelogOpen = true">
         v{{ APP_VERSION }}
       </button>

@@ -206,6 +206,8 @@ export interface Settings {
   updates: {
     /** off : jamais de vérification automatique ; notify : signaler ; auto : télécharger et installer à la fermeture. */
     mode: UpdateMode;
+    /** Intervalle entre deux vérifications automatiques (heures). */
+    checkIntervalHours: number;
   };
   browser: {
     /** embedded : navigateur intégré (interface de bureau) ; chrome : Chrome du poste via Chrome DevTools MCP (comme la v1). */
@@ -420,6 +422,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   updates: {
     mode: 'notify',
+    checkIntervalHours: 2,
   },
   browser: {
     backend: 'embedded',
@@ -476,6 +479,7 @@ export const SETTINGS_BOUNDS = {
   'loop.window': [3, 100],
   'memory.forcedReadCount': [1, 100],
   'memory.maxItems': [0, 100_000],
+  'updates.checkIntervalHours': [1, 168],
   'maintenance.autoArchiveDays': [0, 3650],
   'local.contextSize': [512, 262_144],
   'local.gpuLayers': [-1, 999],

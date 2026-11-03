@@ -20,6 +20,7 @@ import Composer from './Composer.vue';
 import QueuePanel from './QueuePanel.vue';
 import ResourcesButton from './tools/ResourcesButton.vue';
 import ConversationChips from './ConversationChips.vue';
+import UpdateButton from './UpdateButton.vue';
 import ProposalsPanel from './tools/ProposalsPanel.vue';
 import SandboxDialog from './tools/SandboxDialog.vue';
 
@@ -142,6 +143,8 @@ const sandboxOpen = ref(false);
         <span ref="goalAnchor" class="goal-anchor">
           <button v-if="activeConversation.goal" type="button" class="goal-chip" :title="activeConversation.goal" @click="openGoal($event)"><i class="pi pi-flag" /> {{ activeConversation.goal }}</button>
         </span>
+        <!-- Sans barre de titre personnalisée (macOS, Linux…) : le bouton de mise à jour se place ici. -->
+        <UpdateButton v-if="!store.renderer?.customTitleBar" />
         <button type="button" class="mh-icon-btn" :class="{ active: activeConversation.favorite }" :aria-pressed="activeConversation.favorite" :aria-label="activeConversation.favorite ? t('conversation.unfavorite') : t('conversation.favorite')" v-tooltip.bottom="activeConversation.favorite ? t('conversation.unfavorite') : t('conversation.favorite')" @click="toggleFavorite">
           <i class="pi" :class="activeConversation.favorite ? 'pi-star-fill' : 'pi-star'" />
         </button>
