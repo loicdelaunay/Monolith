@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.32 — 2026-11-03
 
 - **Mode Proposition : tous les outils** (commandes, Chrome MCP, navigateur, serveurs MCP, contrôle du bureau), comme le mode Exécution et avec les mêmes autorisations. Seule différence : les modifications de fichiers faites avec les outils d'écriture sont enregistrées comme propositions à valider au lieu d'être appliquées ; le modèle est invité à ne pas modifier les fichiers du projet par des commandes. Le mode Plan reste en lecture seule.
 
