@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS, effectiveEmbeddings, type CustomSkill } from '@monoli
 import RadioButton from 'primevue/radiobutton';
 import { askFirstUse } from '../../lib/first-use.ts';
 import LocalAiInstall from '../LocalAiInstall.vue';
+import TargetPicker from '../studio/TargetPicker.vue';
 import { store } from '../../stores/app.ts';
 import { useI18n } from 'vue-i18n';
 import ToggleSwitch from 'primevue/toggleswitch';
@@ -37,6 +38,10 @@ async function setEnabled(id: string, value: boolean) {
     Object.assign(props.draft.rag, r.rag);
   }
   props.draft.skills.enabled = { ...props.draft.skills.enabled, [id]: value };
+}
+function setVisionModel(v: { providerId: Settings['studio']['visionProviderId']; model: string | null }) {
+  props.draft.studio.visionProviderId = v.providerId;
+  props.draft.studio.visionModel = v.model;
 }
 const embeddingSource = computed({
   get: () => effectiveEmbeddings(props.draft.rag),
@@ -122,6 +127,17 @@ const embeddingSource = computed({
     </div>
   </div>
   <p v-if="draft.browser.backend === 'chrome'" class="mh-hint">{{ t('skills.config.chromeHint') }}</p>
+
+  <h3 class="mh-section-title">{{ t('skills.names.vision') }}</h3>
+  <p class="mh-hint">{{ t('skills.config.visionHint') }}</p>
+  <div class="mh-switch-row">
+    <label for="vis-auto">{{ t('skills.config.visionAuto') }}</label>
+    <ToggleSwitch input-id="vis-auto" v-model="draft.studio.visionFallback" />
+  </div>
+  <div class="mh-field">
+    <span class="mh-label">{{ t('skills.config.visionModel') }}</span>
+    <TargetPicker :provider-id="draft.studio.visionProviderId" :model="draft.studio.visionModel" :empty-label="t('skills.config.visionModelNone')" @change="setVisionModel" />
+  </div>
 
   <h3 class="mh-section-title">{{ t('skills.config.desktop') }}</h3>
   <p class="mh-hint">{{ t('skills.config.desktopHint') }}</p>

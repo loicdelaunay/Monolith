@@ -255,7 +255,7 @@ export class GeminiAdapter implements ProviderAdapter {
         yield { type: 'notice', level: 'warning', code: 'invalid_chunk', text: 'Fragment illisible ignoré.' };
         return;
       }
-      if (chunk.error) throw new ProviderError('provider_stream', chunk.error.message ?? 'Erreur du fournisseur', null, true);
+      if (chunk.error) throw new ProviderError('provider_stream', chunk.error.message ?? 'Erreur du fournisseur', null, true, null, JSON.stringify(chunk.error));
       if (chunk.promptFeedback?.blockReason) throw new ProviderError('provider_bad_request', `Requête bloquée par le filtre de Google (${chunk.promptFeedback.blockReason}).`, null, false);
       const cand = chunk.candidates?.[0];
       for (const part of cand?.content?.parts ?? []) {

@@ -2,6 +2,16 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Action en attente signalée en orange** : quand une conversation attend une réponse (question, autorisation, décision après une boucle, propositions à traiter), un point d'exclamation orange remplace l'indicateur de progression dans la barre latérale, y compris sur la conversation parente d'un sous-agent. La raison s'affiche au survol.
+- **L'IA peut modifier ses propositions** : en mode Proposition, une nouvelle écriture sur un fichier met à jour la proposition en attente au lieu d'en créer une seconde. `read_file` montre le contenu proposé et le nouvel outil `list_proposals` liste celles en attente. Une proposition revenue à l'état d'origine du fichier est retirée ; si le fichier a changé sur le disque, elle repart de sa version actuelle.
+- **Propositions** : bouton **Tout refuser** à gauche de Tout appliquer (avec confirmation s'il y en a plusieurs), et liste repliable.
+- **Plan, file d'attente et propositions alignés** : même présentation, repliable, en un seul ensemble posé sur la zone de saisie.
+- **Plan qui restait inachevé en fin de réponse** : le modèle est rappelé de marquer chaque étape terminée. S'il l'oublie, une courte requête compare le plan au compte rendu de la réponse et ne coche que ce qui a réellement été fait. L'étape en cours ne tourne plus quand rien ne génère (icône pause).
+- **Skill Vision renommé « Vision de secours »** : il n'a jamais activé la vision native (une image est envoyée directement à tout modèle qui l'accepte). Il fournit l'outil `describe_image`, qui passe par le modèle de vision de secours. La description automatique et le choix de ce modèle passent d'Outils › Images dans Réglages › Skills.
+- **Détail des erreurs** : un clic sur « Détails de l'erreur » affiche le code, le statut HTTP, le modèle, l'adresse, les tentatives, la date et la réponse brute du fournisseur (secrets masqués), à copier.
+
 ## 3.0.0-alpha.34 — 2026-11-03
 
 - **Anciens paquets de mise à jour supprimés** : chaque version téléchargée laissait son zip (environ 160 Mo) dans `data/updates`. Au démarrage, Monolith supprime les paquets des versions déjà installées ou dépassées, les téléchargements interrompus et une extraction abandonnée ; un nouveau téléchargement remplace le paquet précédent. Seule la version précédente (dossier `previous`, pour revenir en arrière) est conservée.

@@ -20,7 +20,7 @@ function setProvider(id: Id | null) {
 
 <template>
   <div class="tp">
-    <Select :model-value="providerId" :options="providers" option-label="label" option-value="value" size="small" :aria-label="t('studio.provider')" class="sel" @update:model-value="setProvider" />
+    <Select :model-value="providerId" :options="providers" option-label="label" option-value="value" :placeholder="emptyLabel ?? t('studio.defaultModel')" size="small" :aria-label="t('studio.provider')" class="sel" @update:model-value="setProvider" />
     <Select v-if="providerId !== null" :model-value="model" :options="models" option-label="label" option-value="value" filter size="small" :aria-label="t('studio.model')" class="sel" @update:model-value="(m: string) => emit('change', { providerId, model: m })" />
   </div>
 </template>

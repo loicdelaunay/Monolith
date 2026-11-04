@@ -18,6 +18,7 @@ export class QuestionBroker {
       const finish = (a: QuestionAnswer[] | null) => {
         if (!this.pending.delete(key)) return;
         signal.removeEventListener('abort', onAbort);
+        this.events.emit('question.resolved', { conversationId, callId });
         resolve(a);
       };
       this.pending.set(key, { conversationId, resolve: finish });
@@ -25,6 +26,10 @@ export class QuestionBroker {
       signal.addEventListener('abort', onAbort, { once: true });
       this.events.emit('question.requested', { conversationId, messageId, callId, questions });
     });
+  }
+
+  has(conversationId: Id): boolean {
+    return [...this.pending.values()].some((p) => p.conversationId === conversationId);
   }
 
   answer(conversationId: Id, callId: string, answers: QuestionAnswer[] | null): void {
@@ -102,6 +107,10 @@ export class LoopGate {
     });
   }
 
+  has(conversationId: Id): boolean {
+    return this.pending.has(conversationId);
+  }
+
   resolve(conversationId: Id, decision: 'stop' | 'continue'): void {
     const p = this.pending.get(conversationId);
     if (!p) throw new HarnessError('not_found', 'Aucune boucle en attente de décision');
@@ -122,6 +131,9 @@ interface ProposalRow {
 
 /** Mode Proposition : changements enregistrés, appliqués seulement après validation de l'utilisateur. */
 export class ProposalService {
+  /** Conversations ayant des propositions à traiter (une seule requête, même pour une longue liste). */
+  private openConversations: Set<Id> | null = null;
+
   constructor(
     private readonly db: Database,
     private readonly events: EventBus,
@@ -145,6 +157,45 @@ export class ProposalService {
     return lastInsertRowid;
   }
 
+  /**
+   * Enregistre un changement. Une proposition en attente sur le même fichier est modifiée, pas recréée ;
+   * revenue à l'état d'origine du fichier, elle est retirée.
+   */
+  propose(conversationId: Id, messageId: Id, callId: string, fullPath: string, change: FileChange): { id: Id; outcome: 'created' | 'revised' | 'withdrawn' } {
+    const open = this.open(conversationId, fullPath);
+    if (!open) return { id: this.create(conversationId, messageId, callId, fullPath, change), outcome: 'created' };
+    const neutral = change.status === 'deleted' ? open.change.status === 'created' : change.status === 'modified' && change.after === change.before;
+    if (neutral) {
+      this.setStatus(open, 'rejected');
+      return { id: open.id, outcome: 'withdrawn' };
+    }
+    this.db.run("UPDATE file_proposals SET status = 'pending', change_json = ? WHERE id = ?", JSON.stringify(change), open.id);
+    this.changed(conversationId);
+    return { id: open.id, outcome: 'revised' };
+  }
+
+  /** Changement en attente sur ce fichier, tant que le fichier n'a pas bougé : base des lectures et écritures suivantes. */
+  base(conversationId: Id, fullPath: string): FileChange | null {
+    const p = this.open(conversationId, fullPath);
+    return p && this.fileUnchanged(p) ? p.change : null;
+  }
+
+  /** Reste-t-il des propositions à traiter dans cette conversation ? */
+  hasOpen(conversationId: Id): boolean {
+    this.openConversations ??= new Set(this.db.all<{ conversation_id: number }>("SELECT DISTINCT conversation_id FROM file_proposals WHERE status IN ('pending', 'conflict')").map((r) => r.conversation_id));
+    return this.openConversations.has(conversationId);
+  }
+
+  private open(conversationId: Id, fullPath: string): FileProposal | null {
+    const r = this.db.get<ProposalRow>("SELECT * FROM file_proposals WHERE conversation_id = ? AND path = ? AND status IN ('pending', 'conflict') ORDER BY id DESC LIMIT 1", conversationId, fullPath);
+    return r ? this.map(r) : null;
+  }
+
+  private fileUnchanged(p: FileProposal): boolean {
+    const cur = currentContent(p.path);
+    return p.change.status === 'created' ? !cur.exists : cur.exists && cur.content === p.change.before;
+  }
+
   list(conversationId: Id): FileProposal[] {
     return this.db.all<ProposalRow>('SELECT * FROM file_proposals WHERE conversation_id = ? ORDER BY id', conversationId).map((r) => this.map(r));
   }
@@ -159,9 +210,7 @@ export class ProposalService {
   apply(id: Id): FileProposal {
     const p = this.get(id);
     if (p.status !== 'pending' && p.status !== 'conflict') throw new HarnessError('conflict', 'Proposition déjà traitée');
-    const cur = currentContent(p.path);
-    const expected = p.change.status === 'created' ? !cur.exists : cur.exists && cur.content === p.change.before;
-    if (!expected) {
+    if (!this.fileUnchanged(p)) {
       this.setStatus(p, 'conflict');
       throw new HarnessError('conflict', `Le fichier a changé depuis la proposition : ${p.change.path}. Aucun écrasement : relancez la demande.`);
     }
@@ -182,6 +231,7 @@ export class ProposalService {
   }
 
   private changed(conversationId: Id): void {
+    this.openConversations = null;
     this.events.emit('proposals.changed', { conversationId, proposals: this.list(conversationId) });
   }
 }

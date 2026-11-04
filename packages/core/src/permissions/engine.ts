@@ -179,7 +179,7 @@ export class PermissionEngine {
       const finish = (r: { decision: 'allow' | 'deny'; scope: PermissionScope; reason: string }) => {
         if (!this.pending.delete(requestId)) return;
         signal.removeEventListener('abort', onAbort);
-        this.events.emit('permission.resolved', { requestId, decision: r.decision });
+        this.events.emit('permission.resolved', { requestId, conversationId: full.conversationId, decision: r.decision });
         resolve(r);
       };
       const onAbort = () => finish({ decision: 'deny', scope: 'once', reason: 'Génération annulée avant la réponse (l’annulation ne vaut pas approbation).' });

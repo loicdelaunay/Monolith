@@ -20,17 +20,30 @@ function pathTarget(args: Record<string, unknown>, ctx: ToolContext, key = 'path
   }
 }
 
+/** Changement en attente sur ce fichier (mode Proposition uniquement). */
+function pendingChange(full: string, ctx: ToolContext): FileChange | null {
+  return ctx.mode === 'agent' && ctx.agentMode === 'propose' ? ctx.proposedChange(full) : null;
+}
+
+/** État d'un fichier pour un outil d'écriture : une proposition en attente sert de base, elle sera modifiée. */
+function fileState(full: string, ctx: ToolContext): { onDisk: boolean; before: string; exists: boolean; content: string } {
+  const cur = currentContent(full);
+  const pending = pendingChange(full, ctx);
+  return { onDisk: cur.exists, before: cur.content, exists: pending ? pending.status !== 'deleted' : cur.exists, content: pending ? pending.after : cur.content };
+}
+
 /** Calcule les changements d'un outil d'écriture sans rien écrire. */
 function planWrite(args: Record<string, unknown>, ctx: ToolContext, mode: 'write' | 'edit'): FileChange & { full: string } {
   const full = ctx.scope.resolve(args.path, { write: true });
-  const cur = currentContent(full);
+  const file = fileState(full, ctx);
+  const status = file.onDisk ? 'modified' : 'created';
   if (mode === 'write') {
     const content = str(args, 'content', false);
-    return { full, path: ctx.scope.display(full), status: cur.exists ? 'modified' : 'created', before: cur.content, after: content };
+    return { full, path: ctx.scope.display(full), status, before: file.before, after: content };
   }
-  if (!cur.exists) throw new Error(`Fichier introuvable : ${ctx.scope.display(full)} (utilisez write_file pour le créer)`);
-  const after = replaceInText(cur.content, str(args, 'old_string'), str(args, 'new_string', false), bool(args, 'replace_all'), ctx.scope.display(full));
-  return { full, path: ctx.scope.display(full), status: 'modified', before: cur.content, after };
+  if (!file.exists) throw new Error(`Fichier introuvable : ${ctx.scope.display(full)} (utilisez write_file pour le créer)`);
+  const after = replaceInText(file.content, str(args, 'old_string'), str(args, 'new_string', false), bool(args, 'replace_all'), ctx.scope.display(full));
+  return { full, path: ctx.scope.display(full), status, before: file.before, after };
 }
 
 interface PatchEntry {
@@ -49,20 +62,21 @@ function planPatch(args: Record<string, unknown>, ctx: ToolContext): (FileChange
     const full = ctx.scope.resolve(e.path, { write: true });
     if (seen.has(full)) throw new Error(`changes[${i}] : fichier présent deux fois dans le patch`);
     seen.add(full);
-    const cur = currentContent(full);
+    const file = fileState(full, ctx);
     const display = ctx.scope.display(full);
+    const status = file.onDisk ? 'modified' : 'created';
     const action = String(e.action ?? 'update');
     if (action === 'delete') {
-      if (!cur.exists) throw new Error(`changes[${i}] : fichier à supprimer introuvable (${display})`);
-      return { full, path: display, status: 'deleted', before: cur.content, after: '' };
+      if (!file.exists) throw new Error(`changes[${i}] : fichier à supprimer introuvable (${display})`);
+      return { full, path: display, status: 'deleted', before: file.before, after: '' };
     }
     if (action === 'create') {
-      if (cur.exists) throw new Error(`changes[${i}] : ${display} existe déjà (utilisez action « update »)`);
-      return { full, path: display, status: 'created', before: '', after: typeof e.content === 'string' ? e.content : '' };
+      if (file.exists) throw new Error(`changes[${i}] : ${display} existe déjà (utilisez action « update »)`);
+      return { full, path: display, status, before: file.before, after: typeof e.content === 'string' ? e.content : '' };
     }
     if (action !== 'update') throw new Error(`changes[${i}] : action « ${action} » inconnue (create, update, delete)`);
-    if (!cur.exists) throw new Error(`changes[${i}] : fichier introuvable (${display})`);
-    let after = cur.content;
+    if (!file.exists) throw new Error(`changes[${i}] : fichier introuvable (${display})`);
+    let after = file.content;
     if (typeof e.content === 'string') after = e.content;
     for (const [j, ed] of (e.edits ?? []).entries()) {
       try {
@@ -71,7 +85,7 @@ function planPatch(args: Record<string, unknown>, ctx: ToolContext): (FileChange
         throw new Error(`changes[${i}].edits[${j}] : ${(err as Error).message}`);
       }
     }
-    return { full, path: display, status: 'modified', before: cur.content, after };
+    return { full, path: display, status, before: file.before, after };
   });
 }
 
@@ -79,11 +93,12 @@ function planPatch(args: Record<string, unknown>, ctx: ToolContext): (FileChange
 function commit(changes: (FileChange & { full: string })[], ctx: ToolContext): ToolResult {
   const display: ToolDisplay = { kind: 'changes', changes: changes.map(({ full: _f, ...c }) => c), applied: false };
   if (ctx.mode === 'agent' && ctx.agentMode === 'propose') {
-    const ids = ctx.propose(changes);
+    const saved = ctx.propose(changes);
+    const outcome = { created: 'nouvelle', revised: 'mise à jour', withdrawn: 'retirée : plus aucun changement' };
     return {
       status: 'proposed',
-      display: { ...display, proposalIds: ids },
-      result: `Proposition enregistrée, NON appliquée (mode Proposition) : ${changes.map((c) => `${c.status} ${c.path}`).join(', ')}. L’utilisateur l’examinera et décidera de l’appliquer.`,
+      display: { ...display, proposalIds: saved.map((s) => s.id) },
+      result: `Proposition enregistrée, NON appliquée (mode Proposition) : ${saved.map((s, i) => `n° ${s.id} (${outcome[s.outcome]}) ${changes[i]!.status} ${changes[i]!.path}`).join(', ')}. L’utilisateur l’examinera et décidera de l’appliquer. Pour la corriger, réutilisez les outils d’écriture sur le même fichier : elle sera modifiée, pas recréée.`,
     };
   }
   applyChanges(changes);
@@ -120,13 +135,14 @@ const sourcesTools: ToolDefinition[] = [
     target: (a, ctx) => pathTarget(a, ctx),
     async execute(args, ctx) {
       const full = ctx.scope.resolve(args.path);
-      const text = readText(full);
+      const pending = pendingChange(full, ctx);
+      const text = pending ? pending.after : readText(full);
       const r = readLines(text, args, ctx.settings.agent.maxResultChars, { numbered: true });
       const content = text.split(/\r?\n/).slice(r.start - 1, r.end).join('\n');
       const what = r.whole ? `fichier entier, ${r.total} lignes` : `lignes ${r.start}-${r.end} sur ${r.total}`;
       return {
         display: { kind: 'file', path: ctx.scope.display(full), startLine: r.start, endLine: r.end, totalLines: r.total, content },
-        result: `${ctx.scope.display(full)} (${what}) :\n${r.body}`,
+        result: `${pending ? '[Contenu de la proposition en attente, NON appliquée : le fichier sur le disque n’a pas changé]\n' : ''}${ctx.scope.display(full)} (${what}) :\n${r.body}`,
       };
     },
   },
@@ -206,6 +222,19 @@ const editTools: ToolDefinition[] = [
     },
     async execute(args, ctx) {
       return commit([planWrite(args, ctx, 'write')], ctx);
+    },
+  },
+  {
+    name: 'list_proposals',
+    family: 'edit',
+    skill: 'editing',
+    description: 'Liste les propositions de changements de cette conversation en attente de l’utilisateur. Pour en corriger une : write_file, edit_file ou apply_patch sur le même fichier (elle est modifiée, pas recréée) ; read_file montre son contenu.',
+    parameters: obj({}),
+    effects: ['read'],
+    target: () => ({ label: null, resources: [] }),
+    async execute(_args, ctx) {
+      const list = ctx.openProposals();
+      return { result: list.length ? list.map((p) => `n° ${p.id} ${p.change.status} ${p.change.path}${p.status === 'conflict' ? ' (fichier modifié depuis la proposition)' : ''}`).join('\n') : 'Aucune proposition en attente.' };
     },
   },
   {
@@ -443,7 +472,8 @@ const interactTools: ToolDefinition[] = [
         text: String(i.text ?? '').slice(0, 300),
         status: i.status === 'done' || i.status === 'in_progress' ? i.status : 'pending',
       }));
-      return { display: { kind: 'plan', items }, result: `Plan mis à jour (${items.filter((i) => i.status === 'done').length}/${items.length} étapes terminées).` };
+      const done = items.filter((i) => i.status === 'done').length;
+      return { display: { kind: 'plan', items }, result: `Plan mis à jour (${done}/${items.length} étapes terminées).${done < items.length ? ' Marquez chaque étape « done » dès qu’elle est finie, y compris la dernière, avant votre réponse finale.' : ''}` };
     },
   },
 ];
@@ -452,7 +482,7 @@ export const BUILTIN_TOOLS: ToolDefinition[] = [...interactTools, ...sourcesTool
 
 /** Skills d'instructions : pas d'outil, des consignes ajoutées en mode Agent. */
 export const INSTRUCTION_SKILLS: Record<string, string> = {
-  planning: 'Planification : pour une tâche en plusieurs étapes, publiez d’abord un plan avec update_plan, puis tenez-le à jour.',
+  planning: 'Planification : pour une tâche en plusieurs étapes, publiez d’abord un plan avec update_plan, puis tenez-le à jour : marquez chaque étape « done » dès qu’elle est finie, y compris la dernière, avant votre réponse finale.',
   summary: 'Synthèse : terminez une tâche longue par un récapitulatif bref (ce qui a été fait, ce qui reste, comment vérifier).',
   review:
     'Revue de code : lorsque l’on vous demande une revue, lisez les fichiers concernés, signalez les défauts concrets (bugs, sécurité, cas limites) avec fichier et ligne, classés par gravité, sans réécrire le code sans demande.',

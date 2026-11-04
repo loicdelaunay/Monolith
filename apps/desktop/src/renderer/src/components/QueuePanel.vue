@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
 import type { Conversation, Id, QueuedInput } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
 import { store } from '../stores/app.ts';
+import DockSection from './DockSection.vue';
 
 const props = defineProps<{ conversation: Conversation }>();
 const { t } = useI18n();
@@ -14,6 +14,7 @@ const toast = useToast();
 const items = computed<QueuedInput[]>(() => store.queues.get(props.conversation.id) ?? []);
 /** File en pause : rien ne génère et des éléments attendent (après une annulation ou une erreur). */
 const paused = computed(() => !props.conversation.generating && items.value.some((i) => i.kind === 'queue'));
+const summary = computed(() => items.value[0]?.text || items.value[0]?.attachments.map((a) => a.name).join(', ') || null);
 const editingId = ref<Id | null>(null);
 const editText = ref('');
 
@@ -47,13 +48,11 @@ async function sendNext() {
 </script>
 
 <template>
-  <section v-if="items.length" class="queue" :aria-label="t('queue.title')">
-    <header class="head">
-      <i class="pi pi-list" />
-      <span>{{ t('queue.title') }} ({{ items.length }})</span>
+  <DockSection v-if="items.length" icon="pi-list" :title="t('queue.title')" :count="items.length" :summary="summary">
+    <template #actions>
       <span v-if="paused" class="paused">{{ t('queue.paused') }}</span>
-      <Button v-if="paused" :label="t('queue.sendNext')" icon="pi pi-play" size="small" text @click="sendNext" />
-    </header>
+      <button v-if="paused" type="button" class="mh-pill accent" @click="sendNext"><i class="pi pi-play" /> {{ t('queue.sendNext') }}</button>
+    </template>
     <ul>
       <li v-for="item in items" :key="item.id" :class="item.kind">
         <span class="kind" :title="item.kind === 'steer' ? t('queue.steerHint') : t('queue.enqueueHint')">
@@ -64,73 +63,42 @@ async function sendNext() {
           {{ item.text || item.attachments.map((a) => a.name).join(', ') }}
           <span v-if="item.attachments.length && item.text" class="mh-hint"> · 📎 {{ item.attachments.length }}</span>
         </button>
-        <button v-if="item.kind === 'queue'" type="button" class="orient" :aria-label="t('queue.orient')" v-tooltip.top="conversation.generating ? t('queue.orientHint') : t('queue.orientNowHint')" @click="setKind(item, 'steer')">
+        <button v-if="item.kind === 'queue'" type="button" class="mh-pill accent" :aria-label="t('queue.orient')" v-tooltip.top="conversation.generating ? t('queue.orientHint') : t('queue.orientNowHint')" @click="setKind(item, 'steer')">
           <i class="pi pi-bolt" /> {{ t('queue.orient') }}
         </button>
-        <button v-else type="button" class="mh-icon-btn small" :aria-label="t('queue.unorient')" v-tooltip.top="t('queue.unorient')" @click="setKind(item, 'queue')"><i class="pi pi-clock" /></button>
-        <button type="button" class="mh-icon-btn small" :aria-label="t('queue.up')" @click="move(item, -1)"><i class="pi pi-arrow-up" /></button>
-        <button type="button" class="mh-icon-btn small" :aria-label="t('queue.down')" @click="move(item, 1)"><i class="pi pi-arrow-down" /></button>
-        <button type="button" class="mh-icon-btn small" :aria-label="t('common.delete')" @click="api.call('queue.remove', { id: item.id }).catch(fail)"><i class="pi pi-times" /></button>
+        <button v-else type="button" class="mh-icon-btn" :aria-label="t('queue.unorient')" v-tooltip.top="t('queue.unorient')" @click="setKind(item, 'queue')"><i class="pi pi-clock" /></button>
+        <button type="button" class="mh-icon-btn" :aria-label="t('queue.up')" @click="move(item, -1)"><i class="pi pi-arrow-up" /></button>
+        <button type="button" class="mh-icon-btn" :aria-label="t('queue.down')" @click="move(item, 1)"><i class="pi pi-arrow-down" /></button>
+        <button type="button" class="mh-icon-btn" :aria-label="t('common.delete')" @click="api.call('queue.remove', { id: item.id }).catch(fail)"><i class="pi pi-times" /></button>
       </li>
     </ul>
-  </section>
+  </DockSection>
 </template>
 
 <style scoped>
-.orient {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--mh-accent) 45%, var(--mh-border));
-  border-radius: 999px;
-  background: transparent;
-  color: var(--mh-accent);
-  padding: 2px 10px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.orient:hover {
-  background: color-mix(in srgb, var(--mh-accent) 10%, transparent);
-}
-.queue {
-  max-width: 900px;
-  margin: 0 auto 8px;
-  border: 1px solid var(--mh-border);
-  border-radius: var(--mh-radius);
-  background: var(--mh-surface);
-  font-size: 13px;
-}
-.head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px 4px 12px;
-  color: var(--mh-muted);
-  border-bottom: 1px solid var(--mh-border);
-}
 .paused {
+  flex: none;
   color: var(--mh-warning);
-  margin-left: auto;
 }
 ul {
   list-style: none;
   margin: 0;
-  padding: 4px;
-  max-height: 180px;
-  overflow-y: auto;
+  padding: 0;
 }
 li {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px;
+  padding: 1px 0;
 }
 .kind {
-  width: 22px;
-  text-align: center;
+  flex: none;
+  width: 20px;
+  font-size: 12px;
   color: var(--mh-muted);
+}
+.kind .pi {
+  font-size: 12px;
 }
 li.steer .kind {
   color: var(--mh-accent);
@@ -141,7 +109,7 @@ li.steer .kind {
   border: 0;
   background: transparent;
   text-align: left;
-  padding: 4px 6px;
+  padding: 3px 4px;
   border-radius: 6px;
   cursor: text;
   overflow: hidden;
@@ -158,10 +126,5 @@ li.steer .kind {
   border-radius: 6px;
   padding: 4px 6px;
   background: var(--mh-surface);
-}
-.small {
-  width: 24px;
-  height: 24px;
-  font-size: 11px;
 }
 </style>

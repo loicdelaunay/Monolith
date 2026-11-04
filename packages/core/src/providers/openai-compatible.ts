@@ -318,7 +318,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   private *fromChunk(chunk: Chunk, splitter: ThinkTagSplitter, whole: boolean, tools: ToolCallAccumulator): Iterable<StreamEvent> {
     if (chunk.error) {
       const message = typeof chunk.error === 'string' ? chunk.error : (chunk.error.message ?? 'Erreur du fournisseur');
-      throw new ProviderError('provider_stream', message, null, true);
+      throw new ProviderError('provider_stream', message, null, true, null, JSON.stringify(chunk.error));
     }
     for (const choice of chunk.choices ?? []) {
       const d = whole ? choice.message : choice.delta;

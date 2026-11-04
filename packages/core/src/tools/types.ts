@@ -17,8 +17,12 @@ export interface ToolContext {
   terminals: TerminalManager;
   events: EventBus;
   host: 'desktop' | 'cli' | 'server';
-  /** Mode Proposition : enregistre un changement de fichier sans l'appliquer. */
-  propose(changes: (import('@monolith/contracts').FileChange & { full: string })[]): Id[];
+  /** Mode Proposition : enregistre un changement de fichier sans l'appliquer (une proposition en attente sur ce fichier est modifiée). */
+  propose(changes: (import('@monolith/contracts').FileChange & { full: string })[]): { id: Id; outcome: 'created' | 'revised' | 'withdrawn' }[];
+  /** Mode Proposition : changement en attente sur ce fichier, base des lectures et écritures suivantes. */
+  proposedChange(full: string): import('@monolith/contracts').FileChange | null;
+  /** Propositions de cette conversation encore à traiter. */
+  openProposals(): import('@monolith/contracts').FileProposal[];
   /** Questions interactives : attend la réponse (null = annulé). */
   ask(questions: import('@monolith/contracts').Question[]): Promise<import('@monolith/contracts').QuestionAnswer[] | null>;
   info: { conversationTitle: string; projectName: string | null; model: string; provider: string };

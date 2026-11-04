@@ -2,6 +2,7 @@ import type {
   CatalogModel,
   ConnectionTestResult,
   Conversation,
+  ConversationAttention,
   Id,
   Message,
   MessagePart,
@@ -434,11 +435,14 @@ export interface HarnessEvents {
   'templates.changed': { templates: MessageTemplate[] };
   'compaction.added': { compaction: Compaction };
   'permission.requested': PermissionRequest;
-  'permission.resolved': { requestId: string; decision: 'allow' | 'deny' };
+  'permission.resolved': { requestId: string; conversationId: Id; decision: 'allow' | 'deny' };
   'question.requested': { conversationId: Id; messageId: Id; callId: string; questions: Question[] };
+  'question.resolved': { conversationId: Id; callId: string };
   'loop.detected': LoopReport;
   'loop.resolved': { conversationId: Id };
   'proposals.changed': { conversationId: Id; proposals: FileProposal[] };
+  /** Une action de l'utilisateur est attendue, ou ne l'est plus. */
+  'conversation.attention': { conversationId: Id; attention: ConversationAttention | null };
   'terminal.output': { terminalId: string; conversationId: Id; chunk: string };
   'terminal.changed': { terminal: TerminalInfo };
   'rules.changed': { rules: PermissionRule[] };

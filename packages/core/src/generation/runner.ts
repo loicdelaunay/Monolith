@@ -21,6 +21,7 @@ import {
   type MessageStatus,
   type MessageUsage,
   type ModelCapabilities,
+  type PlanItem,
   type Project,
   type Provider,
   type SendInput,
@@ -57,6 +58,7 @@ import type { TerminalManager } from '../tools/terminals.ts';
 import { LoopDetector, type LoopGate, type ProposalService, type QuestionBroker } from '../tools/interactions.ts';
 import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
+import { redact } from '../security/redact.ts';
 import { decideRetry } from './retry.ts';
 import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, countImages, DEFAULT_MAX_IMAGES, estimateRequestTokens, imageLimitRejection, transcriptText, visibleOutput } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
@@ -812,7 +814,7 @@ export class GenerationRunner {
             if (sent === 'none') {
               status = 'error';
               roundStatus = 'error';
-              error = { code: 'unavailable', message: `Le fournisseur refuse la désactivation de la réflexion pour « ${ctx.snapshot.model} » : ${e.message}`, status: e.status ?? undefined, retryable: false, attempts: attempt };
+              error = { code: 'unavailable', message: `Le fournisseur refuse la désactivation de la réflexion pour « ${ctx.snapshot.model} » : ${e.message}`, status: e.status ?? undefined, retryable: false, attempts: attempt, ...errorContext(e, ctx.conn.baseUrl) };
               break;
             }
             reasoningRetried = true;
@@ -872,6 +874,7 @@ export class GenerationRunner {
             ...(e instanceof ProviderError && e.status !== null ? { status: e.status } : {}),
             retryable: e instanceof ProviderError ? e.retryable : false,
             attempts: attempt,
+            ...errorContext(e, ctx.conn.baseUrl),
           };
           logger.warn('generation', 'Génération en erreur', { conversationId: job.conversationId, code: he.code, attempt });
           break;
@@ -940,7 +943,15 @@ export class GenerationRunner {
       else if (!lastFinish && hasText) notice('warning', 'no_finish', 'Le flux s’est terminé sans indication de fin : la réponse peut être incomplète.');
       if (!hasText && !hasTools && !parts.some((p) => p.type === 'reasoning')) {
         status = 'error';
-        error = { code: lastFinish?.reason === 'content_filter' ? 'provider_refusal' : 'provider_stream', message: 'Le fournisseur n’a renvoyé aucun contenu.', attempts: job.state.attempt };
+        error = { code: lastFinish?.reason === 'content_filter' ? 'provider_refusal' : 'provider_stream', message: 'Le fournisseur n’a renvoyé aucun contenu.', attempts: job.state.attempt, ...errorContext(null, ctx.conn.baseUrl) };
+      }
+    }
+    // Plan laissé ouvert par le modèle : rapproché de ce qui a été fait, sauf si une instruction prolonge le travail.
+    if (status === 'complete' && queue.list(job.conversationId).every((i) => i.kind !== 'steer')) {
+      const closing = await this.reconcilePlan(ctx, parts, signal);
+      if (closing) {
+        parts.push({ type: 'tool', call: closing });
+        queueDelta({ kind: 'part', partIndex: parts.length - 1, part: structuredClone(parts.at(-1)!) });
       }
     }
     // Appels restés en cours (annulation) : jamais présentés comme réussis.
@@ -1029,7 +1040,9 @@ export class GenerationRunner {
       terminals,
       events,
       host: this.deps.host,
-      propose: (changes) => changes.map((c) => proposals.create(job.conversationId, messageId, call.id, c.full, { path: c.path, status: c.status, before: c.before, after: c.after })),
+      propose: (changes) => changes.map((c) => proposals.propose(job.conversationId, messageId, call.id, c.full, { path: c.path, status: c.status, before: c.before, after: c.after })),
+      proposedChange: (full) => proposals.base(job.conversationId, full),
+      openProposals: () => proposals.list(job.conversationId).filter((p) => p.status === 'pending' || p.status === 'conflict'),
       ask: async (qs) => {
         record.display = { kind: 'question', questions: qs, answers: null, cancelled: false };
         update({ ...record });
@@ -1213,6 +1226,41 @@ export class GenerationRunner {
   }
 
   /** Requête auxiliaire (nommage, compactage) : texte complet, consommation enregistrée séparément. */
+  /**
+   * Fin de réponse avec un plan encore ouvert (dernière mise à jour oubliée) : un court échange sans outils
+   * établit, d'après le compte rendu de la réponse, les étapes réellement faites. Sans réponse exploitable,
+   * le plan reste tel quel ; la réponse elle-même n'est jamais affectée.
+   */
+  private async reconcilePlan(ctx: JobContext, parts: MessagePart[], signal: AbortSignal): Promise<ToolCallRecord | null> {
+    if (ctx.provider.kind === 'acp' || ctx.provider.kind === 'composite') return null;
+    const last = parts.findLast((p) => p.type === 'tool' && p.call.name === 'update_plan' && p.call.status === 'done');
+    const display = last?.type === 'tool' ? last.call.display : null;
+    if (display?.kind !== 'plan' || display.items.every((i) => i.status === 'done')) return null;
+    const request: ChatRequest = {
+      model: ctx.snapshot.model,
+      messages: [
+        { role: 'system', content: 'Tu compares un plan de travail à ce qui a réellement été fait. Réponds uniquement par un tableau JSON des numéros d’étapes terminées, par exemple [1, 2]. Ne compte une étape que si le compte rendu montre qu’elle est faite ; dans le doute, ne la compte pas.' },
+        { role: 'user', content: `Plan :\n${display.items.map((item, i) => `${i + 1}. ${item.text}`).join('\n')}\n\nCompte rendu de la réponse :\n${transcriptText({ parts }).slice(-12_000)}` },
+      ],
+      reasoningLevel: 'auto',
+      temperature: null,
+      maxOutputTokens: null,
+    };
+    try {
+      const raw = await this.collect(ctx, request, 'other', ctx.conversation, AbortSignal.any([signal, AbortSignal.timeout(20_000)]));
+      const done = new Set(JSON.parse(/\[[\s\S]*?\]/.exec(raw)?.[0] ?? '[]') as unknown[]);
+      const items = display.items.map((item, i): PlanItem => (done.has(i + 1) ? { ...item, status: 'done' } : item));
+      if (items.every((item, i) => item.status === display.items[i]!.status)) return null;
+      const at = new Date().toISOString();
+      const count = items.filter((i) => i.status === 'done').length;
+      // Action externe : résumée dans l'historique, jamais rejouée comme un appel du modèle.
+      return { id: `plan-${randomUUID()}`, name: 'update_plan', family: 'planning', effects: ['interact'], arguments: '{}', target: 'Plan', status: 'done', result: `Plan rapproché en fin de réponse : ${count}/${items.length} étapes terminées.`, display: { kind: 'plan', items }, permission: null, startedAt: at, finishedAt: at, external: true };
+    } catch (e) {
+      this.deps.logger.info('generation', 'Plan non rapproché', { error: (e as Error).message });
+      return null;
+    }
+  }
+
   private async collect(ctx: Pick<JobContext, 'adapter' | 'conn' | 'provider'>, request: ChatRequest, kind: UsageRecord['kind'], conversation: Conversation, signal: AbortSignal): Promise<string> {
     const started = performance.now();
     const usageId = this.deps.usage.start({ kind, conversationId: conversation.id, projectId: conversation.projectId, providerId: ctx.provider.id, providerName: ctx.provider.name, model: request.model });
@@ -1456,6 +1504,12 @@ export class GenerationRunner {
 
 function userParts(text: string, attachments: AttachmentRef[]): MessagePart[] {
   return [...(text ? [{ type: 'text' as const, text }] : []), ...attachments.map((attachment) => ({ type: 'attachment' as const, attachment }))];
+}
+
+/** Détail d'une erreur, consultable depuis le message : sans secret, réponse du fournisseur limitée. */
+function errorContext(e: unknown, baseUrl: string): Pick<MessageError, 'body' | 'endpoint' | 'at'> {
+  const raw = e instanceof ProviderError ? e.body : e instanceof Error && !(e instanceof HarnessError) ? (e.stack ?? '') : '';
+  return { ...(raw ? { body: redact(raw).slice(0, 8000) } : {}), ...(baseUrl ? { endpoint: redact(baseUrl) } : {}), at: new Date().toISOString() };
 }
 
 function provisionalTitle(text: string): string {

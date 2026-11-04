@@ -344,3 +344,175 @@ describe('interactions', () => {
     expect(system).toMatch(/portée : .*src et ses sous-dossiers uniquement/);
   });
 });
+
+describe('propositions modifiables', () => {
+  it('une nouvelle écriture sur le fichier modifie la proposition en attente, sans la recréer', async () => {
+    const m = await scripted([
+      { tool: 'edit_file', args: { path: 'src/a.ts', old_string: '= 1', new_string: '= 2' } },
+      { tool: 'read_file', args: { path: 'src/a.ts' } },
+      { tool: 'edit_file', args: { path: 'src/a.ts', old_string: '= 2', new_string: '= 3' } },
+      { tool: 'list_proposals', args: {} },
+      { text: 'corrigé' },
+    ]);
+    const { h, c, folder } = await setup(m.url, { agentMode: 'propose' });
+    autoRespond(h, 'allow');
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'change' } });
+    await h.generation.idle();
+    const list = await h.call('proposals.list', { conversationId: c.id });
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ status: 'pending', change: { status: 'modified', before: 'export const a = 1;\n', after: 'export const a = 3;\n' } });
+    const calls = toolParts((await lastAssistant(h, c.id)).parts);
+    expect(calls[0]!.result).toContain('nouvelle');
+    expect(calls[1]!.result).toContain('NON appliquée');
+    expect(calls[1]!.result).toContain('export const a = 2;');
+    expect(calls[2]!).toMatchObject({ status: 'proposed', display: { proposalIds: [list[0]!.id] } });
+    expect(calls[2]!.result).toContain('mise à jour');
+    expect(calls[3]!.result).toBe(`n° ${list[0]!.id} modified src/a.ts`);
+    expect(readFileSync(join(folder, 'src', 'a.ts'), 'utf8')).toBe('export const a = 1;\n');
+    await h.call('proposals.apply', { id: list[0]!.id });
+    expect(readFileSync(join(folder, 'src', 'a.ts'), 'utf8')).toBe('export const a = 3;\n');
+  });
+
+  it('nouveau fichier : reste une création ; retour à l’état d’origine : proposition retirée', async () => {
+    const m = await scripted([
+      { tool: 'write_file', args: { path: 'neuf.txt', content: 'un' } },
+      { tool: 'edit_file', args: { path: 'neuf.txt', old_string: 'un', new_string: 'deux' } },
+      { tool: 'edit_file', args: { path: 'README.md', old_string: 'deux', new_string: '2' } },
+      { tool: 'edit_file', args: { path: 'README.md', old_string: 'Ligne 2', new_string: 'Ligne deux' } },
+      { text: 'fini' },
+    ]);
+    const { h, c } = await setup(m.url, { agentMode: 'propose' });
+    autoRespond(h, 'allow');
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'change' } });
+    await h.generation.idle();
+    const list = await h.call('proposals.list', { conversationId: c.id });
+    expect(list.map((p) => [p.change.path, p.status, p.change.status])).toEqual([
+      ['neuf.txt', 'pending', 'created'],
+      ['README.md', 'rejected', 'modified'],
+    ]);
+    expect(list[0]!.change).toMatchObject({ before: '', after: 'deux' });
+    expect(toolParts((await lastAssistant(h, c.id)).parts)[3]!.result).toContain('retirée');
+  });
+
+  it('fichier changé sur le disque depuis : la proposition repart de sa version actuelle', async () => {
+    const m = await scripted([
+      { tool: 'edit_file', args: { path: 'src/a.ts', old_string: '= 1', new_string: '= 2' } },
+      { text: 'proposé' },
+      { tool: 'edit_file', args: { path: 'src/a.ts', old_string: '= 5', new_string: '= 6' } },
+      { text: 'corrigé' },
+    ]);
+    const { h, c, folder } = await setup(m.url, { agentMode: 'propose' });
+    autoRespond(h, 'allow');
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'change' } });
+    await h.generation.idle();
+    writeFileSync(join(folder, 'src', 'a.ts'), 'export const a = 5;\n');
+    await expect(h.call('proposals.apply', { id: (await h.call('proposals.list', { conversationId: c.id }))[0]!.id })).rejects.toMatchObject({ code: 'conflict' });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'reprends' } });
+    await h.generation.idle();
+    const list = await h.call('proposals.list', { conversationId: c.id });
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ status: 'pending', change: { before: 'export const a = 5;\n', after: 'export const a = 6;\n' } });
+    await h.call('proposals.apply', { id: list[0]!.id });
+    expect(readFileSync(join(folder, 'src', 'a.ts'), 'utf8')).toBe('export const a = 6;\n');
+  });
+});
+
+describe('actions en attente de l’utilisateur', () => {
+  it('autorisation puis propositions : signalées sur la conversation jusqu’à leur traitement', async () => {
+    const m = await scripted([{ tool: 'edit_file', args: { path: 'src/a.ts', old_string: '= 1', new_string: '= 2' } }, { text: 'proposé' }]);
+    const { h, c } = await setup(m.url, { agentMode: 'propose' });
+    const seen: (string | null)[] = [];
+    h.events.on('conversation.attention', (e) => seen.push(e.attention));
+    autoRespond(h, 'allow');
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'change' } });
+    await h.generation.idle();
+    expect(seen).toEqual(['permission', null, 'proposals']);
+    expect((await h.call('conversations.list', {})).find((x) => x.id === c.id)!.attention).toBe('proposals');
+    const [proposal] = await h.call('proposals.list', { conversationId: c.id });
+    await h.call('proposals.reject', { id: proposal!.id });
+    expect(seen.at(-1)).toBeNull();
+    expect((await h.call('conversations.list', {})).find((x) => x.id === c.id)!.attention).toBeNull();
+  });
+
+  it('question : signalée pendant l’attente de la réponse, levée ensuite', async () => {
+    const m = await scripted([{ tool: 'ask_user', args: { questions: [{ prompt: 'Nom ?' }] } }, { text: 'merci' }]);
+    const { h, c } = await setup(m.url);
+    let during: string | null = null;
+    h.events.on('question.requested', (q) => {
+      during = h.conversations.get(c.id).attention;
+      setTimeout(() => h.call('questions.answer', { conversationId: q.conversationId, callId: q.callId, answers: null }), 5);
+    });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'demande' } });
+    await h.generation.idle();
+    expect(during).toBe('question');
+    expect(h.conversations.get(c.id).attention).toBeNull();
+  });
+});
+
+describe('plan laissé ouvert en fin de réponse', () => {
+  const plan = { tool: 'update_plan', args: { items: [{ text: 'Lire', status: 'done' }, { text: 'Corriger', status: 'in_progress' }] } };
+  const steps = (reply: Awaited<ReturnType<typeof lastAssistant>>) => toolParts(reply.parts).filter((p) => p.name === 'update_plan').map((p) => (p.display as { items: { status: string }[] }).items.map((i) => i.status));
+
+  it('rapproché de ce qui a été fait, sans toucher à la réponse', async () => {
+    const m = await scripted([plan, { text: 'Lecture et correction faites.' }, { text: '[1, 2]' }, { text: 'suite' }]);
+    const { h, c } = await setup(m.url);
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'fais' } });
+    await h.generation.idle();
+    const reply = await lastAssistant(h, c.id);
+    expect(reply.status).toBe('complete');
+    expect(steps(reply).at(-1)).toEqual(['done', 'done']);
+    expect(toolParts(reply.parts)[0]!.result).toContain('avant votre réponse finale');
+    expect(reply.parts.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text)).toEqual(['Lecture et correction faites.']);
+    expect(m.bodies).toHaveLength(3);
+    expect(m.bodies[2]!.tools).toBeUndefined();
+    expect(String(m.bodies[2]!.messages[1]!.content)).toContain('2. Corriger');
+    // L'étape de rapprochement n'est pas rejouée comme un appel du modèle au tour suivant.
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'suite' } });
+    await h.generation.idle();
+    expect(m.bodies[3]!.messages.flatMap((x) => x.tool_calls ?? [])).toHaveLength(1);
+  });
+
+  it('étapes non confirmées ou réponse inexploitable : plan inchangé', async () => {
+    for (const verdict of ['[1]', 'je ne sais pas']) {
+      const m = await scripted([plan, { text: 'Lecture faite.' }, { text: verdict }]);
+      const { h, c } = await setup(m.url);
+      await h.call('chat.send', { conversationId: c.id, input: { text: 'fais' } });
+      await h.generation.idle();
+      const reply = await lastAssistant(h, c.id);
+      expect(reply.status).toBe('complete');
+      expect(steps(reply)).toEqual([['done', 'in_progress']]);
+    }
+  });
+
+  it('plan terminé : aucune requête supplémentaire', async () => {
+    const m = await scripted([{ tool: 'update_plan', args: { items: [{ text: 'Lire', status: 'done' }] } }, { text: 'Fini.' }]);
+    const { h, c } = await setup(m.url);
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'fais' } });
+    await h.generation.idle();
+    expect(m.bodies).toHaveLength(2);
+  });
+});
+
+describe('détail d’une erreur du fournisseur', () => {
+  it('erreur 500 : réponse brute conservée sans secret, conversation toujours utilisable', async () => {
+    let calls = 0;
+    const mock = await mockProvider((_req, _raw, res: ServerResponse) => {
+      if (++calls === 1) return void res.writeHead(500, { 'content-type': 'application/json' }).end('{"error":{"message":"panne interne","api_key":"sk-abcdefghijklmnopqrstuvwx","trace":"id-42"}}');
+      return writeFragmented(res, textStream('repris'), 9);
+    });
+    cleanups.push(mock.close);
+    const { h, c } = await setup(mock.url, { mode: 'chat' });
+    await h.call('settings.update', { network: { retryMaxAttempts: 1 } });
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'salut' } });
+    await h.generation.idle();
+    const failed = await lastAssistant(h, c.id);
+    expect(failed).toMatchObject({ status: 'error', error: { code: 'provider_server', message: 'panne interne', status: 500, attempts: 1, endpoint: mock.url } });
+    expect(failed.error!.body).toContain('id-42');
+    expect(failed.error!.body).not.toContain('sk-abcdefghijklmnopqrstuvwx');
+    expect(Date.parse(failed.error!.at!)).not.toBeNaN();
+
+    await h.call('chat.send', { conversationId: c.id, input: { text: 'encore' } });
+    await h.generation.idle();
+    expect((await lastAssistant(h, c.id)).status).toBe('complete');
+  });
+});

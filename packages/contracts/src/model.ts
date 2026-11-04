@@ -34,6 +34,9 @@ export type ConversationMode = 'chat' | 'agent';
 export type AgentMode = 'plan' | 'propose' | 'execute';
 export type ResponseStyle = 'default' | 'short' | 'pragmatic' | 'detailed' | 'playful';
 
+/** Ce qui attend l'utilisateur dans une conversation : autorisation, question, décision après une boucle, propositions à traiter. */
+export type ConversationAttention = 'permission' | 'question' | 'loop' | 'proposals';
+
 export interface Conversation {
   id: Id;
   /** null : espace personnel (conversation sans projet). */
@@ -73,6 +76,8 @@ export interface Conversation {
   lastMessageAt: string | null;
   /** Calculé : une génération est en cours dans le moteur. */
   generating: boolean;
+  /** Calculé : une action de l'utilisateur est attendue (null : rien en attente). */
+  attention: ConversationAttention | null;
 }
 
 export interface ConversationBudget {
@@ -150,6 +155,12 @@ export interface MessageError {
   status?: number;
   retryable?: boolean;
   attempts?: number;
+  /** Réponse brute du fournisseur (ou trace d'une erreur interne), expurgée et tronquée. */
+  body?: string;
+  /** Adresse de la connexion utilisée. */
+  endpoint?: string;
+  /** Date de l'erreur (ISO 8601). */
+  at?: string;
 }
 
 /** Origine d'un message utilisateur. */

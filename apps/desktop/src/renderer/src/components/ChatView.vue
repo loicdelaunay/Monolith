@@ -186,9 +186,11 @@ const sandboxOpen = ref(false);
       </button>
 
       <div class="bottom">
-        <ProposalsPanel :conversation="activeConversation" />
-        <QueuePanel :conversation="activeConversation" />
-        <PlanDock :conversation="activeConversation" />
+        <div class="docks">
+          <ProposalsPanel :conversation="activeConversation" />
+          <QueuePanel :conversation="activeConversation" />
+          <PlanDock :conversation="activeConversation" />
+        </div>
         <Composer :conversation="activeConversation" @sent="scrollToBottom(true)" @open-goal="openGoal()" />
       </div>
 
@@ -315,6 +317,12 @@ const sandboxOpen = ref(false);
 }
 
 .bottom {
+  padding: 0 20px;
+}
+.docks {
+  box-sizing: border-box;
+  max-width: 900px;
+  margin: 0 auto;
   padding: 0 20px;
 }
 .bottom :deep(.composer) {

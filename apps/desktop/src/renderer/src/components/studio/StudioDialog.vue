@@ -8,7 +8,6 @@ import InputNumber from 'primevue/inputnumber';
 import Select from 'primevue/select';
 import MultiSelect from 'primevue/multiselect';
 import Checkbox from 'primevue/checkbox';
-import ToggleSwitch from 'primevue/toggleswitch';
 import Message from 'primevue/message';
 import { useToast } from 'primevue/usetoast';
 import type { AiDetectionResult, AttachmentRef, BenchmarkState, Id, TextTask, TextTaskResult } from '@monolith/contracts';
@@ -151,7 +150,7 @@ const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${Math.round
         <div class="mh-row end"><Button :label="t(`studio.text.tasks.${text.task}`)" icon="pi pi-play" :loading="text.busy" :disabled="!text.source.trim()" @click="runText" /></div>
       </template>
 
-      <!-- Images et vision -->
+      <!-- Images -->
       <template v-else-if="uiState.studio.tab === 'images'">
         <div class="mh-row wrap bar">
           <TargetPicker :provider-id="studio.imageProviderId" :model="studio.imageModel" :empty-label="t('studio.images.none')" :filter="(k) => k === 'openai-compatible' || k === 'gemini'" @change="(v) => saveStudio({ imageProviderId: v.providerId, imageModel: v.model })" />
@@ -168,12 +167,6 @@ const fmt = (n: number | null, unit = '') => (n === null ? '—' : `${Math.round
             </figcaption>
           </figure>
         </div>
-        <h3 class="mh-section-title">{{ t('studio.images.vision') }}</h3>
-        <div class="mh-switch-row">
-          <p class="mh-hint">{{ t('studio.images.visionHint') }}</p>
-          <ToggleSwitch :model-value="studio.visionFallback" :aria-label="t('studio.images.vision')" @update:model-value="(v: boolean) => saveStudio({ visionFallback: v })" />
-        </div>
-        <TargetPicker :provider-id="studio.visionProviderId" :model="studio.visionModel" :empty-label="t('studio.images.visionModel')" @change="(v) => saveStudio({ visionProviderId: v.providerId, visionModel: v.model })" />
       </template>
 
       <AssetsView v-else-if="uiState.studio.tab === 'assets'" />

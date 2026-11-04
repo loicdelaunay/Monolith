@@ -35,7 +35,7 @@ import { ToolRegistry } from './tools/registry.ts';
 import { BUILTIN_TOOLS } from './tools/builtin.ts';
 import { TerminalManager } from './tools/terminals.ts';
 import { LoopGate, ProposalService, QuestionBroker } from './tools/interactions.ts';
-import type { ActionProposal, GitStatusInfo, Message, MessagePart } from '@monolith/contracts';
+import type { ActionProposal, ConversationAttention, GitStatusInfo, Message, MessagePart } from '@monolith/contracts';
 import { GIT_TOOLS, gitFileVersions, gitStatus, hasGit, repoRoot, runGit } from './tools/git.ts';
 import { browserTools, type HostBridge } from './tools/browser.ts';
 import { desktopTools } from './desktop/input.ts';
@@ -268,6 +268,10 @@ export class Harness {
     this.questions = new QuestionBroker(this.events);
     this.loopGate = new LoopGate(this.events);
     this.proposals = new ProposalService(this.db, this.events);
+    // Ce qui attend l'utilisateur : calculé à la demande, signalé à chaque changement.
+    this.conversations.attentionOf = (id) => this.attentionOf(id);
+    const signalAttention = ({ conversationId }: { conversationId: Id }) => this.events.emit('conversation.attention', { conversationId, attention: this.attentionOf(conversationId) });
+    for (const event of ['permission.requested', 'permission.resolved', 'question.requested', 'question.resolved', 'loop.detected', 'loop.resolved', 'proposals.changed'] as const) this.events.on(event, signalAttention);
     this.generation = new GenerationRunner({
       events: this.events,
       logger: this.logger,
@@ -468,6 +472,13 @@ export class Harness {
    * Proposition d'action : déclenchable une seule fois, sans permission supplémentaire.
    * La consigne part comme un message ordinaire (file d'attente si une génération est en cours).
    */
+  private attentionOf(id: Id): ConversationAttention | null {
+    if (this.permissions.listPending().some((r) => r.conversationId === id)) return 'permission';
+    if (this.questions.has(id)) return 'question';
+    if (this.loopGate.has(id)) return 'loop';
+    return this.proposals.hasOpen(id) ? 'proposals' : null;
+  }
+
   private async triggerAction(conversationId: Id, messageId: Id, callId: string, actionId: string): Promise<{ conversationId: Id }> {
     const message: Message = this.messages.get(messageId);
     if (message.conversationId !== conversationId) throw new HarnessError('invalid_argument', 'Message d’une autre conversation');

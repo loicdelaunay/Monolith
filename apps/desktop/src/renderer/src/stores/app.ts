@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, triggerRef, type ShallowRef } from 'vue';
-import type { AppInfo, Compaction, Conversation, FileProposal, LoopReport, PermissionRequest, MessageTemplate, QueuedInput, GenerationState, Id, Message, MessageDelta, Project, Provider, ProviderPreset, Settings, UpdateState } from '@monolith/contracts';
+import type { AppInfo, Compaction, Conversation, FileProposal, LoopReport, PermissionRequest, MessageTemplate, QueuedInput, GenerationState, Id, Message, MessageDelta, Project, Provider, ProviderPreset, Settings, UpdateState, ConversationAttention } from '@monolith/contracts';
 import { api, host } from '../api.ts';
 import type { RendererInfo } from '../../../shared/bridge.ts';
 
@@ -56,6 +56,12 @@ export function conversationsIn(projectId: Id | null, includeArchived: boolean):
 }
 
 /** Sous-conversations des agents délégués par une conversation, dans l'ordre de création. */
+/** Ce qui attend l'utilisateur dans cette conversation ou l'un de ses sous-agents. */
+export function attentionOf(id: Id): ConversationAttention | null {
+  const own = store.conversations.get(id)?.attention ?? null;
+  return own ?? subagentsOf(id).map((c) => attentionOf(c.id)).find((a) => a) ?? null;
+}
+
 export function subagentsOf(parentId: Id): Conversation[] {
   return [...store.conversations.values()].filter((c) => c.parentId === parentId).sort((a, b) => a.id - b.id);
 }
@@ -164,6 +170,10 @@ function wireEvents(): void {
     store.loopReports = store.loopReports.filter((r) => r.conversationId !== conversationId);
   });
   api.on('proposals.changed', ({ conversationId, proposals }) => store.proposals.set(conversationId, proposals));
+  api.on('conversation.attention', ({ conversationId, attention }) => {
+    const c = store.conversations.get(conversationId);
+    if (c) c.attention = attention;
+  });
   api.on('generation.state', (state) => {
     if (state.status === 'finished') store.generations.delete(state.conversationId);
     else store.generations.set(state.conversationId, state);

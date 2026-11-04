@@ -8,7 +8,7 @@ import {
   type ConversationPatch,
   type Id,
   type ReasoningLevel,
-  type SearchHit, type ConversationBudget } from '@monolith/contracts';
+  type SearchHit, type ConversationBudget, type ConversationAttention } from '@monolith/contracts';
 import { bool, json, type Database } from '../storage/database.ts';
 import type { EventBus } from '../events.ts';
 import { now } from '../util.ts';
@@ -50,6 +50,8 @@ const MAX_DRAFT = 2_000_000;
 export class ConversationService {
   /** Fourni par le moteur de génération pour exposer l'état `generating`. */
   isGenerating: (id: Id) => boolean = () => false;
+  /** Fourni par le moteur : ce qui attend l'utilisateur dans la conversation. */
+  attentionOf: (id: Id) => ConversationAttention | null = () => null;
 
   constructor(
     private readonly db: Database,
@@ -305,6 +307,7 @@ export class ConversationService {
       updatedAt: r.updated_at,
       lastMessageAt: r.last_message_at,
       generating: this.isGenerating(r.id),
+      attention: this.attentionOf(r.id),
     };
   }
 }

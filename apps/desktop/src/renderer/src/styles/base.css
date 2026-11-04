@@ -115,6 +115,41 @@ select {
   color: var(--mh-accent);
 }
 
+/* Petite action des blocs posés sur la zone de saisie (plan, file d'attente, propositions). */
+.mh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  border: 1px solid var(--mh-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mh-muted);
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--mh-transition), color var(--mh-transition);
+}
+.mh-pill .pi {
+  font-size: 11px;
+}
+.mh-pill:hover {
+  background: var(--mh-hover);
+  color: var(--mh-text);
+}
+.mh-pill.accent {
+  border-color: color-mix(in srgb, var(--mh-accent) 45%, var(--mh-border));
+  color: var(--mh-accent);
+}
+.mh-pill.accent:hover {
+  background: color-mix(in srgb, var(--mh-accent) 10%, transparent);
+}
+.mh-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .mh-muted {
   color: var(--mh-muted);
 }

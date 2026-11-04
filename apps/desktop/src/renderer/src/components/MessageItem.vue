@@ -10,6 +10,7 @@ import AttachmentChip from './AttachmentChip.vue';
 import ToolCallBubble from './tools/ToolCallBubble.vue';
 import PlanHistory from './PlanHistory.vue';
 import ActivityBody from './ActivityBody.vue';
+import ErrorBlock from './ErrorBlock.vue';
 
 const props = defineProps<{ message: Message; busy?: boolean }>();
 const emit = defineEmits<{ resume: []; fork: [] }>();
@@ -57,10 +58,6 @@ async function copy() {
   copied.value = true;
   setTimeout(() => (copied.value = false), 1200);
 }
-const errorTitle = computed(() => {
-  const code = props.message.error?.code;
-  return code && te(`errors.${code}`) ? t(`errors.${code}`) : t('chat.status.error');
-});
 /** Plan publié par l'agent : affiché épinglé au-dessus de la zone de saisie, pas dans le fil (sauf échec). */
 const pinnedPlan = (call: { name: string; status: string; display: { kind: string } | null }) => call.name === 'update_plan' && call.status === 'done' && call.display?.kind === 'plan';
 /** Dernière version du plan de cette réponse, si toutes ses étapes sont faites : gardée dans le fil comme historique. */
@@ -193,15 +190,7 @@ function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
           <span>{{ retryInfo }}</span>
         </div>
 
-        <div v-if="message.error" class="error" role="alert">
-          <i class="pi pi-times-circle" />
-          <div>
-            <strong>{{ errorTitle }}</strong>
-            <span v-if="message.error.status"> (HTTP {{ message.error.status }})</span>
-            <div class="error-detail">{{ message.error.message }}</div>
-            <div v-if="message.error.attempts && message.error.attempts > 1" class="mh-hint">{{ t('chat.attempts', { count: message.error.attempts }) }}</div>
-          </div>
-        </div>
+        <ErrorBlock v-if="message.error" :message="message" />
       </div>
 
       <footer v-if="!streaming" class="meta">
@@ -390,24 +379,6 @@ function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
   width: 14px !important;
   height: 14px !important;
   margin: 0;
-}
-.error {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--mh-danger) 40%, var(--mh-border));
-  background: color-mix(in srgb, var(--mh-danger) 8%, transparent);
-  border-radius: var(--mh-radius);
-  font-size: 13.5px;
-}
-.error .pi {
-  color: var(--mh-danger);
-  margin-top: 2px;
-}
-.error-detail {
-  color: var(--mh-muted);
-  margin-top: 2px;
-  overflow-wrap: anywhere;
 }
 .meta {
   display: flex;

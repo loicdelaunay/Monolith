@@ -29,7 +29,7 @@ export function studioTools(studio: () => StudioService, assets: () => AssetServ
       name: 'describe_image',
       family: 'vision',
       skill: 'vision',
-      description: 'Décrit une image des ressources (PNG, JPEG, WebP, GIF) avec le modèle de vision configuré : contenu et texte visible.',
+      description: 'Fait décrire une image des ressources (PNG, JPEG, WebP, GIF) par le modèle de vision de secours : contenu et texte visible. Inutile pour une image jointe si votre modèle accepte les images.',
       parameters: obj({ path: { type: 'string' }, question: { type: 'string' } }, ['path']),
       effects: ['read', 'network'],
       target: (a) => ({ label: str(a, 'path', false), resources: [str(a, 'path', false)] }),

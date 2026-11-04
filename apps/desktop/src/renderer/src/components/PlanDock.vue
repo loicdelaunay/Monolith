@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Conversation, PlanItem } from '@monolith/contracts';
 import { messagesOf } from '../stores/app.ts';
+import DockSection from './DockSection.vue';
 
 /**
  * Plan de travail de l'agent, épinglé au-dessus de la zone de saisie (au lieu de cartes répétées
@@ -31,8 +32,10 @@ const total = computed(() => latest.value?.items.length ?? 0);
 const finished = computed(() => total.value > 0 && done.value === total.value);
 const active = computed(() => latest.value?.items.find((i) => i.status === 'in_progress') ?? null);
 
+/** Étape en cours : animée pendant la génération seulement, en pause sinon. */
+const stepIcon = (status: PlanItem['status']) => (status === 'done' ? 'pi-check-circle' : status === 'pending' ? 'pi-circle' : props.conversation.generating ? 'pi-spinner-dotted' : 'pi-pause-circle');
+
 // Masqué par l'utilisateur jusqu'à la prochaine mise à jour du plan.
-const collapsed = ref(false);
 const dismissed = ref<string | null>(null);
 watch(
   () => latest.value?.id,
@@ -42,87 +45,24 @@ const visible = computed(() => !!latest.value && !finished.value && dismissed.va
 </script>
 
 <template>
-  <div v-if="visible && latest" class="wrap">
-  <section class="dock" :aria-label="t('plan.title')">
-    <header>
-      <button type="button" class="toggle" :aria-expanded="!collapsed" @click="collapsed = !collapsed">
-        <i class="pi pi-list-check" />
-        <strong>{{ t('plan.title') }}</strong>
-        <span class="count" :class="{ ok: finished }">{{ t('plan.progress', { done, total }) }}</span>
-        <span v-if="collapsed && active" class="now">— {{ active.text }}</span>
-        <i class="pi caret" :class="collapsed ? 'pi-angle-up' : 'pi-angle-down'" />
-      </button>
-      <button type="button" class="mh-icon-btn small" :aria-label="t('plan.hide')" v-tooltip.top="t('plan.hide')" @click="dismissed = latest.id"><i class="pi pi-times" /></button>
-    </header>
-    <ol v-if="!collapsed" class="items">
+  <DockSection v-if="visible && latest" icon="pi-list-check" :title="t('plan.title')" :count="t('plan.progress', { done, total })" :summary="active?.text">
+    <template #actions>
+      <button type="button" class="mh-icon-btn" :aria-label="t('plan.hide')" v-tooltip.top="t('plan.hide')" @click="dismissed = latest.id"><i class="pi pi-times" /></button>
+    </template>
+    <ol class="items" :class="{ live: conversation.generating }">
       <li v-for="(item, i) in latest.items" :key="i" :class="item.status">
-        <i class="pi" :class="item.status === 'done' ? 'pi-check-circle' : item.status === 'in_progress' ? 'pi-spinner-dotted' : 'pi-circle'" />
+        <i class="pi" :class="stepIcon(item.status)" />
         <span>{{ item.text }}</span>
       </li>
     </ol>
-  </section>
-  </div>
+  </DockSection>
 </template>
 
 <style scoped>
-.wrap {
-  padding: 0 34px;
-}
-.dock {
-  max-width: 860px;
-  margin: 0 auto -1px;
-  padding: 6px 12px 8px;
-  border: 1px solid color-mix(in srgb, var(--mh-border) 60%, transparent);
-  border-bottom: 0;
-  border-radius: 14px 14px 0 0;
-  background: color-mix(in srgb, var(--mh-text) 3%, var(--mh-surface));
-  font-size: 13px;
-}
-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.toggle {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  padding: 4px 2px;
-  text-align: left;
-  cursor: pointer;
-}
-.toggle .pi-list-check {
-  color: var(--mh-accent);
-}
-.count {
-  color: var(--mh-muted);
-  font-variant-numeric: tabular-nums;
-}
-.count.ok {
-  color: var(--mh-success);
-}
-.now {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--mh-muted);
-}
-.caret {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--mh-muted);
-}
 .items {
   list-style: none;
-  margin: 2px 0 0;
-  padding: 0 2px;
-  max-height: 180px;
-  overflow: auto;
+  margin: 0;
+  padding: 0;
 }
 .items li {
   display: flex;
@@ -145,7 +85,7 @@ header {
   color: var(--mh-accent);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .items li.in_progress .pi {
+  .items.live li.in_progress .pi {
     animation: spin 2.4s linear infinite;
   }
 }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ProgressSpinner from 'primevue/progressspinner';
 import type { Conversation } from '@monolith/contracts';
-import { openConversation, store, subagentsOf } from '../stores/app.ts';
+import { attentionOf, openConversation, store, subagentsOf } from '../stores/app.ts';
+import ConversationStatus from './ConversationStatus.vue';
 
 /**
  * Sous-conversations des agents délégués, sous leur conversation parente dans la barre latérale :
@@ -12,7 +12,8 @@ import { openConversation, store, subagentsOf } from '../stores/app.ts';
 const props = defineProps<{ parent: Conversation; depth?: number }>();
 const { t } = useI18n();
 const children = computed(() => subagentsOf(props.parent.id));
-const busy = computed(() => children.value.some((c) => c.generating));
+const busy = computed(() => children.value.some((c) => c.generating || attentionOf(c.id)));
+const busyChild = computed(() => children.value.find((c) => attentionOf(c.id)) ?? children.value.find((c) => c.generating) ?? null);
 const containsActive = computed(() => {
   const seek = (id: number): boolean => subagentsOf(id).some((c) => c.id === store.activeId || seek(c.id));
   return seek(props.parent.id);
@@ -27,7 +28,7 @@ watch([busy, containsActive], ([b, a]) => (b || a) && (open.value = true), { imm
       <i class="pi chevron" :class="open ? 'pi-angle-down' : 'pi-angle-right'" />
       <i class="pi pi-sitemap" />
       <span>{{ t('sidebar.subagents', { n: children.length }) }}</span>
-      <ProgressSpinner v-if="busy && !open" class="spin" stroke-width="6" :aria-label="t('conversation.generating')" />
+      <ConversationStatus v-if="busyChild && !open" :conversation="busyChild" />
     </button>
     <ul v-if="open">
       <li v-for="c in children" :key="c.id">
@@ -35,7 +36,7 @@ watch([busy, containsActive], ([b, a]) => (b || a) && (open.value = true), { imm
           <i class="pi pi-user" />
           <span v-if="c.role" class="role">{{ c.role }}</span>
           <span class="title">{{ c.title }}</span>
-          <ProgressSpinner v-if="c.generating" class="spin" stroke-width="6" :aria-label="t('conversation.generating')" />
+          <ConversationStatus :conversation="c" />
         </button>
         <SubagentRows :parent="c" :depth="(depth ?? 0) + 1" />
       </li>
@@ -96,11 +97,5 @@ ul {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.spin {
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-  flex-shrink: 0;
 }
 </style>
