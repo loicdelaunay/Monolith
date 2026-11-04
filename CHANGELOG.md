@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.35 — 2026-11-04
 
 - **Action en attente signalée en orange** : quand une conversation attend une réponse (question, autorisation, décision après une boucle, propositions à traiter), un point d'exclamation orange remplace l'indicateur de progression dans la barre latérale, y compris sur la conversation parente d'un sous-agent. La raison s'affiche au survol.
 - **L'IA peut modifier ses propositions** : en mode Proposition, une nouvelle écriture sur un fichier met à jour la proposition en attente au lieu d'en créer une seconde. `read_file` montre le contenu proposé et le nouvel outil `list_proposals` liste celles en attente. Une proposition revenue à l'état d'origine du fichier est retirée ; si le fichier a changé sur le disque, elle repart de sa version actuelle.
