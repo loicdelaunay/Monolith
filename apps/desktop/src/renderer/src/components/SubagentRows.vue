@@ -13,7 +13,6 @@ const props = defineProps<{ parent: Conversation; depth?: number }>();
 const { t } = useI18n();
 const children = computed(() => subagentsOf(props.parent.id));
 const busy = computed(() => children.value.some((c) => c.generating || attentionOf(c.id)));
-const busyChild = computed(() => children.value.find((c) => attentionOf(c.id)) ?? children.value.find((c) => c.generating) ?? null);
 const containsActive = computed(() => {
   const seek = (id: number): boolean => subagentsOf(id).some((c) => c.id === store.activeId || seek(c.id));
   return seek(props.parent.id);
@@ -28,7 +27,7 @@ watch([busy, containsActive], ([b, a]) => (b || a) && (open.value = true), { imm
       <i class="pi chevron" :class="open ? 'pi-angle-down' : 'pi-angle-right'" />
       <i class="pi pi-sitemap" />
       <span>{{ t('sidebar.subagents', { n: children.length }) }}</span>
-      <ConversationStatus v-if="busyChild && !open" :conversation="busyChild" />
+      <ConversationStatus v-if="busy && !open" :conversations="children" />
     </button>
     <ul v-if="open">
       <li v-for="c in children" :key="c.id">
@@ -36,7 +35,7 @@ watch([busy, containsActive], ([b, a]) => (b || a) && (open.value = true), { imm
           <i class="pi pi-user" />
           <span v-if="c.role" class="role">{{ c.role }}</span>
           <span class="title">{{ c.title }}</span>
-          <ConversationStatus :conversation="c" />
+          <ConversationStatus :conversations="[c]" />
         </button>
         <SubagentRows :parent="c" :depth="(depth ?? 0) + 1" />
       </li>

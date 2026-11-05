@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it';
 import { ref } from 'vue';
 import type { HighlighterCore } from 'shiki/core';
+import { i18n } from '../i18n.ts';
 
 /**
  * Rendu Markdown incrémental : le texte est découpé en blocs de premier niveau ; chaque bloc
@@ -8,6 +9,7 @@ import type { HighlighterCore } from 'shiki/core';
  * HTML brut désactivé : le contenu du modèle est une donnée non fiable.
  */
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false, typographer: false });
+const translator = i18n.global as unknown as { t: (key: string) => string };
 
 // Liens : jamais ouverts dans la fenêtre ; l'interface intercepte le clic (http/https uniquement).
 const defaultLinkOpen = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
@@ -18,7 +20,7 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 };
 
 /** Options de rendu enrichi (réglages « Rendu enrichi »). */
-export const renderOptions = { latex: true, mermaid: true, htmlPreview: true, fileBadges: true };
+export const renderOptions = { latex: true, mermaid: true, htmlPreview: true, interactiveHtml: true, fileBadges: true };
 
 export function setRenderOptions(next: typeof renderOptions): void {
   if (Object.entries(next).every(([k, v]) => renderOptions[k as keyof typeof renderOptions] === v)) return;
@@ -27,9 +29,25 @@ export function setRenderOptions(next: typeof renderOptions): void {
   highlightVersion.value++;
 }
 
-md.renderer.rules.fence = (tokens, idx) => {
+/** Clôture reçue ? Un bloc encore en cours d'écriture n'est pas exécuté. */
+function fenceClosed(token: { map: [number, number] | null; markup: string }, lines: string[]): boolean {
+  const [start, end] = token.map ?? [0, 0];
+  const last = lines[end - 1]?.replace(/^[\s>]+/, '').trimEnd() ?? '';
+  return end - start >= 2 && last.length >= token.markup.length && [...last].every((c) => c === token.markup[0]);
+}
+
+/** Bloc interactif : le code reste dans la page (repli) ; rich-render.ts le remplace par son cadre isolé. */
+function renderWidget(code: string, title: string, closed: boolean): string {
+  const source = closed ? ` data-widget="${escapeHtml(code)}"` : '';
+  const pending = closed ? '' : `<div class="mh-widget-pending" role="status"><i class="pi pi-spin pi-spinner"></i><span>${escapeHtml(translator.t('render.widgetWriting'))}</span></div>`;
+  return `<div class="mh-widget${closed ? '' : ' pending'}" data-title="${escapeHtml(title)}"${source}>${pending}${renderCode(code, 'widget')}</div>`;
+}
+
+md.renderer.rules.fence = (tokens, idx, _options, env) => {
   const token = tokens[idx]!;
-  const lang = token.info.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  const [first = '', ...rest] = token.info.trim().split(/\s+/);
+  const lang = first.toLowerCase();
+  if (lang === 'widget' && renderOptions.interactiveHtml) return renderWidget(token.content, rest.join(' '), fenceClosed(token, (env as { lines: string[] }).lines));
   // Diagramme : le code reste dans la page (repli) ; MarkdownView le remplace par le SVG rendu.
   if (lang === 'mermaid' && renderOptions.mermaid) return `<div class="mh-mermaid" data-mermaid="${encodeURIComponent(token.content)}">${renderCode(token.content, lang)}</div>`;
   return renderCode(token.content, lang);
@@ -155,7 +173,7 @@ async function getHighlighter(): Promise<HighlighterCore> {
   return highlighterLoading;
 }
 
-const ALIASES: Record<string, string> = { js: 'javascript', ts: 'typescript', py: 'python', sh: 'bash', shell: 'bash', zsh: 'bash', ps1: 'powershell', ps: 'powershell', yml: 'yaml', md: 'markdown', 'c++': 'cpp', cs: 'csharp', rs: 'rust', kt: 'kotlin', rb: 'ruby', vue: 'vue', html: 'html', jsonc: 'jsonc' };
+const ALIASES: Record<string, string> = { js: 'javascript', ts: 'typescript', py: 'python', sh: 'bash', shell: 'bash', zsh: 'bash', ps1: 'powershell', ps: 'powershell', yml: 'yaml', md: 'markdown', 'c++': 'cpp', cs: 'csharp', rs: 'rust', kt: 'kotlin', rb: 'ruby', vue: 'vue', html: 'html', widget: 'html', jsonc: 'jsonc' };
 
 async function ensureLang(lang: string): Promise<void> {
   if (loadedLangs.has(lang) || loadingLangs.has(lang) || unknownLangs.has(lang)) return;
@@ -209,7 +227,7 @@ function clearCache() {
 export function renderBlock(block: string): string {
   let html = cache.get(block);
   if (html === undefined) {
-    html = md.render(block);
+    html = md.render(block, { lines: block.split('\n') });
     if (cache.size > 800) cache.delete(cache.keys().next().value!);
     cache.set(block, html);
   }

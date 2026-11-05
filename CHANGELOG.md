@@ -2,6 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Blocs interactifs dans le chat** : l'IA peut écrire dans sa réponse un bloc HTML, CSS et JavaScript utilisable directement, dans tous les modes (Chat, Plan, Proposition, Exécution), avec Tailwind CSS et Chart.js déjà inclus. Le bloc tourne dans un cadre isolé : aucun réseau, aucun accès aux fichiers ni à l'application. Il démarre dès qu'il est terminé, même si la réponse continue, et peut être relancé ou affiché en code. Option **Blocs HTML interactifs dans les réponses** dans Réglages › Chat, activée par défaut.
+- **Barre latérale** : quand une action attend l'utilisateur alors que le modèle continue (propositions à traiter, sous-agent bloqué pendant que d'autres travaillent), le cercle de progression et l'exclamation orange s'affichent ensemble. Si le modèle est réellement arrêté par une question ou une autorisation, l'exclamation reste seule.
+
 ## 3.0.0-alpha.35 — 2026-11-04
 
 - **Action en attente signalée en orange** : quand une conversation attend une réponse (question, autorisation, décision après une boucle, propositions à traiter), un point d'exclamation orange remplace l'indicateur de progression dans la barre latérale, y compris sur la conversation parente d'un sous-agent. La raison s'affiche au survol.

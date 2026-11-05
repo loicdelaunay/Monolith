@@ -127,6 +127,8 @@ export interface Settings {
     latex: boolean;
     /** Aperçus interactifs isolés des blocs HTML. */
     htmlPreview: boolean;
+    /** Blocs HTML/CSS/JS écrits par le modèle, exécutés dans un cadre isolé du chat. */
+    interactiveHtml: boolean;
     /** Badges de fichiers vérifiés pour les chemins cités. */
     fileBadges: boolean;
   };
@@ -359,6 +361,7 @@ export const DEFAULT_SETTINGS: Settings = {
     mermaid: true,
     latex: true,
     htmlPreview: true,
+    interactiveHtml: true,
     fileBadges: true,
   },
   local: {

@@ -4,11 +4,12 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import type { Id } from '@monolith/contracts';
 import { api, host } from '../api.ts';
 import { highlightVersion, renderBlock, splitBlocks } from '../lib/markdown.ts';
-import { decorateFileBadges, renderMermaid } from '../lib/rich-render.ts';
+import { decorateFileBadges, reloadWidget, renderMermaid, renderWidgets } from '../lib/rich-render.ts';
 import { store } from '../stores/app.ts';
 import { uiState } from '../ui-state.ts';
 
-const props = defineProps<{ text: string; conversationId?: Id }>();
+/** interactive : blocs `widget` exécutés (réponses du modèle uniquement, jamais un fichier prévisualisé). */
+const props = defineProps<{ text: string; conversationId?: Id; interactive?: boolean; streaming?: boolean }>();
 const root = ref<HTMLElement | null>(null);
 
 /**
@@ -30,8 +31,20 @@ function enhance() {
     if (props.conversationId !== undefined) void decorateFileBadges(root.value, props.conversationId);
   }, 350);
 }
-onMounted(enhance);
-watch(blocks, () => void nextTick(enhance));
+/** Sans délai : un bloc terminé devient utilisable même si la réponse continue de s'écrire. */
+function activateWidgets() {
+  if (props.interactive && root.value) renderWidgets(root.value);
+}
+onMounted(() => {
+  activateWidgets();
+  enhance();
+});
+watch(blocks, () =>
+  void nextTick(() => {
+    activateWidgets();
+    enhance();
+  }),
+);
 
 /** Diagramme agrandi dans la visionneuse (bouton loupe ou double-clic sur le diagramme). */
 function openDiagram(from: HTMLElement) {
@@ -108,6 +121,16 @@ async function onClick(e: MouseEvent) {
     toggle.closest('.mh-mermaid')?.classList.toggle('show-code');
     return;
   }
+  const reload = target.closest<HTMLElement>('[data-widget-reload]');
+  if (reload) {
+    reloadWidget(reload);
+    return;
+  }
+  const widgetCode = target.closest<HTMLElement>('[data-widget-toggle]');
+  if (widgetCode) {
+    widgetCode.closest('.mh-widget')?.classList.toggle('show-code');
+    return;
+  }
   const badge = target.closest<HTMLElement>('.mh-file-badge');
   if (badge?.dataset.file && badge.dataset.type === 'directory') {
     await host.showItemInFolder(badge.dataset.file);
@@ -128,7 +151,7 @@ async function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
+  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers, streaming }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
     <div v-for="(html, i) in blocks" :key="i" class="mh-md-block" v-html="html" />
   </div>
 </template>

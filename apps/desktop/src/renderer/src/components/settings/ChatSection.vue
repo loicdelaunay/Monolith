@@ -97,6 +97,13 @@ function setProvider(id: number | null) {
     <ToggleSwitch :input-id="`render-${k}`" v-model="draft.render[k]" />
   </div>
   <p class="mh-hint">{{ t('settings.chat.renderHint') }}</p>
+  <div class="mh-switch-row">
+    <div class="text">
+      <label for="render-interactive">{{ t('settings.chat.interactiveHtml') }}</label>
+      <p class="mh-hint">{{ t('settings.chat.interactiveHtmlHint') }}</p>
+    </div>
+    <ToggleSwitch input-id="render-interactive" v-model="draft.render.interactiveHtml" />
+  </div>
 
   <h3 class="mh-section-title">{{ t('settings.chat.naming') }}</h3>
   <div class="mh-switch-row">

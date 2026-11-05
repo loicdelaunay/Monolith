@@ -1110,6 +1110,8 @@ export const fr = {
       htmlPreview: 'Aperçus isolés des blocs HTML et SVG',
       fileBadges: 'Badges pour les fichiers cités (vérifiés sur le disque)',
       renderHint: 'Les diagrammes et formules sont rendus localement, sans réseau ; un bloc invalide reste affiché comme code.',
+      interactiveHtml: 'Blocs HTML interactifs dans les réponses',
+      interactiveHtmlHint: 'L’IA peut insérer dans le chat, dans tous les modes, un bloc HTML, CSS et JavaScript à manipuler directement, avec Tailwind et Chart.js déjà inclus. Il tourne dans un cadre isolé, sans réseau ni accès aux fichiers ou à l’application. Désactivé, l’IA n’en propose plus et les blocs existants restent affichés comme code.',
     },
     appearance: {
       mode: 'Mode',
@@ -1486,6 +1488,10 @@ export const fr = {
     mermaidError: 'Diagramme Mermaid invalide',
     rendering: 'Rendu…',
     openFile: 'Ouvrir l’aperçu de {path}',
+    widget: 'Bloc interactif',
+    widgetWriting: 'Bloc interactif en cours d’écriture…',
+    widgetReload: 'Relancer',
+    widgetCode: 'Voir le code',
   },
   subagents: {
     title: 'Sous-agents',

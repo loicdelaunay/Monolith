@@ -1,6 +1,6 @@
 // Processus principal Electron : fenêtres, barre de titre, dialogues natifs et cycle de vie du
 // moteur. Aucune requête SQL ni aucun streaming ici : le moteur tourne dans un utilityProcess.
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, protocol, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { applyLaunch, readLaunch, writeLaunch } from './launch.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
@@ -8,10 +8,13 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { EngineHost } from './engine-host.ts';
 import { BrowserManager } from './browser.ts';
 import { installUpdate, runPendingUpdate } from './updater.ts';
+import { WIDGET_SCHEME, widgetResponse } from './widget-frame.ts';
 import type { RendererInfo } from '../shared/bridge.ts';
 
 const TITLE_BAR_HEIGHT = 40;
 const isDev = !app.isPackaged;
+
+protocol.registerSchemesAsPrivileged([{ scheme: WIDGET_SCHEME, privileges: { standard: true, secure: true } }]);
 
 /** Dossier de l'exécutable pour le mode portable ; null pour une installation (NSIS) ou en développement. */
 function portableExeDir(): string | null {
@@ -135,6 +138,11 @@ function createWindow(): BrowserWindow {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
+  // Blocs interactifs : un cadre du chat ne charge jamais de page web, et WebRTC n'échappe pas à leur politique réseau.
+  win.webContents.on('will-frame-navigate', (details) => {
+    if (!details.isMainFrame && !details.url.startsWith(`${WIDGET_SCHEME}:`) && !details.url.startsWith('about:')) details.preventDefault();
+  });
+  win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 
   if (process.env.MONOLITH_SMOKE_SHOT) smokeCapture(win, process.env.MONOLITH_SMOKE_SHOT);
 
@@ -378,6 +386,7 @@ if (!smoke && !app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     // Aucune permission web (caméra, micro, notifications…) n'est accordée à l'interface.
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    protocol.handle(WIDGET_SCHEME, (request) => widgetResponse(request.url));
     registerIpc();
     try {
       await engine.start();

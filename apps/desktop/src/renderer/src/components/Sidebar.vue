@@ -381,7 +381,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
                   <i v-if="c.pinned" class="pi pi-thumbtack flag" :aria-label="t('conversation.pin')" />
                   <i v-else-if="c.favorite" class="pi pi-star-fill flag fav" :aria-label="t('conversation.favorite')" />
                   <span class="conv-title">{{ c.title }}</span>
-                  <ConversationStatus :conversation="c" />
+                  <ConversationStatus :conversations="[c]" />
                 </button>
                 <button type="button" class="mh-icon-btn small more" :aria-label="t('sidebar.actions')" @click.stop="openMenu($event, conversationMenu(c))"><i class="pi pi-ellipsis-h" /></button>
               </div>
@@ -431,7 +431,7 @@ const projectTitle = (id: Id | null) => (id === null ? t('sidebar.personal') : (
                   <i v-if="c.pinned" class="pi pi-thumbtack flag" />
                   <i v-else-if="c.favorite" class="pi pi-star-fill flag fav" />
                   <span class="conv-title">{{ c.title }}</span>
-                  <ConversationStatus :conversation="c" />
+                  <ConversationStatus :conversations="[c]" />
                 </button>
                 <button type="button" class="mh-icon-btn small more" :aria-label="t('sidebar.actions')" @click.stop="openMenu($event, conversationMenu(c))"><i class="pi pi-ellipsis-h" /></button>
               </div>

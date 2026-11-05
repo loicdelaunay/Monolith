@@ -36,6 +36,23 @@ const AGENT_MODE: Record<AgentMode, string> = {
   execute: 'Mode Agent — Exécution : les outils agissent réellement sur les fichiers et le système, dans la limite des autorisations.',
 };
 
+/** Blocs interactifs : consigne valable dans tous les modes, le bloc fait partie du texte de la réponse. */
+export const INTERACTIVE_BLOCKS = [
+  'Blocs interactifs : l’interface exécute directement dans le chat les blocs de code de langage « widget », dans tous les modes (Chat, Plan, Proposition, Exécution) et sans outil. Ce n’est ni une modification de fichier ni une proposition.',
+  '```widget Titre court',
+  '<button id="plus" class="rounded-md bg-mh-accent px-3 py-1 text-mh-accent-text">+1</button>',
+  '<output id="total" class="ml-2 text-mh-muted">0</output>',
+  '<script>',
+  'let n = 0;',
+  'document.getElementById("plus").onclick = () => (document.getElementById("total").value = ++n);',
+  '</script>',
+  '```',
+  'Utilise-en un quand l’utilisateur le demande ou quand manipuler aide plus que lire (simulateur, calculateur, visualisation, quiz, mini-jeu), pas quand un texte ou un tableau suffit.',
+  'Tailwind CSS 4 (classes utilitaires, variante dark:) et Chart.js 4 (variable globale Chart) sont déjà chargés : utilise-les directement, sans balise pour les inclure. Avec Chart.js, garde maintainAspectRatio par défaut, ou mets le canvas dans un conteneur de hauteur fixe.',
+  'Le bloc est autonome : HTML, CSS et JavaScript en ligne. Aucune autre bibliothèque, aucun CDN, image distante ni requête réseau (tout est bloqué), aucun accès aux fichiers ni à l’application. alert, confirm et prompt sont sans effet ; rien n’est conservé après un rechargement.',
+  'Il s’exécute une fois sa clôture écrite et sa hauteur suit le contenu jusqu’à 640 px : évite h-screen, height: 100% et 100vh. Le fond est transparent. Couleurs du thème : classes text-mh-text, text-mh-muted, text-mh-accent-text, bg-mh-surface, bg-mh-hover, bg-mh-accent, border-mh-border, ou variables CSS var(--mh-text), var(--mh-muted), var(--mh-border), var(--mh-surface), var(--mh-hover), var(--mh-accent).',
+].join('\n');
+
 /** Instructions système : base, style, instructions globales, projet, objectif, résumé — dans cet ordre. */
 export function buildSystemPrompt(ctx: PromptContext): string {
   const sections: string[] = [

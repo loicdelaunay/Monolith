@@ -167,7 +167,7 @@ function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
               </template>
             </ActivityBody>
           </details>
-          <MarkdownView v-else-if="seg.part.type === 'text'" :text="seg.part.text" :conversation-id="message.conversationId" />
+          <MarkdownView v-else-if="seg.part.type === 'text'" :text="seg.part.text" :conversation-id="message.conversationId" interactive :streaming="streaming" />
           <PlanHistory v-else-if="seg.part.type === 'tool' && seg.part.call.id === finishedPlan?.id" :items="finishedPlan.items" />
           <ToolCallBubble v-else-if="seg.part.type === 'tool'" :call="seg.part.call" :conversation-id="message.conversationId" :message-id="message.id" />
           <div v-else-if="seg.part.type === 'notice'" class="notice" :class="seg.part.level" role="note">

@@ -1112,6 +1112,8 @@ export const en: Messages = {
       htmlPreview: 'Isolated previews of HTML and SVG blocks',
       fileBadges: 'Badges for cited files (checked on disk)',
       renderHint: 'Diagrams and formulas are rendered locally, without network; an invalid block stays shown as code.',
+      interactiveHtml: 'Interactive HTML blocks in replies',
+      interactiveHtmlHint: 'In every mode, the AI can insert an HTML, CSS and JavaScript block you use directly in the chat, with Tailwind and Chart.js built in. It runs in an isolated frame, with no network and no access to files or the application. When off, the AI stops offering them and existing blocks stay shown as code.',
     },
     appearance: {
       mode: 'Mode',
@@ -1488,6 +1490,10 @@ export const en: Messages = {
     mermaidError: 'Invalid Mermaid diagram',
     rendering: 'Rendering…',
     openFile: 'Open preview of {path}',
+    widget: 'Interactive block',
+    widgetWriting: 'Writing interactive block…',
+    widgetReload: 'Run again',
+    widgetCode: 'Show code',
   },
   subagents: {
     title: 'Subagents',

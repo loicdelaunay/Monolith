@@ -53,7 +53,7 @@ TypeScript strict partout. Les paquets internes sont consommés **en source** (e
 * **Main** reste léger : il ne fait jamais de SQL ni de streaming. Il crée la fenêtre, le moteur, et relie un `MessageChannelMain` entre renderer et moteur.
 * **Engine** exécute `@monolith/core`. Un blocage (gros calcul, SQL) n'affecte ni la fenêtre ni l'interface. Il redémarre proprement s'il plante (les générations en cours passent en état « interrompu »).
 * **Renderer** : `contextIsolation`, `sandbox`, pas de `nodeIntegration`, CSP stricte. Le preload n'expose que `invoke(method, params)`, `subscribe(event)` et quelques appels hôte nommés.
-* **Aperçus interactifs** (HTML produit par l'IA) : `iframe sandbox="allow-scripts"` servie depuis un protocole dédié `mh-preview://` sans preload, sans cookies, CSP sans réseau par défaut. Aucun accès aux fichiers, clés ou IPC.
+* **Blocs interactifs** (HTML, CSS et JavaScript écrits par l'IA dans le chat) : `iframe sandbox="allow-scripts allow-forms"` servie depuis le protocole dédié `monolith-widget://` (un `srcdoc` hériterait de la CSP de l'interface), sans preload ni cookies, origine opaque, CSP sans réseau. Seuls scripts chargeables : Tailwind et Chart.js, embarqués dans le processus principal. WebRTC et navigation du cadre bloqués au niveau de la fenêtre. Aucun accès aux fichiers, clés ou IPC.
 * **Navigateur intégré** : `WebContentsView` par onglet, partition persistante dédiée (`persist:browser`), suspendue lorsqu'elle est masquée.
 
 Le CLI exécute le moteur **dans le même processus** (pas de fenêtre à protéger). Le serveur l'exécute dans son processus et l'expose via HTTP/WebSocket.

@@ -72,6 +72,93 @@ export async function renderMermaid(root: HTMLElement): Promise<void> {
   }
 }
 
+// ---------- Blocs interactifs ----------
+/**
+ * Code écrit par le modèle, exécuté dans le cadre du protocole dédié (voir main/widget-frame.ts) : origine
+ * opaque, sans réseau. Seuls échanges avec le chat : le code envoyé au cadre, sa hauteur et ses erreurs.
+ */
+const WIDGET_URL = 'monolith-widget://frame/';
+const WIDGET_MIN_HEIGHT = 48;
+const WIDGET_MAX_HEIGHT = 640;
+const widgetFrames = new WeakMap<object, { frame: HTMLIFrameElement; html: string; error: HTMLElement }>();
+
+/**
+ * Thème de l'application et style de départ. Couche `mh` entre le reset de Tailwind (base) et ses classes
+ * (utilities) : elle survit au reset, cède aux classes et à tout CSS écrit par le bloc.
+ */
+function widgetStyle(): string {
+  const root = getComputedStyle(document.documentElement);
+  const vars = ['--mh-text', '--mh-muted', '--mh-border', '--mh-surface', '--mh-hover', '--mh-accent', '--mh-accent-text', '--mh-radius', '--mh-radius-sm'].map((name) => `${name}:${root.getPropertyValue(name).trim()}`);
+  return `@layer theme,base,mh,components,utilities;:root{${vars.join(';')};--mh-font:${getComputedStyle(document.body).fontFamily};color-scheme:${root.colorScheme}}@layer mh{html{background:transparent}body{margin:0;padding:12px;color:var(--mh-text);font:14px/1.5 var(--mh-font)}}`;
+}
+
+window.addEventListener('message', (e) => {
+  const target = e.source ? widgetFrames.get(e.source) : undefined;
+  const data = e.data as { mhWidget?: unknown; value?: unknown } | null;
+  if (!target || !data) return;
+  if (data.mhWidget === 'ready') (e.source as Window).postMessage({ mhWidget: 'render', html: target.html, style: widgetStyle(), dark: getComputedStyle(document.documentElement).colorScheme === 'dark' }, '*');
+  else if (data.mhWidget === 'height' && typeof data.value === 'number' && Number.isFinite(data.value)) target.frame.style.height = `${Math.min(WIDGET_MAX_HEIGHT, Math.max(WIDGET_MIN_HEIGHT, data.value))}px`;
+  else if (data.mhWidget === 'error' && typeof data.value === 'string') {
+    target.error.textContent = data.value.slice(0, 500);
+    target.error.hidden = false;
+  }
+});
+
+function mountWidget(box: HTMLElement, html: string, label: string): void {
+  const error = box.querySelector<HTMLElement>('.mh-widget-error')!;
+  error.hidden = true;
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.title = label;
+  frame.src = WIDGET_URL;
+  frame.style.colorScheme = getComputedStyle(document.documentElement).colorScheme;
+  error.before(frame);
+  widgetFrames.set(frame.contentWindow!, { frame, html, error });
+}
+
+/** Remplace les blocs `widget` complets par leur cadre isolé ; un bloc non fermé reste affiché comme code. */
+export function renderWidgets(root: HTMLElement): void {
+  for (const node of root.querySelectorAll<HTMLElement>('.mh-widget[data-widget]:not([data-rendered])')) {
+    node.dataset.rendered = '1';
+    const label = node.dataset.title || translator.t('render.widget');
+    const box = document.createElement('div');
+    box.className = 'mh-widget-box';
+    const head = document.createElement('div');
+    head.className = 'mh-widget-head';
+    const icon = document.createElement('i');
+    icon.className = 'pi pi-bolt';
+    const title = document.createElement('span');
+    title.textContent = label;
+    const button = (data: string, iconName: string, text: string) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset[data] = '1';
+      b.title = text;
+      b.setAttribute('aria-label', text);
+      b.innerHTML = `<i class="pi ${iconName}"></i>`;
+      return b;
+    };
+    head.append(icon, title, button('widgetReload', 'pi-refresh', translator.t('render.widgetReload')), button('widgetToggle', 'pi-code', translator.t('render.widgetCode')));
+    const error = document.createElement('div');
+    error.className = 'mh-widget-error';
+    error.setAttribute('role', 'alert');
+    box.append(head, error);
+    node.prepend(box);
+    node.classList.add('rendered');
+    mountWidget(box, node.dataset.widget ?? '', label);
+  }
+}
+
+/** Relance un bloc : nouveau cadre, état remis à zéro. */
+export function reloadWidget(from: HTMLElement): void {
+  const node = from.closest<HTMLElement>('.mh-widget');
+  const box = node?.querySelector<HTMLElement>('.mh-widget-box');
+  if (!node || !box) return;
+  box.querySelector('iframe')?.remove();
+  mountWidget(box, node.dataset.widget ?? '', node.dataset.title || translator.t('render.widget'));
+}
+
 // ---------- Badges de fichiers vérifiés ----------
 const refCache = new Map<string, { ref: FileReference; at: number }>();
 const MISSING_TTL = 10_000;

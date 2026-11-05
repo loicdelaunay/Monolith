@@ -1,6 +1,6 @@
 # Licences des dépendances
 
-Généré par `npm run licenses`. 246 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
+Généré par `npm run licenses`. 249 paquets regroupés dans les bundles. Texte complet : [THIRD-PARTY-LICENSES.txt](../THIRD-PARTY-LICENSES.txt).
 
 | Paquet | Version | Licence | Utilisé par |
 | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Généré par `npm run licenses`. 246 paquets regroupés dans les bundles. Texte
 | @intlify/message-compiler | 11.4.16 | MIT | desktop |
 | @intlify/shared | 11.4.16 | MIT | desktop |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | desktop |
+| @kurkle/color | 0.3.4 | MIT | desktop |
 | @lobehub/icons-static-svg | 1.95.1 | MIT | desktop |
 | @mermaid-js/parser | 2.0.1 | MIT | desktop |
 | @primeuix/styled | 0.7.4 | MIT | desktop |
@@ -39,6 +40,7 @@ Généré par `npm run licenses`. 246 paquets regroupés dans les bundles. Texte
 | @shikijs/themes | 4.5.0 | MIT | desktop |
 | @shikijs/types | 4.5.0 | MIT | desktop |
 | @shikijs/vscode-textmate | 10.1.0 | MIT | desktop |
+| @tailwindcss/browser | 4.3.4 | MIT | desktop |
 | @types/d3 | 7.4.3 | MIT | desktop |
 | @types/d3-array | 3.2.2 | MIT | desktop |
 | @types/d3-axis | 3.0.6 | MIT | desktop |
@@ -97,6 +99,7 @@ Généré par `npm run licenses`. 246 paquets regroupés dans les bundles. Texte
 | chalk | 6.0.1 | MIT | cli |
 | character-entities-html4 | 2.1.0 | MIT | desktop |
 | character-entities-legacy | 3.0.0 | MIT | desktop |
+| chart.js | 4.6.1 | MIT | desktop |
 | chevrotain | 13.2.0 | Apache-2.0 | desktop |
 | cli-boxes | 4.0.1 | MIT | cli |
 | cli-cursor | 4.0.0 | MIT | cli |

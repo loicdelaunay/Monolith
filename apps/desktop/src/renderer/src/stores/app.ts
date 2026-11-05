@@ -62,6 +62,17 @@ export function attentionOf(id: Id): ConversationAttention | null {
   return own ?? subagentsOf(id).map((c) => attentionOf(c.id)).find((a) => a) ?? null;
 }
 
+/** Attentes qui arrêtent le modèle tant que l'utilisateur n'a pas répondu (des propositions ne l'arrêtent pas). */
+const BLOCKING: readonly ConversationAttention[] = ['permission', 'question', 'loop'];
+
+/** Le modèle avance-t-il encore ? Une conversation qui ne fait qu'attendre des sous-agents bloqués n'avance pas. */
+export function progressing(id: Id): boolean {
+  const c = store.conversations.get(id);
+  if (!c?.generating || (c.attention && BLOCKING.includes(c.attention))) return false;
+  const running = subagentsOf(id).filter((s) => s.generating);
+  return running.length === 0 || running.some((s) => progressing(s.id));
+}
+
 export function subagentsOf(parentId: Id): Conversation[] {
   return [...store.conversations.values()].filter((c) => c.parentId === parentId).sort((a, b) => a.id - b.id);
 }

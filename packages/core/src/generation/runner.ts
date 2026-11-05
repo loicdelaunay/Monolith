@@ -60,7 +60,7 @@ import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
 import { redact } from '../security/redact.ts';
 import { decideRetry } from './retry.ts';
-import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, countImages, DEFAULT_MAX_IMAGES, estimateRequestTokens, imageLimitRejection, transcriptText, visibleOutput } from './prompt.ts';
+import { buildHistory, buildSystemPrompt, compactionCut, compactionLimit, countImages, DEFAULT_MAX_IMAGES, estimateRequestTokens, imageLimitRejection, INTERACTIVE_BLOCKS, transcriptText, visibleOutput } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
 import { estimateTokens, sleep } from '../util.ts';
 
@@ -516,6 +516,8 @@ export class GenerationRunner {
     if (ctx.conversation.parentId !== null) {
       out.push(`Tu es un sous-agent (rôle : ${ctx.conversation.role ?? 'général'}). Travaille uniquement sur la tâche confiée, sans demander de précisions sauf blocage, puis termine par un rapport final concis : résultat, fichiers concernés, points incertains.`);
     }
+    // Exécutés par l'interface de bureau ; le rapport d'un sous-agent n'est pas destiné à l'utilisateur.
+    if (s.render.interactiveHtml && this.deps.host === 'desktop' && ctx.conversation.parentId === null) out.push(INTERACTIVE_BLOCKS);
     // Skills intégrés imposés (/skill-<id>) : leurs outils sont proposés, le modèle doit s'en servir.
     for (const id of ctx.conversation.forcedSkills.filter((n) => this.isBuiltInSkill(n))) {
       const belongs = (t: ToolDefinition) => t.skill === id || !!t.alsoSkills?.includes(id);
