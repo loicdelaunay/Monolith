@@ -83,14 +83,18 @@ export class RagService {
     private readonly http: HttpClient,
     private readonly settings: () => Settings,
     /** Embeddings locaux (MiniLM multilingue). */
-    private readonly localAi: Pick<LocalAiService, 'embed'> | null = null,
+    private readonly localAi: Pick<LocalAiService, 'embed' | 'customEmbeddingId'> | null = null,
   ) {}
+
+  private localModel(): string {
+    return this.localAi?.customEmbeddingId() ?? LOCAL_EMBEDDING_MODEL;
+  }
 
   /** Identifiant du modèle d'embeddings des index (null : recherche lexicale seule). */
   private embeddingModel(): string | null {
     const r = this.settings().rag;
     const source = effectiveEmbeddings(r);
-    return source === 'local' ? LOCAL_EMBEDDING_MODEL : source === 'provider' ? r.embeddingModel : null;
+    return source === 'local' ? this.localModel() : source === 'provider' ? r.embeddingModel : null;
   }
 
   private files(root: string): string[] {
@@ -143,7 +147,7 @@ export class RagService {
     const source = effectiveEmbeddings(s);
     if (source === 'local') {
       if (!this.localAi) return null;
-      return { vectors: await this.localAi.embed(texts, signal), model: LOCAL_EMBEDDING_MODEL };
+      return { vectors: await this.localAi.embed(texts, signal), model: this.localModel() };
     }
     if (source !== 'provider' || s.embeddingProviderId === null || !s.embeddingModel) return null;
     const { conn } = await this.providers.connection(s.embeddingProviderId);

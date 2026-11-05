@@ -1,6 +1,6 @@
 // Faux Python pour les tests de l'IA locale : pip (crée le dossier cible), vérification des
 // dépendances, et ponts LANCET / embeddings au même protocole JSON que les vrais.
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -27,6 +27,7 @@ if (script.endsWith('lancet_bridge.py')) {
   });
 } else if (script.endsWith('minilm_bridge.py')) {
   if (!existsSync(join(folder, 'tokenizer.json'))) process.exit(3);
+  const unusable = readFileSync(join(folder, 'onnx', 'model_quantized.onnx')).toString('latin1', 0, 12) === 'inutilisable';
   reply({ ready: true });
   // Espace sémantique minuscule : synonymes français/anglais sur la même dimension.
   const AXES = [['facture', 'invoice', 'billing'], ['chat', 'cat', 'félin'], ['voiture', 'car'], ['météo', 'weather']];
@@ -38,7 +39,7 @@ if (script.endsWith('lancet_bridge.py')) {
   };
   createInterface({ input: process.stdin }).on('line', (line) => {
     const row = JSON.parse(line);
-    reply({ vectors: row.texts.map(vec), request_id: row.request_id });
+    reply(unusable ? { error: 'sortie inattendue', request_id: row.request_id } : { vectors: row.texts.map(vec), request_id: row.request_id });
   });
 } else {
   process.exit(2);

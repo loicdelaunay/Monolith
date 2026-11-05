@@ -110,7 +110,10 @@ async function send(mode: 'send' | 'queue' | 'steer' = generating.value ? 'queue
   try {
     clearTimeout(saveTimer);
     pendingDraft = null;
-    const r = await api.call('chat.send', { conversationId: props.conversation.id, input: { text: text.value, attachmentIds: attachments.value.map((a) => a.id), mode } });
+    // « /canvas <demande> » : impose le mode Canvas et envoie la demande, sans la commande.
+    const canvas = canvasAvailable.value ? /^\/canvas\s+(\S[\s\S]*)$/.exec(text.value) : null;
+    if (canvas && !props.conversation.canvas) await api.call('conversations.update', { id: props.conversation.id, patch: { canvas: true } });
+    const r = await api.call('chat.send', { conversationId: props.conversation.id, input: { text: canvas?.[1] ?? text.value, attachmentIds: attachments.value.map((a) => a.id), mode } });
     text.value = '';
     attachments.value = [];
     pendingDraft = null;
@@ -186,6 +189,9 @@ function toggleSkill(name: string) {
   return patchConversation({ forcedSkills: next }, forced ? t('composer.slash.skillOff', { name }) : t('composer.slash.skillOn', { name }));
 }
 
+/** Canvas : repose sur les blocs interactifs, indisponible quand leur réglage est coupé. */
+const canvasAvailable = computed(() => store.settings?.render.interactiveHtml ?? true);
+
 const COMMANDS = computed<SlashCommand[]>(() => [
   { name: 'compact', icon: 'pi-compress', run: () => actions.compact(props.conversation.id) },
   { name: 'export', icon: 'pi-download', run: () => actions.exportMarkdown(props.conversation.id, false) },
@@ -227,6 +233,16 @@ const COMMANDS = computed<SlashCommand[]>(() => [
         ? patchConversation({ orchestration: false }, t('composer.slash.orchestrationDisabled'))
         : patchConversation({ orchestration: true, mode: 'agent', ...(props.conversation.mode === 'chat' ? { agentMode: 'propose' as const } : {}) }, t('composer.slash.orchestrationEnabled')),
   },
+  ...(canvasAvailable.value
+    ? [
+        {
+          name: 'canvas',
+          icon: 'pi-palette',
+          hint: props.conversation.canvas ? t('composer.slash.canvasOff') : t('composer.slash.canvasOn'),
+          run: () => patchConversation({ canvas: !props.conversation.canvas }, props.conversation.canvas ? t('composer.slash.canvasDisabled') : t('composer.slash.canvasEnabled')),
+        },
+      ]
+    : []),
 ]);
 const slashIndex = ref(0);
 const slashMatches = computed(() => {

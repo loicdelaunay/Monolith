@@ -53,6 +53,9 @@ export const INTERACTIVE_BLOCKS = [
   'Il s’exécute une fois sa clôture écrite et sa hauteur suit le contenu jusqu’à 640 px : évite h-screen, height: 100% et 100vh. Le fond est transparent. Couleurs du thème : classes text-mh-text, text-mh-muted, text-mh-accent-text, bg-mh-surface, bg-mh-hover, bg-mh-accent, border-mh-border, ou variables CSS var(--mh-text), var(--mh-muted), var(--mh-border), var(--mh-surface), var(--mh-hover), var(--mh-accent).',
 ].join('\n');
 
+/** Mode Canvas (/canvas) : INTERACTIVE_BLOCKS dit comment écrire le bloc, cette consigne l'impose. */
+export const CANVAS_MODE = 'Mode Canvas imposé par l’utilisateur pour cette conversation : chaque réponse doit contenir une application HTML complète et fonctionnelle dans un bloc « widget », même si la demande pourrait se traiter en texte. Soigne l’interface, rends les interactions réelles, ajoute des données d’exemple si besoin, gère les états vides et les erreurs. Pour une modification, réécris le bloc en entier, sans rien omettre. Ne crée pas de fichier pour cela : l’application vit dans le chat. Hors du bloc, deux phrases au plus.';
+
 /** Instructions système : base, style, instructions globales, projet, objectif, résumé — dans cet ordre. */
 export function buildSystemPrompt(ctx: PromptContext): string {
   const sections: string[] = [

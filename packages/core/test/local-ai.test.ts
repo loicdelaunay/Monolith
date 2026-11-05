@@ -58,7 +58,7 @@ function fakePython(dir: string): string {
   return sh;
 }
 
-async function harness(opts: { corrupt?: boolean; providerUrl?: string } = {}) {
+async function harness(opts: { corrupt?: boolean; providerUrl?: string; hfBase?: string } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'mh-lai-'));
   cleanups.push(() => rmSync(root, { recursive: true, force: true }));
   const hf = await hfMock();
@@ -69,7 +69,7 @@ async function harness(opts: { corrupt?: boolean; providerUrl?: string } = {}) {
     keyProtector: new MemoryProtector(),
     changelog: '',
     localAi: {
-      hfBase: hf,
+      hfBase: opts.hfBase ?? hf,
       python: fakePython(root),
       manifests: { lancet: manifest('lancet', ['classify.py', 'model/encoder-int8.onnx'], 'bundle/', opts.corrupt), minilm: manifest('minilm', ['onnx/model_quantized.onnx', 'tokenizer.json'], '') },
     },
@@ -199,5 +199,109 @@ describe('IA locale : environnement Python', () => {
     const bad = make('0'.repeat(64), join(work, 'bad'));
     await expect(bad.installRuntime(AbortSignal.timeout(30_000))).rejects.toThrow(/SHA-256/);
     expect(existsSync(join(work, 'bad', `python-${PYTHON_RUNTIME.version}-${PYTHON_RUNTIME.release}-${process.platform}-${process.arch}`))).toBe(false);
+  });
+});
+
+describe('RAG : modèle pris sur le poste (Hugging Face inaccessible)', () => {
+  const files = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mh-lai-poste-'));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(join(dir, 'onnx'));
+    return dir;
+  };
+  const failure = (h: Harness) => {
+    const seen = { message: '' };
+    h.events.on('localai.progress', (p) => p.stage === 'error' && (seen.message = p.message ?? ''));
+    return seen;
+  };
+  const minilm = async (h: Harness) => (await h.call('localai.status')).components.find((c) => c.id === 'minilm')!;
+
+  it('site inaccessible : l’erreur le nomme, les fichiers à récupérer sont fournis', async () => {
+    const port = await new Promise<number>((resolve) => {
+      const s = createServer().listen(0, '127.0.0.1', () => {
+        const free = (s.address() as AddressInfo).port;
+        s.close(() => resolve(free));
+      });
+    });
+    const { h } = await harness({ hfBase: `http://127.0.0.1:${port}` });
+    const seen = failure(h);
+    await h.call('localai.install', { component: 'minilm' });
+    await h.localAi.idle();
+    expect(seen.message).toContain('127.0.0.1 inaccessible');
+    const info = await minilm(h);
+    expect(info.installed).toBe(false);
+    expect(info.files.map((f) => [f.path, f.url.endsWith(`/test/minilm/resolve/r1/${f.path}`), f.bytes])).toEqual([['onnx/model_quantized.onnx', true, 40_000], ['tokenizer.json', true, FILES['tokenizer.json']!.length]]);
+  }, 20_000);
+
+  it('fichiers prévus : installés comme un téléchargement, index conservé (disposition Hugging Face)', async () => {
+    const { h } = await harness();
+    const dir = files();
+    writeFileSync(join(dir, 'onnx', 'model_quantized.onnx'), FILES['onnx/model_quantized.onnx']!);
+    writeFileSync(join(dir, 'tokenizer.json'), FILES['tokenizer.json']!);
+    const stages: string[] = [];
+    h.events.on('localai.progress', (p) => stages.push(p.stage));
+    await h.call('localai.installFrom', { component: 'minilm', paths: [join(dir, 'onnx', 'model_quantized.onnx')] });
+    await h.localAi.idle();
+    expect(stages).toEqual(expect.arrayContaining(['copy', 'prepare', 'ready']));
+    expect(await minilm(h)).toMatchObject({ installed: true, custom: null });
+    expect(h.localAi.customEmbeddingId()).toBeNull();
+    expect((await h.localAi.embed(['facture']))[0]).toHaveLength(4);
+  });
+
+  it('autre modèle : adopté après essai, signalé, réindexé, et le modèle prévu reste récupérable', async () => {
+    const { h } = await harness();
+    await h.call('settings.update', { rag: { embeddingSource: 'local' } });
+    const folder = mkdtempSync(join(tmpdir(), 'mh-lai-rag-'));
+    cleanups.push(() => rmSync(folder, { recursive: true, force: true }));
+    writeFileSync(join(folder, 'compta.ts'), '// gestion de la facture client\nexport const total = 1;\n');
+    const rag = (h as unknown as { rag: { index: (id: number, roots: string[]) => Promise<unknown> } }).rag;
+    const models = () => h.db.all<{ embedding_model: string }>('SELECT embedding_model FROM rag_sources').map((s) => s.embedding_model);
+    await h.call('localai.install', { component: 'minilm' });
+    await h.localAi.idle();
+    await rag.index(1, [folder]);
+    expect(models()).toEqual([LOCAL_EMBEDDING_MODEL]);
+
+    const dir = files();
+    writeFileSync(join(dir, 'mon-modele.onnx'), Buffer.alloc(3000, 7));
+    writeFileSync(join(dir, 'tokenizer.json'), '{"autre":true}');
+    await h.call('localai.installFrom', { component: 'minilm', paths: [join(dir, 'mon-modele.onnx'), join(dir, 'tokenizer.json')] });
+    await h.localAi.idle();
+    expect(await minilm(h)).toMatchObject({ installed: true, custom: 'mon-modele.onnx' });
+    const id = h.localAi.customEmbeddingId()!;
+    expect(id).toMatch(/^local:custom-[0-9a-f]{12}$/);
+    await rag.index(1, [folder]);
+    expect(models()).toEqual([id]);
+
+    await h.call('localai.install', { component: 'minilm' });
+    await h.localAi.idle();
+    expect(await minilm(h)).toMatchObject({ installed: true, custom: null });
+    await rag.index(1, [folder]);
+    expect(models()).toEqual([LOCAL_EMBEDDING_MODEL]);
+  });
+
+  it('modèle inutilisable : refusé, celui déjà installé reste en place', async () => {
+    const { h } = await harness();
+    await h.call('localai.install', { component: 'minilm' });
+    await h.localAi.idle();
+    const dir = files();
+    writeFileSync(join(dir, 'casse.onnx'), 'inutilisable');
+    writeFileSync(join(dir, 'tokenizer.json'), '{}');
+    const seen = failure(h);
+    await h.call('localai.installFrom', { component: 'minilm', paths: [join(dir, 'casse.onnx')] });
+    await h.localAi.idle();
+    expect(seen.message).toContain('Modèle incompatible : sortie inattendue');
+    expect(await minilm(h)).toMatchObject({ installed: true, custom: null });
+    expect((await h.localAi.embed(['chat']))[0]).toHaveLength(4);
+  });
+
+  it('sélection incomplète : refus explicite, sans installation', async () => {
+    const { h } = await harness();
+    const dir = files();
+    writeFileSync(join(dir, 'seul.onnx'), 'x');
+    await expect(h.call('localai.installFrom', { component: 'minilm', paths: [join(dir, 'seul.onnx')] })).rejects.toThrow('tokenizer.json introuvable');
+    await expect(h.call('localai.installFrom', { component: 'minilm', paths: [join(dir, 'absent.onnx')] })).rejects.toThrow('fichier .onnx');
+    await expect(h.call('localai.installFrom', { component: 'minilm', paths: [] })).rejects.toThrow('fichier .onnx');
+    await expect(h.call('localai.installFrom', { component: 'lancet', paths: [join(dir, 'seul.onnx')] })).rejects.toThrow('Seul le modèle d’embeddings');
+    expect((await minilm(h)).installed).toBe(false);
   });
 });

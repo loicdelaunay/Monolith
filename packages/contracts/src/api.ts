@@ -105,6 +105,7 @@ export interface ConversationPatch {
   reasoningLevel?: ReasoningLevel;
   projectId?: Id | null;
   orchestration?: boolean;
+  canvas?: boolean;
   forcedSkills?: string[];
 }
 
@@ -365,6 +366,8 @@ export interface HarnessApi {
   'localai.status': { params: void; result: LocalAiStatus };
   /** Télécharge et prépare un composant (après accord de l'utilisateur) ; progression par `localai.progress`. */
   'localai.install': { params: { component: LocalAiComponent }; result: LocalAiStatus };
+  /** Installe un modèle depuis des fichiers du poste (Hugging Face inaccessible) : le fichier .onnx et son tokenizer.json. */
+  'localai.installFrom': { params: { component: LocalAiComponent; paths: string[] }; result: LocalAiStatus };
   'localai.cancel': { params: void; result: void };
   'updates.status': { params: void; result: UpdateState };
   'updates.check': { params: void; result: UpdateState };

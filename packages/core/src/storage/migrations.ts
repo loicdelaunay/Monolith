@@ -470,6 +470,13 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX memories_expires ON memories(expires_at) WHERE expires_at IS NOT NULL;
     `,
   },
+  {
+    version: 13,
+    name: 'conversation-canvas',
+    sql: /* sql */ `
+      ALTER TABLE conversations ADD COLUMN canvas INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

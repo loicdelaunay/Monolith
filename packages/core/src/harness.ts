@@ -859,6 +859,7 @@ export class Harness {
       'local.setHfToken': (p) => this.local.setHfToken(p.token ?? null),
       'localai.status': () => this.localAi.status(),
       'localai.install': (p) => this.localAi.install(p.component),
+      'localai.installFrom': (p) => this.localAi.installFrom(p.component, p.paths),
       'localai.cancel': () => this.localAi.cancel(),
       'updates.status': () => this.updates.state(),
       'updates.check': () => this.updates.check(),

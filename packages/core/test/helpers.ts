@@ -5,6 +5,22 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { Harness, MemoryProtector, silentLogger, type HarnessOptions } from '../src/index.ts';
 
+/**
+ * Windows : le petit-fils d'un serveur MCP lancé par cmd.exe garde son dossier de travail un instant après
+ * la fin de cmd.exe. rmSync ne relance pas cette erreur (« Permission denied »), maxRetries n'y change rien.
+ */
+export async function removeTempDir(dir: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      if (attempt >= 50) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
 /** Profil isolé dans un dossier temporaire ; aucune donnée utilisateur réelle n'est touchée. */
 export function tempHarness(dir?: string, extra: Partial<HarnessOptions> = {}): { harness: Harness; dir: string; cleanup: () => Promise<void> } {
   const root = dir ?? mkdtempSync(join(tmpdir(), 'mh-test-'));
@@ -21,7 +37,7 @@ export function tempHarness(dir?: string, extra: Partial<HarnessOptions> = {}): 
     dir: root,
     cleanup: async () => {
       await harness.close();
-      if (!dir) rmSync(root, { recursive: true, force: true });
+      if (!dir) await removeTempDir(root);
     },
   };
 }

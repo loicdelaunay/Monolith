@@ -26,7 +26,10 @@ for line in sys.stdin:
     print(json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
 `;
 
-/** MiniLM multilingue : pooling moyen, normalisation L2, 384 dimensions, fenêtre de 128 tokens. */
+/**
+ * MiniLM multilingue : pooling moyen, normalisation L2, 384 dimensions, fenêtre de 128 tokens. Un modèle
+ * choisi sur le poste peut avoir une autre dimension, ou sortir directement un vecteur par texte.
+ */
 export const EMBEDDINGS_BRIDGE = `
 import json, pathlib, sys
 sys.stdin.reconfigure(encoding='utf-8')
@@ -55,8 +58,11 @@ for line in sys.stdin:
         if 'token_type_ids' in names:
             feed['token_type_ids'] = np.zeros_like(ids)
         hidden = session.run(None, feed)[0]
-        weights = mask[..., None].astype(np.float32)
-        vectors = (hidden * weights).sum(axis=1) / np.clip(weights.sum(axis=1), 1e-9, None)
+        if hidden.ndim == 2:
+            vectors = hidden
+        else:
+            weights = mask[..., None].astype(np.float32)
+            vectors = (hidden * weights).sum(axis=1) / np.clip(weights.sum(axis=1), 1e-9, None)
         vectors = vectors / np.clip(np.linalg.norm(vectors, axis=1, keepdims=True), 1e-12, None)
         result = {'vectors': np.round(vectors, 6).tolist()}
     except Exception as error:

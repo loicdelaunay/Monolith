@@ -4,10 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { useToast } from 'primevue/usetoast';
 import type { Conversation, ConversationPatch, McpServer } from '@monolith/contracts';
 import { api, errorMessage } from '../api.ts';
+import { store } from '../stores/app.ts';
 
 /**
  * Ce qui est imposé ou réglé autrement dans cette conversation que dans les réglages : skills imposés
- * (/skill-…), orchestration forcée (/orchestration), serveurs MCP activés ou désactivés ici.
+ * (/skill-…), orchestration forcée (/orchestration), mode Canvas (/canvas), serveurs MCP activés ou désactivés ici.
  * Chaque puce se retire d'un clic sur sa croix.
  */
 const props = defineProps<{ conversation: Conversation }>();
@@ -20,6 +21,8 @@ function patch(p: ConversationPatch) {
   void api.call('conversations.update', { id: props.conversation.id, patch: p }).catch(fail);
 }
 const removeSkill = (name: string) => patch({ forcedSkills: props.conversation.forcedSkills.filter((n) => n !== name) });
+/** Sans effet quand les blocs interactifs sont coupés : la puce ne promet alors rien. */
+const canvas = computed(() => props.conversation.canvas && (store.settings?.render.interactiveHtml ?? true));
 
 // Serveurs MCP : réglage de la conversation différent du réglage global.
 const servers = ref<McpServer[]>([]);
@@ -46,7 +49,7 @@ async function resetMcp(server: McpServer) {
 </script>
 
 <template>
-  <span v-if="conversation.forcedSkills.length || conversation.orchestration || mcpOverrides.length" class="chips" role="list" :aria-label="t('chips.title')">
+  <span v-if="conversation.forcedSkills.length || conversation.orchestration || canvas || mcpOverrides.length" class="chips" role="list" :aria-label="t('chips.title')">
     <span v-for="name in conversation.forcedSkills" :key="`s-${name}`" class="chip" role="listitem" :title="t('chips.skillHint', { name: skillLabel(name) })">
       <i class="pi pi-bolt" />{{ skillLabel(name) }}
       <button type="button" class="x" :aria-label="t('chips.remove', { name: skillLabel(name) })" @click="removeSkill(name)"><i class="pi pi-times" /></button>
@@ -54,6 +57,10 @@ async function resetMcp(server: McpServer) {
     <span v-if="conversation.orchestration" class="chip" role="listitem" :title="t('chips.orchestrationHint')">
       <i class="pi pi-sitemap" />{{ t('chips.orchestration') }}
       <button type="button" class="x" :aria-label="t('chips.remove', { name: t('chips.orchestration') })" @click="patch({ orchestration: false })"><i class="pi pi-times" /></button>
+    </span>
+    <span v-if="canvas" class="chip" role="listitem" :title="t('chips.canvasHint')">
+      <i class="pi pi-palette" />{{ t('chips.canvas') }}
+      <button type="button" class="x" :aria-label="t('chips.remove', { name: t('chips.canvas') })" @click="patch({ canvas: false })"><i class="pi pi-times" /></button>
     </span>
     <span v-for="o in mcpOverrides" :key="`m-${o.server.id}`" class="chip" :class="{ off: !o.enabled }" role="listitem" :title="t(o.enabled ? 'chips.mcpOnHint' : 'chips.mcpOffHint', { name: o.server.name })">
       <i class="pi" :class="o.enabled ? 'pi-link' : 'pi-ban'" />MCP {{ o.server.name }}

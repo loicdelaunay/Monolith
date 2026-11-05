@@ -69,6 +69,8 @@ export interface Conversation {
   budget: ConversationBudget | null;
   /** Orchestration forcée pour cette conversation (/orchestration) : délégation à des sous-agents demandée au modèle. */
   orchestration: boolean;
+  /** Mode Canvas imposé dans cette conversation (/canvas) : chaque réponse contient une application HTML dans le chat. */
+  canvas: boolean;
   /** Skills personnalisés imposés dans cette conversation (/skill-<nom>) : leurs instructions accompagnent chaque requête. */
   forcedSkills: string[];
   createdAt: string;

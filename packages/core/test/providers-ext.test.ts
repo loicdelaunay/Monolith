@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ServerResponse } from 'node:http';
 import type { MessagePart, ToolCallRecord } from '@monolith/contracts';
-import { mockProvider, sseChunk, standardStream, tempHarness, writeFragmented } from './helpers.ts';
+import { mockProvider, removeTempDir, sseChunk, standardStream, tempHarness, writeFragmented } from './helpers.ts';
 import { thinkingConfig, toGemini } from '../src/providers/gemini.ts';
 import { buildHistory } from '../src/generation/prompt.ts';
 import type { Message } from '@monolith/contracts';
@@ -21,7 +21,7 @@ const tools = (parts: MessagePart[]) => parts.filter((p): p is Extract<MessagePa
 async function base() {
   // Le dossier est supprimé après l'arrêt du moteur (et des agents ACP qui y travaillent).
   const folder = mkdtempSync(join(tmpdir(), 'mh-t5-'));
-  cleanups.push(() => rmSync(folder, { recursive: true, force: true }));
+  cleanups.push(() => removeTempDir(folder));
   const t = tempHarness();
   cleanups.push(t.cleanup);
   writeFileSync(join(folder, 'README.md'), '# Projet T5\n');

@@ -11,11 +11,15 @@ export interface LocalAiComponentStatus {
   version: string;
   /** Taille des fichiers du modèle (octets). */
   bytes: number;
+  /** Fichiers du modèle prévu : à récupérer soi-même quand le téléchargement est impossible. */
+  files: { path: string; url: string; bytes: number }[];
+  /** Modèle fourni par l'utilisateur à la place du modèle prévu (nom du fichier) ; null : modèle prévu. */
+  custom: string | null;
 }
 
 export interface LocalAiProgress {
   component: LocalAiComponent;
-  stage: 'runtime' | 'download' | 'verify' | 'dependencies' | 'prepare' | 'ready' | 'error';
+  stage: 'runtime' | 'download' | 'copy' | 'verify' | 'dependencies' | 'prepare' | 'ready' | 'error';
   received: number;
   total: number;
   message: string | null;

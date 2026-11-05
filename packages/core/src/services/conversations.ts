@@ -40,6 +40,7 @@ interface ConversationRow {
   role: string | null;
   budget_json: string | null;
   orchestration: number;
+  canvas: number;
   forced_skills_json: string;
 }
 
@@ -143,6 +144,7 @@ export class ConversationService {
     if (patch.archived !== undefined) set('archived', patch.archived ? 1 : 0);
     if (patch.goal !== undefined) set('goal', String(patch.goal).slice(0, 20_000));
     if (patch.orchestration !== undefined) set('orchestration', patch.orchestration ? 1 : 0);
+    if (patch.canvas !== undefined) set('canvas', patch.canvas ? 1 : 0);
     if (patch.forcedSkills !== undefined) {
       if (!Array.isArray(patch.forcedSkills)) throw new HarnessError('invalid_argument', 'Liste de skills attendue');
       set('forced_skills_json', JSON.stringify([...new Set(patch.forcedSkills.map((n) => String(n).trim().slice(0, 80)).filter(Boolean))].slice(0, 10)));
@@ -302,6 +304,7 @@ export class ConversationService {
       role: r.role ?? null,
       budget: r.budget_json ? json<ConversationBudget | null>(r.budget_json, null) : null,
       orchestration: !!r.orchestration,
+      canvas: !!r.canvas,
       forcedSkills: json<string[]>(r.forced_skills_json, []),
       createdAt: r.created_at,
       updatedAt: r.updated_at,

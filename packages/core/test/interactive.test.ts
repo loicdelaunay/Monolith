@@ -11,7 +11,7 @@ afterEach(async () => {
 type Body = { messages: { role: string; content: string }[] };
 
 /** Prompt système reçu par le fournisseur pour un message envoyé dans cette configuration. */
-async function systemPrompt(opts: { host?: HostKind; mode?: 'chat' | 'agent'; agentMode?: 'plan' | 'propose' | 'execute'; enabled?: boolean; subagent?: boolean }): Promise<string> {
+async function systemPrompt(opts: { host?: HostKind; mode?: 'chat' | 'agent'; agentMode?: 'plan' | 'propose' | 'execute'; enabled?: boolean; canvas?: boolean }): Promise<string> {
   const mock = await mockProvider((_req, _raw, res: ServerResponse) => {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.end(`${sseChunk({ content: 'ok' })}data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
@@ -24,7 +24,7 @@ async function systemPrompt(opts: { host?: HostKind; mode?: 'chat' | 'agent'; ag
   await h.call('providers.setModels', { id: p.id, models: [{ id: 'm', label: 'm', enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null } }] });
   await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'm', autoNaming: false }, ...(opts.enabled === undefined ? {} : { render: { interactiveHtml: opts.enabled } }) });
   const c = await h.call('conversations.create', { projectId: null });
-  await h.call('conversations.update', { id: c.id, patch: { mode: opts.mode ?? 'chat', ...(opts.agentMode ? { agentMode: opts.agentMode } : {}) } });
+  await h.call('conversations.update', { id: c.id, patch: { mode: opts.mode ?? 'chat', ...(opts.agentMode ? { agentMode: opts.agentMode } : {}), ...(opts.canvas ? { canvas: true } : {}) } });
   await h.call('chat.send', { conversationId: c.id, input: { text: 'bonjour' } });
   await h.generation.idle();
   const body = mock.requests.find((r) => r.path.endsWith('/chat/completions'))!.body as Body;
@@ -46,5 +46,34 @@ describe('consigne des blocs interactifs', () => {
     expect(await systemPrompt({ enabled: false })).not.toContain('```widget');
     expect(await systemPrompt({ host: 'cli' })).not.toContain('```widget');
     expect(await systemPrompt({ host: 'server' })).not.toContain('```widget');
+  });
+});
+
+describe('/canvas : application HTML imposée', () => {
+  it('imposée dans la conversation, dans tous les modes', async () => {
+    for (const opts of [{ mode: 'chat' as const }, { mode: 'agent' as const, agentMode: 'propose' as const }]) {
+      const system = await systemPrompt({ ...opts, canvas: true });
+      expect(system).toContain('Mode Canvas');
+      expect(system).toContain('```widget Titre court');
+    }
+    expect(await systemPrompt({})).not.toContain('Mode Canvas');
+  });
+
+  it('sans effet quand les blocs interactifs sont coupés ou que l’hôte ne les exécute pas', async () => {
+    expect(await systemPrompt({ canvas: true, enabled: false })).not.toContain('Mode Canvas');
+    expect(await systemPrompt({ canvas: true, host: 'cli' })).not.toContain('Mode Canvas');
+  });
+
+  it('propre à la conversation, retirable, désactivé par défaut', async () => {
+    const t = tempHarness();
+    cleanups.push(t.cleanup);
+    const h = t.harness;
+    const a = await h.call('conversations.create', { projectId: null });
+    const b = await h.call('conversations.create', { projectId: null });
+    expect(a.canvas).toBe(false);
+    expect((await h.call('conversations.update', { id: a.id, patch: { canvas: true } })).canvas).toBe(true);
+    expect(h.conversations.get(a.id).canvas).toBe(true);
+    expect(h.conversations.get(b.id).canvas).toBe(false);
+    expect((await h.call('conversations.update', { id: a.id, patch: { canvas: false } })).canvas).toBe(false);
   });
 });

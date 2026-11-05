@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { pipeline } from 'node:stream/promises';
 import { HarnessError, type CommandClassification, type LocalAiComponent, type LocalAiProgress, type LocalAiStatus } from '@monolith/contracts';
 import type { EventBus } from '../events.ts';
 import type { Logger } from '../log/logger.ts';
@@ -24,6 +25,15 @@ export interface LocalAiOptions {
 }
 
 const quote = (a: string) => (/[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a);
+/** Présent dans le dossier d'un composant quand son modèle vient du poste et diffère du modèle prévu. */
+const CUSTOM_FILE = 'custom.json';
+const isFile = (path: string) => {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
 
 /** Processus Python persistant : une requête JSON à la fois, identifiant vérifié, délai par requête. */
 class PyWorker {
@@ -170,10 +180,29 @@ export class LocalAiService {
     return this.runtimeReady() && this.depsReady() && existsSync(ready) && readFileSync(ready, 'utf8') === this.manifests[id].revision;
   }
 
+  private fileUrl(m: ModelManifest, path: string): string {
+    return `${this.hf}/${m.repo}/resolve/${m.revision}/${m.prefix}${path}`;
+  }
+  private customModel(id: LocalAiComponent): { name: string; sha256: string } | null {
+    try {
+      return JSON.parse(readFileSync(join(this.componentDir(id), CUSTOM_FILE), 'utf8')) as { name: string; sha256: string };
+    } catch {
+      return null;
+    }
+  }
+  /** Identifiant du modèle du poste s'il remplace MiniLM : en changer réindexe les dossiers (vecteurs incomparables). */
+  customEmbeddingId(): string | null {
+    const c = this.customModel('minilm');
+    return c ? `local:custom-${c.sha256.slice(0, 12)}` : null;
+  }
+
   status(): LocalAiStatus {
     const supported = !!this.target || !!this.o.python;
     return {
-      components: (['lancet', 'minilm'] as const).map((id) => ({ id, installed: this.installed(id), version: this.manifests[id].version, bytes: this.manifests[id].files.reduce((n, f) => n + f.size, 0) })),
+      components: (['lancet', 'minilm'] as const).map((id) => {
+        const m = this.manifests[id];
+        return { id, installed: this.installed(id), version: m.version, bytes: m.files.reduce((n, f) => n + f.size, 0), files: m.files.map((f) => ({ path: f.path, url: this.fileUrl(m, f.path), bytes: f.size })), custom: this.customModel(id)?.name ?? null };
+      }),
       runtime: { installed: this.runtimeReady() && this.depsReady(), version: this.o.python ? 'externe' : PYTHON_RUNTIME.version },
       busy: this.job ? { ...this.job.progress } : null,
       supported,
@@ -189,11 +218,31 @@ export class LocalAiService {
     if (!(id in this.manifests)) throw new HarnessError('invalid_argument', `Composant inconnu : ${id}`);
     if (this.job) throw new HarnessError('busy', 'Une installation est déjà en cours');
     if (!this.status().supported) throw new HarnessError('unavailable', this.status().unsupportedReason!);
+    return this.start(id, this.manifests[id].files.reduce((n, f) => n + f.size, 0), (signal) => this.run(id, signal));
+  }
+
+  /**
+   * Modèle d'embeddings pris sur le poste (Hugging Face inaccessible) : le fichier .onnx choisi et son
+   * tokenizer.json, sélectionné aussi ou trouvé à côté (dans le dossier parent pour la disposition de
+   * Hugging Face, onnx/model.onnx). Fichiers identiques au modèle prévu : installation normale ; sinon
+   * modèle du poste, adopté seulement s'il produit un vecteur valide.
+   */
+  installFrom(id: LocalAiComponent, paths: string[]): LocalAiStatus {
+    if (id !== 'minilm') throw new HarnessError('invalid_argument', 'Seul le modèle d’embeddings du RAG peut être choisi sur le poste.');
+    if (this.job) throw new HarnessError('busy', 'Une installation est déjà en cours');
+    if (!this.status().supported) throw new HarnessError('unavailable', this.status().unsupportedReason!);
+    const model = paths.find((p) => /\.onnx$/i.test(p));
+    if (!model || !isFile(model)) throw new HarnessError('invalid_argument', 'Sélectionnez le fichier .onnx du modèle.');
+    const tokenizer = paths.find((p) => basename(p).toLowerCase() === 'tokenizer.json') ?? [dirname(model), dirname(dirname(model))].map((d) => join(d, 'tokenizer.json')).find(isFile);
+    if (!tokenizer || !isFile(tokenizer)) throw new HarnessError('invalid_argument', 'tokenizer.json introuvable à côté du modèle : sélectionnez-le avec le fichier .onnx.');
+    return this.start(id, statSync(model).size + statSync(tokenizer).size, (signal) => this.runLocal(id, model, tokenizer, signal));
+  }
+
+  private start(id: LocalAiComponent, total: number, work: (signal: AbortSignal) => Promise<void>): LocalAiStatus {
     const controller = new AbortController();
-    const total = this.manifests[id].files.reduce((n, f) => n + f.size, 0);
     this.job = { controller, progress: { component: id, stage: 'runtime', received: 0, total, message: null } };
     this.emit();
-    void this.run(id, controller.signal)
+    void work(controller.signal)
       .then(() => this.progress({ stage: 'ready', received: total, message: null }))
       .catch((e: Error) => {
         this.o.logger.warn('localai', `Installation de ${id} en échec`, { error: e.message });
@@ -231,19 +280,17 @@ export class LocalAiService {
     if (!this.depsReady()) await this.installDependencies(signal);
     const manifest = this.manifests[id];
     const final = this.componentDir(id);
-    if (!this.installed(id)) {
+    if (!this.installed(id) || this.customModel(id)) {
       const staging = `${final}.install-${randomUUID().slice(0, 8)}`;
       try {
         this.progress({ stage: 'download', received: 0 });
         let done = 0;
         for (const f of manifest.files) {
-          const url = `${this.hf}/${manifest.repo}/resolve/${manifest.revision}/${manifest.prefix}${f.path}`;
-          await this.download(url, join(staging, f.path), f.size, f.sha256, signal, (n) => this.progress({ received: done + n }));
+          await this.download(this.fileUrl(manifest, f.path), join(staging, f.path), f.size, f.sha256, signal, (n) => this.progress({ received: done + n }));
           done += f.size;
         }
         this.progress({ stage: 'prepare', received: done });
-        rmSync(final, { recursive: true, force: true });
-        renameSync(staging, final);
+        await this.publish(id, staging);
       } finally {
         rmSync(staging, { recursive: true, force: true });
       }
@@ -253,6 +300,61 @@ export class LocalAiService {
     this.stopWorker(id);
     await this.worker(id);
     writeFileSync(join(final, '.ready'), manifest.revision);
+  }
+
+  private async runLocal(id: LocalAiComponent, model: string, tokenizer: string, signal: AbortSignal): Promise<void> {
+    mkdirSync(this.o.dir, { recursive: true });
+    if (!this.runtimeReady()) await this.installRuntime(signal);
+    if (!this.depsReady()) await this.installDependencies(signal);
+    const manifest = this.manifests[id];
+    const modelFile = manifest.files.find((f) => f.path.endsWith('.onnx'))!;
+    const tokenizerFile = manifest.files.find((f) => f.path === 'tokenizer.json')!;
+    const final = this.componentDir(id);
+    const staging = `${final}.install-${randomUUID().slice(0, 8)}`;
+    try {
+      this.progress({ stage: 'copy', received: 0 });
+      const size = statSync(model).size;
+      const modelHash = await this.copyFile(model, join(staging, modelFile.path), signal, (n) => this.progress({ received: n }));
+      const tokenizerHash = await this.copyFile(tokenizer, join(staging, tokenizerFile.path), signal, (n) => this.progress({ received: size + n }));
+      if (modelHash !== modelFile.sha256 || tokenizerHash !== tokenizerFile.sha256) writeFileSync(join(staging, CUSTOM_FILE), JSON.stringify({ name: basename(model), sha256: modelHash }));
+      this.progress({ stage: 'prepare' });
+      // Essai sur la copie : un modèle inutilisable ne remplace jamais celui déjà installé.
+      await this.tryEmbeddings(staging, signal);
+      await this.publish(id, staging);
+      writeFileSync(join(final, '.ready'), manifest.revision);
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
+    }
+  }
+
+  private async tryEmbeddings(folder: string, signal: AbortSignal): Promise<void> {
+    const bridge = join(this.o.dir, 'minilm_bridge.py');
+    writeFileSync(bridge, EMBEDDINGS_BRIDGE);
+    const w = new PyWorker(this.python, ['-I', '-B', '-u', bridge, folder, this.siteDir], this.env());
+    try {
+      await w.start(120_000);
+      const r = await w.request({ texts: ['Monolith Harness'] }, 120_000, signal);
+      const vector = (r.vectors as number[][] | undefined)?.[0];
+      if (typeof r.error === 'string' || !Array.isArray(vector) || vector.length === 0 || !vector.every(Number.isFinite)) throw new Error(`Modèle incompatible : ${typeof r.error === 'string' ? r.error : 'pas de vecteur valide en sortie'}`);
+    } finally {
+      w.stop();
+    }
+  }
+
+  /** Remplace le composant publié. Windows : un processus arrêté garde ses fichiers ouverts un instant. */
+  private async publish(id: LocalAiComponent, staging: string): Promise<void> {
+    const final = this.componentDir(id);
+    this.stopWorker(id);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        rmSync(final, { recursive: true, force: true });
+        renameSync(staging, final);
+        return;
+      } catch (e) {
+        if (attempt >= 30) throw e;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
   }
 
   /** Python autonome : archive vérifiée puis extraite (tar du système) dans un dossier temporaire. */
@@ -297,7 +399,10 @@ export class LocalAiService {
   /** Téléchargement vérifié : taille annoncée (si connue) et empreinte SHA-256. */
   private async download(url: string, dest: string, size: number | null, sha256: string, signal: AbortSignal, onProgress: (n: number) => void): Promise<void> {
     mkdirSync(dirname(dest), { recursive: true });
-    const r = await fetch(url, { headers: { 'user-agent': 'MonolithHarness/3' }, redirect: 'follow', signal });
+    const r = await fetch(url, { headers: { 'user-agent': 'MonolithHarness/3' }, redirect: 'follow', signal }).catch((e: Error) => {
+      if (signal.aborted) throw e;
+      throw new Error(`${new URL(url).hostname} inaccessible : ${(e.cause as Error | undefined)?.message ?? e.message}`);
+    });
     if (!r.ok || !r.body) throw new Error(`Téléchargement impossible (HTTP ${r.status}) : ${url.split('/').slice(-1)[0]}`);
     const hash = createHash('sha256');
     const out = createWriteStream(dest);
@@ -318,6 +423,27 @@ export class LocalAiService {
       rmSync(dest, { force: true });
       throw new Error(`Empreinte SHA-256 incorrecte : ${dest.split(/[\\/]/).at(-1)}`);
     }
+  }
+
+  /** Copie un fichier du poste dans le dossier d'installation et renvoie son empreinte SHA-256. */
+  private async copyFile(from: string, dest: string, signal: AbortSignal, onProgress: (n: number) => void): Promise<string> {
+    mkdirSync(dirname(dest), { recursive: true });
+    const hash = createHash('sha256');
+    let copied = 0;
+    await pipeline(
+      createReadStream(from),
+      async function* (source: AsyncIterable<Buffer>) {
+        for await (const chunk of source) {
+          hash.update(chunk);
+          copied += chunk.length;
+          onProgress(copied);
+          yield chunk;
+        }
+      },
+      createWriteStream(dest),
+      { signal },
+    );
+    return hash.digest('hex');
   }
 
   private env(): NodeJS.ProcessEnv {
