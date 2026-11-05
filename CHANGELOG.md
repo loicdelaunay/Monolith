@@ -2,9 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.36 — 2026-11-05
 
 - **Blocs interactifs dans le chat** : l'IA peut écrire dans sa réponse un bloc HTML, CSS et JavaScript utilisable directement, dans tous les modes (Chat, Plan, Proposition, Exécution), avec Tailwind CSS et Chart.js déjà inclus. Le bloc tourne dans un cadre isolé : aucun réseau, aucun accès aux fichiers ni à l'application. Il démarre dès qu'il est terminé, même si la réponse continue, et peut être relancé ou affiché en code. Option **Blocs HTML interactifs dans les réponses** dans Réglages › Chat, activée par défaut.
+- **Commande `/canvas`** : impose à l'IA de répondre par une application HTML utilisable dans le chat, dans cette conversation, tant que le mode est actif. `/canvas` seul l'active ou le coupe, `/canvas ma demande` l'active et envoie la demande. Une puce Canvas le rappelle dans l'en-tête et le retire d'un clic.
+- **RAG sans Hugging Face** : l'installation du modèle d'embeddings accepte un modèle déjà présent sur le PC, avec **Utiliser un modèle de ce PC…**. Sélectionnez le fichier `.onnx` et son `tokenizer.json` : les fichiers prévus sont vérifiés par leur empreinte, un autre modèle ONNX est testé avant d'être adopté. La liste des fichiers à récupérer et leurs liens sont affichés, et s'ouvrent seuls si le téléchargement échoue. Une erreur réseau nomme désormais le site inaccessible. La première installation télécharge toujours Python depuis GitHub et ses composants depuis PyPI.
 - **Barre latérale** : quand une action attend l'utilisateur alors que le modèle continue (propositions à traiter, sous-agent bloqué pendant que d'autres travaillent), le cercle de progression et l'exclamation orange s'affichent ensemble. Si le modèle est réellement arrêté par une question ou une autorisation, l'exclamation reste seule.
 
 ## 3.0.0-alpha.35 — 2026-11-04
