@@ -2,6 +2,10 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Blocs interactifs : code visible pendant l'écriture** : la carte « Bloc interactif en cours d'écriture » se déplie d'un clic pour suivre le code en direct, avec son titre et son nombre de lignes. La vue suit la fin du code, sauf si vous remontez le lire. Le choix est gardé pour les blocs suivants jusqu'à la fermeture de l'application.
+
 ## 3.0.0-alpha.36 — 2026-11-05
 
 - **Blocs interactifs dans le chat** : l'IA peut écrire dans sa réponse un bloc HTML, CSS et JavaScript utilisable directement, dans tous les modes (Chat, Plan, Proposition, Exécution), avec Tailwind CSS et Chart.js déjà inclus. Le bloc tourne dans un cadre isolé : aucun réseau, aucun accès aux fichiers ni à l'application. Il démarre dès qu'il est terminé, même si la réponse continue, et peut être relancé ou affiché en code. Option **Blocs HTML interactifs dans les réponses** dans Réglages › Chat, activée par défaut.

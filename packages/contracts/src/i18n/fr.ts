@@ -1505,6 +1505,7 @@ export const fr = {
     openFile: 'Ouvrir l’aperçu de {path}',
     widget: 'Bloc interactif',
     widgetWriting: 'Bloc interactif en cours d’écriture…',
+    widgetLines: '{n} ligne | {n} lignes',
     widgetReload: 'Relancer',
     widgetCode: 'Voir le code',
   },

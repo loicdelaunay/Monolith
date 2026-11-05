@@ -33,8 +33,32 @@ function enhance() {
 }
 /** Sans délai : un bloc terminé devient utilisable même si la réponse continue de s'écrire. */
 function activateWidgets() {
-  if (props.interactive && root.value) renderWidgets(root.value);
+  if (!props.interactive || !root.value) return;
+  renderWidgets(root.value);
+  syncLiveCode();
 }
+
+/**
+ * Code d'un bloc en cours d'écriture, remplacé à chaque fragment reçu : suit la fin du code, sauf si
+ * l'utilisateur est remonté le lire (sa position est alors rétablie).
+ */
+let liveTop: number | null = null;
+function onLiveScroll(e: Event) {
+  const el = e.target as HTMLElement;
+  if (el.matches?.('.mh-widget.pending pre')) liveTop = el.scrollHeight - el.scrollTop - el.clientHeight <= 24 ? null : el.scrollTop;
+}
+function syncLiveCode() {
+  root.value?.querySelector('[data-widget-live]')?.setAttribute('aria-expanded', String(uiState.widgetLive));
+  const pre = root.value?.querySelector<HTMLElement>('.mh-widget.pending pre');
+  if (pre) pre.scrollTop = liveTop ?? pre.scrollHeight;
+}
+watch(
+  () => uiState.widgetLive,
+  () => {
+    liveTop = null;
+    void nextTick(syncLiveCode);
+  },
+);
 onMounted(() => {
   activateWidgets();
   enhance();
@@ -121,6 +145,10 @@ async function onClick(e: MouseEvent) {
     toggle.closest('.mh-mermaid')?.classList.toggle('show-code');
     return;
   }
+  if (target.closest('[data-widget-live]')) {
+    uiState.widgetLive = !uiState.widgetLive;
+    return;
+  }
   const reload = target.closest<HTMLElement>('[data-widget-reload]');
   if (reload) {
     reloadWidget(reload);
@@ -151,7 +179,7 @@ async function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers, streaming }" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
+  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers, streaming, 'widget-live': uiState.widgetLive }" @scroll.capture="onLiveScroll" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
     <div v-for="(html, i) in blocks" :key="i" class="mh-md-block" v-html="html" />
   </div>
 </template>

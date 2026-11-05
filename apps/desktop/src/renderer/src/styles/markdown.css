@@ -284,18 +284,43 @@
   display: none;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--mh-border);
   border-radius: var(--mh-radius);
   background: var(--mh-surface);
   color: var(--mh-muted);
+  font: inherit;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.mh-md .mh-widget-pending:hover {
+  color: var(--mh-text);
+}
+.mh-md .mh-widget-pending span:not(:first-of-type)::before {
+  content: '· ';
+}
+.mh-md .mh-widget-chevron {
+  margin-left: auto;
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.mh-md.widget-live .mh-widget-chevron {
+  transform: rotate(90deg);
 }
 .mh-md.streaming .mh-widget.pending > .mh-widget-pending {
   display: flex;
 }
-.mh-md.streaming .mh-widget.pending > .mh-code {
+.mh-md.streaming:not(.widget-live) .mh-widget.pending > .mh-code {
   display: none;
+}
+.mh-md.streaming.widget-live .mh-widget.pending > .mh-code {
+  margin-top: 6px;
+}
+.mh-md.streaming.widget-live .mh-widget.pending pre.shiki {
+  max-height: 320px;
+  overflow: auto;
 }
 .mh-md code.mh-file-badge {
   display: inline-flex;

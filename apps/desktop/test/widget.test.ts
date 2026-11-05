@@ -64,14 +64,22 @@ describe('bloc `widget` dans le Markdown', () => {
     for (const text of [`\`\`\`widget\n${source}`, `\`\`\`widget\n${source}\n\`\``, '```widget']) {
       const html = render(text);
       expect(html).toContain('mh-widget pending');
-      expect(html).not.toContain('data-widget');
+      expect(html).not.toContain('data-widget=');
     }
+  });
+
+  it('en cours d’écriture : carte dépliable avec titre, nombre de lignes et code déjà reçu', () => {
+    const html = render(`\`\`\`widget Mon bloc\n${source}\n`);
+    expect(html).toContain('data-widget-live="1"');
+    expect(html).toContain('<span>Mon bloc</span>');
+    expect(html).toContain('<span>2 lignes</span>');
+    expect(html).toContain('let n =');
   });
 
   it('clôture plus longue, tildes et bloc imbriqué dans une citation', () => {
     expect(render(`\`\`\`\`widget\n${source}\n\`\`\`\`\`\n`)).toContain('data-widget');
     expect(render(`~~~widget\n${source}\n~~~\n`)).toContain('data-widget');
-    expect(render(`\`\`\`widget\n${source}\n~~~\n`)).not.toContain('data-widget');
+    expect(render(`\`\`\`widget\n${source}\n~~~\n`)).not.toContain('data-widget=');
     expect(render(`> \`\`\`widget\n> ${source.split('\n')[0]}\n> \`\`\`\n`)).toContain('data-widget');
   });
 

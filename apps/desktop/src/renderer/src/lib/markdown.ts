@@ -9,7 +9,7 @@ import { i18n } from '../i18n.ts';
  * HTML brut désactivé : le contenu du modèle est une donnée non fiable.
  */
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false, typographer: false });
-const translator = i18n.global as unknown as { t: (key: string) => string };
+const translator = i18n.global as unknown as { t: (key: string, params?: Record<string, unknown>) => string };
 
 // Liens : jamais ouverts dans la fenêtre ; l'interface intercepte le clic (http/https uniquement).
 const defaultLinkOpen = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
@@ -39,7 +39,8 @@ function fenceClosed(token: { map: [number, number] | null; markup: string }, li
 /** Bloc interactif : le code reste dans la page (repli) ; rich-render.ts le remplace par son cadre isolé. */
 function renderWidget(code: string, title: string, closed: boolean): string {
   const source = closed ? ` data-widget="${escapeHtml(code)}"` : '';
-  const pending = closed ? '' : `<div class="mh-widget-pending" role="status"><i class="pi pi-spin pi-spinner"></i><span>${escapeHtml(translator.t('render.widgetWriting'))}</span></div>`;
+  const label = [translator.t('render.widgetWriting'), title, translator.t('render.widgetLines', { n: code.split('\n').length - 1 })].filter(Boolean).map((part) => `<span>${escapeHtml(part)}</span>`).join('');
+  const pending = closed ? '' : `<button type="button" class="mh-widget-pending" data-widget-live="1" aria-expanded="false"><i class="pi pi-spin pi-spinner"></i>${label}<i class="pi pi-chevron-right mh-widget-chevron"></i></button>`;
   return `<div class="mh-widget${closed ? '' : ' pending'}" data-title="${escapeHtml(title)}"${source}>${pending}${renderCode(code, 'widget')}</div>`;
 }
 

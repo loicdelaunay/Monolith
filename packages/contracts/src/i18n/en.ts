@@ -1507,6 +1507,7 @@ export const en: Messages = {
     openFile: 'Open preview of {path}',
     widget: 'Interactive block',
     widgetWriting: 'Writing interactive block…',
+    widgetLines: '{n} line | {n} lines',
     widgetReload: 'Run again',
     widgetCode: 'Show code',
   },

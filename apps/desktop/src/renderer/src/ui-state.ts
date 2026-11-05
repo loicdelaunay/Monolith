@@ -36,6 +36,8 @@ export const uiState = reactive({
   /** Fichier affiché dans l'onglet Aperçu du panneau de travail. */
   /** Aperçu d'un fichier ; line / endLine : ligne ou plage citée, surlignée dans le code. */
   preview: null as { conversationId: Id; path: string; line: number | null; endLine?: number | null } | null,
+  /** Code des blocs interactifs affiché pendant leur écriture (choix gardé jusqu'à la fermeture de l'application). */
+  widgetLive: false,
   /** Diagramme Mermaid agrandi (SVG rendu) ; null : visionneuse fermée. */
   diagram: null as string | null,
 });
