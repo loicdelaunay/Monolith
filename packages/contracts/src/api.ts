@@ -431,6 +431,8 @@ export interface HarnessEvents {
   'message.updated': { message: Message };
   /** Deltas regroupés pendant le streaming ; `message.updated` reste la source de vérité finale. */
   'message.delta': { conversationId: Id; messageId: Id; deltas: MessageDelta[] };
+  /** Fichiers en cours d'écriture par le modèle : aperçu seul, rien n'est exécuté ni enregistré. null : aperçu terminé. */
+  'tool.draft': { conversationId: Id; messageId: Id; drafts: ToolDraftDelta[] | null };
   'generation.state': GenerationState;
   /** Historique réécrit (reprise, compactage) : l'interface recharge les messages. */
   'conversation.messagesReset': { conversationId: Id };
@@ -468,6 +470,15 @@ export type MessageDelta =
   | { kind: 'text' | 'reasoning'; partIndex: number; text: string }
   | { kind: 'part'; partIndex: number; part: MessagePart }
   | { kind: 'status'; status: MessageStatus; usage?: MessageUsage | null; error?: MessageError | null };
+
+/** Mise à jour d'un aperçu : le texte reçu remplace ce qui suit `offset`. */
+export interface ToolDraftDelta {
+  index: number;
+  name: string;
+  path: string | null;
+  offset: number;
+  append: string;
+}
 
 export type HarnessEvent = keyof HarnessEvents;
 

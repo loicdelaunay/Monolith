@@ -3,11 +3,12 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ProgressSpinner from 'primevue/progressspinner';
 import type { AttachmentRef, Message, MessagePart } from '@monolith/contracts';
-import { messageVersions, store } from '../stores/app.ts';
+import { messageVersions, store, toolDrafts } from '../stores/app.ts';
 import { formatDuration, formatTokens, throughput } from '../lib/format.ts';
 import MarkdownView from './MarkdownView.vue';
 import AttachmentChip from './AttachmentChip.vue';
 import ToolCallBubble from './tools/ToolCallBubble.vue';
+import ToolDraftCard from './tools/ToolDraftCard.vue';
 import PlanHistory from './PlanHistory.vue';
 import ActivityBody from './ActivityBody.vue';
 import ErrorBlock from './ErrorBlock.vue';
@@ -26,6 +27,7 @@ const status = computed(() => {
   return props.message.status;
 });
 const streaming = computed(() => status.value === 'streaming');
+const drafts = computed(() => (streaming.value ? (toolDrafts.get(props.message.id) ?? []) : []));
 const display = computed(() => store.settings?.chat.reasoningDisplay ?? 'collapsed');
 const userText = computed(() => parts.value.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(''));
 const attachments = computed(() => parts.value.filter((p) => p.type === 'attachment').map((p) => (p as { attachment: AttachmentRef }).attachment));
@@ -176,12 +178,14 @@ function lastStep(s: Extract<Segment, { kind: 'activity' }>): string | null {
           </div>
         </template>
 
+        <ToolDraftCard v-for="d in drafts" :key="d.index" :draft="d" />
+
         <div v-if="compacting" class="mh-compacting" role="status">
           <ProgressSpinner class="tiny" stroke-width="6" />
           <i class="pi pi-compress" />
           <span><strong>{{ t('chat.compactingNow') }}</strong> {{ t('chat.compactingHint') }}</span>
         </div>
-        <div v-else-if="streaming && (!hasVisible || reasoningOnly)" class="pending" role="status">
+        <div v-else-if="streaming && !drafts.length && (!hasVisible || reasoningOnly)" class="pending" role="status">
           <ProgressSpinner class="tiny" stroke-width="6" />
           <span>{{ retryInfo ?? t('chat.thinking') }}</span>
         </div>

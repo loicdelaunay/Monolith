@@ -48,12 +48,12 @@ function onLiveScroll(e: Event) {
   if (el.matches?.('.mh-widget.pending pre')) liveTop = el.scrollHeight - el.scrollTop - el.clientHeight <= 24 ? null : el.scrollTop;
 }
 function syncLiveCode() {
-  root.value?.querySelector('[data-widget-live]')?.setAttribute('aria-expanded', String(uiState.widgetLive));
+  root.value?.querySelector('[data-widget-live]')?.setAttribute('aria-expanded', String(uiState.liveCode));
   const pre = root.value?.querySelector<HTMLElement>('.mh-widget.pending pre');
   if (pre) pre.scrollTop = liveTop ?? pre.scrollHeight;
 }
 watch(
-  () => uiState.widgetLive,
+  () => uiState.liveCode,
   () => {
     liveTop = null;
     void nextTick(syncLiveCode);
@@ -146,7 +146,7 @@ async function onClick(e: MouseEvent) {
     return;
   }
   if (target.closest('[data-widget-live]')) {
-    uiState.widgetLive = !uiState.widgetLive;
+    uiState.liveCode = !uiState.liveCode;
     return;
   }
   const reload = target.closest<HTMLElement>('[data-widget-reload]');
@@ -179,7 +179,7 @@ async function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers, streaming, 'widget-live': uiState.widgetLive }" @scroll.capture="onLiveScroll" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
+  <div ref="root" class="mh-md" :class="{ 'mh-code-lines': store.settings?.chat.codeLineNumbers, streaming, 'widget-live': uiState.liveCode }" @scroll.capture="onLiveScroll" @click="onClick" @contextmenu="onContextMenu" @keydown.shift.f10="onContextMenu" @dblclick="onDblClick">
     <div v-for="(html, i) in blocks" :key="i" class="mh-md-block" v-html="html" />
   </div>
 </template>

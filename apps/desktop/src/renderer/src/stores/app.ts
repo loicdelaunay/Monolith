@@ -112,6 +112,15 @@ function applyDelta(message: Message, d: MessageDelta): void {
   }
 }
 
+/** Fichier en cours d'écriture par le modèle : aperçu éphémère, absent du message enregistré. */
+export interface ToolDraft {
+  index: number;
+  name: string;
+  path: string | null;
+  text: string;
+}
+export const toolDrafts = reactive(new Map<Id, ToolDraft[]>());
+
 /** Version de rendu par message : incrémentée à chaque delta pour un rendu ciblé. */
 export const messageVersions = reactive(new Map<Id, number>());
 
@@ -160,6 +169,19 @@ function wireEvents(): void {
     for (const d of deltas) applyDelta(message, d);
     bump(messageId);
     triggerRef(ref);
+  });
+  api.on('tool.draft', ({ messageId, drafts }) => {
+    if (!drafts) {
+      toolDrafts.delete(messageId);
+      return;
+    }
+    if (!toolDrafts.has(messageId)) toolDrafts.set(messageId, []);
+    const list = toolDrafts.get(messageId)!;
+    for (const d of drafts) {
+      const draft = list.find((x) => x.index === d.index);
+      if (draft) Object.assign(draft, { path: d.path, text: draft.text.slice(0, d.offset) + d.append });
+      else list.push({ index: d.index, name: d.name, path: d.path, text: d.append });
+    }
   });
   api.on('queue.changed', ({ conversationId, items }) => store.queues.set(conversationId, items));
   api.on('templates.changed', ({ templates }) => (store.templates = templates));

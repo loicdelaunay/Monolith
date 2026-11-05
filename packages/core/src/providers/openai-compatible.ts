@@ -22,7 +22,9 @@ class ToolCallAccumulator {
   private readonly calls = new Map<number, { id: string; name: string; arguments: string }>();
   private nextIndex = 0;
 
-  push(deltas: ToolCallDelta[]): void {
+  /** Ajoute les fragments et renvoie les appels qu'ils complètent. */
+  push(deltas: ToolCallDelta[]): { index: number; name: string; arguments: string }[] {
+    const changed = new Map<number, { index: number; name: string; arguments: string }>();
     for (const d of deltas) {
       const index = typeof d.index === 'number' ? d.index : d.id && ![...this.calls.values()].some((c) => c.id === d.id) ? this.nextIndex : Math.max(0, this.nextIndex - 1);
       let call = this.calls.get(index);
@@ -36,7 +38,9 @@ class ToolCallAccumulator {
       const args = d.function?.arguments;
       if (typeof args === 'string') call.arguments += args;
       else if (args && typeof args === 'object') call.arguments = JSON.stringify(args);
+      changed.set(index, { index, name: call.name, arguments: call.arguments });
     }
+    return [...changed.values()];
   }
 
   drain(): ToolCallRequest[] {
@@ -325,7 +329,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       const reasoning = d?.reasoning_content ?? (d as { reasoning?: string | null } | undefined)?.reasoning;
       if (reasoning) yield { type: 'reasoning', text: reasoning };
       if (d?.content) yield* splitter.push(d.content);
-      if (d?.tool_calls?.length) tools.push(d.tool_calls);
+      if (d?.tool_calls?.length) {
+        const changed = tools.push(d.tool_calls);
+        if (!whole) for (const call of changed) yield { type: 'tool_call_delta', ...call };
+      }
       if (whole) yield* splitter.flush();
       if (choice.finish_reason) yield { type: 'finish', reason: finishReason(choice.finish_reason), raw: choice.finish_reason };
     }

@@ -91,6 +91,8 @@ export type StreamEvent =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
   | { type: 'tool_call'; call: ToolCallRequest }
+  /** Arguments reçus jusqu'ici pour un appel en cours : affichage seulement, seul `tool_call` déclenche l'outil. */
+  | { type: 'tool_call_delta'; index: number; name: string; arguments: string }
   | { type: 'external_tool'; call: ExternalToolEvent }
   | { type: 'usage'; inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null }
   | { type: 'finish'; reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'other'; raw: string | null }

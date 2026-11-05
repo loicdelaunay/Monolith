@@ -60,12 +60,15 @@ import { INSTRUCTION_SKILLS } from '../tools/builtin.ts';
 import { ProviderError } from '../providers/http.ts';
 import { redact } from '../security/redact.ts';
 import { decideRetry } from './retry.ts';
+import { isDraftTool, ToolDrafts } from './tool-drafts.ts';
 import { buildHistory, buildSystemPrompt, CANVAS_MODE, compactionCut, compactionLimit, countImages, DEFAULT_MAX_IMAGES, estimateRequestTokens, imageLimitRejection, INTERACTIVE_BLOCKS, transcriptText, visibleOutput } from './prompt.ts';
 import { isReasoningRejection, planReasoning, transportFor } from './reasoning.ts';
 import { estimateTokens, sleep } from '../util.ts';
 
 const MAX_INPUT = 1_000_000;
 const DELTA_FLUSH_MS = 32;
+/** Aperçu des fichiers en cours d'écriture : relu en entier à chaque envoi, donc moins souvent que le texte. */
+const DRAFT_FLUSH_MS = 100;
 const PERSIST_EVERY_MS = 1000;
 
 interface Job {
@@ -669,6 +672,18 @@ export class GenerationRunner {
       else pending.push(d);
       flushTimer ??= setTimeout(flush, DELTA_FLUSH_MS);
     };
+    const drafts = new ToolDrafts();
+    let draftTimer: NodeJS.Timeout | null = null;
+    const flushDrafts = () => {
+      draftTimer = null;
+      const changes = drafts.take();
+      if (changes.length) events.emit('tool.draft', { conversationId: job.conversationId, messageId, drafts: changes });
+    };
+    const clearDrafts = () => {
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = null;
+      if (drafts.clear()) events.emit('tool.draft', { conversationId: job.conversationId, messageId, drafts: null });
+    };
     const persist = (force = false) => {
       if (force || performance.now() - lastPersist > PERSIST_EVERY_MS) {
         lastPersist = performance.now();
@@ -776,6 +791,7 @@ export class GenerationRunner {
 
       for (let attempt = 1; ; attempt++) {
         job.state.attempt = attempt;
+        clearDrafts();
         try {
           for await (const ev of ctx.adapter.stream(ctx.conn, request, signal)) {
             switch (ev.type) {
@@ -786,6 +802,12 @@ export class GenerationRunner {
                 break;
               case 'tool_call':
                 calls.push(ev.call);
+                break;
+              case 'tool_call_delta':
+                if (isDraftTool(ev.name)) {
+                  drafts.update(ev.index, ev.name, ev.arguments);
+                  draftTimer ??= setTimeout(flushDrafts, DRAFT_FLUSH_MS);
+                }
                 break;
               case 'external_tool':
                 roundFirst ??= performance.now() - roundStarted;
@@ -886,6 +908,7 @@ export class GenerationRunner {
         }
       }
 
+      clearDrafts();
       // Consommation du tour (une ligne par requête).
       const roundText = parts.slice(roundStart).filter((p) => p.type === 'text' || p.type === 'reasoning').map((p) => (p as { text: string }).text).join('');
       const roundUsage = apiUsage
