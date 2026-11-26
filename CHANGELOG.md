@@ -2,7 +2,7 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
-## Non publié
+## 3.0.0-alpha.38 — 2026-11-26
 
 - **Erreur 500 au-delà de quelques images** (serveurs locaux, passerelles) : quand le serveur échoue sans explication alors que plusieurs images partent, Monolith refait un dernier essai avec la moitié des images, les plus récentes. Si la réponse arrive, la limite est retenue pour ce modèle ; sinon l'erreur s'affiche en précisant que le nombre d'images n'y changeait rien. Un refus qui annonce sa limite (« At most 5 images ») est aussi reconnu quand il arrive en erreur 500.
 - **Images max par requête** : visible et modifiable pour chaque modèle dans Réglages › Fournisseurs › Capacités du modèle. Elle n'est plus oubliée quand les modèles sont réévalués.
