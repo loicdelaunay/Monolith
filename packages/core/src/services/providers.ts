@@ -401,6 +401,8 @@ export class ProviderService {
           rejectedLevels: [],
           vision: c?.capabilities.vision ?? m.capabilities.vision,
           tools: c?.capabilities.tools ?? m.capabilities.tools,
+          // Apprise ou saisie : gardée, elle se modifie dans Réglages › Fournisseurs.
+          ...(m.capabilities.maxImages != null ? { maxImages: m.capabilities.maxImages } : {}),
         },
       };
     });
@@ -418,7 +420,7 @@ export class ProviderService {
     this.changed();
   }
 
-  /** Le fournisseur limite les images par requête : retenu pour les requêtes suivantes, jusqu'à la prochaine réévaluation. */
+  /** Le fournisseur limite les images par requête : retenu pour les requêtes suivantes, modifiable dans Réglages › Fournisseurs. */
   limitImages(id: Id, modelId: string, max: number): void {
     const row = this.db.get<ModelRow>('SELECT * FROM provider_models WHERE provider_id = ? AND model_id = ?', id, modelId);
     if (!row) return;

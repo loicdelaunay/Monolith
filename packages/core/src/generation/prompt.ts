@@ -293,9 +293,10 @@ export function countImages(messages: ChatMessage[]): number {
 /**
  * Refus du fournisseur pour trop d'images (vLLM : « At most 8 image(s) may be provided in one prompt »,
  * « too many images », « maximum of 5 images »…). Retourne la limite annoncée si elle est lisible.
+ * Toute erreur compte, 5xx comprises : passerelles et serveurs locaux renvoient souvent ce refus en 500.
  */
 export function imageLimitRejection(status: number | null, text: string): { limit: number | null } | null {
-  if (status !== null && ![400, 413, 422].includes(status)) return null;
+  if (status !== null && status < 400) return null;
   const m = /(?:at most|up to|maximum(?: of)?|max(?:imum)?(?: number of)?(?: images?)?(?: is)?:?|no more than|limit(?:ed)? (?:of|to))\s*(\d+)\s*(?:images?|image\(s\))/i.exec(text);
   if (m) return { limit: Number(m[1]) };
   return /too many images|images? (?:limit|count) exceeded|exceeds? the (?:maximum|limit) (?:number )?of images/i.test(text) ? { limit: null } : null;

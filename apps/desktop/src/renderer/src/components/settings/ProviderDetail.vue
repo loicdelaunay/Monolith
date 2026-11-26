@@ -245,6 +245,7 @@ async function fetchCatalog() {
           reasoningLevels: user ? existing.capabilities.reasoningLevels : c.capabilities.reasoningLevels,
           reasoningSource: user ? 'user' : c.capabilities.reasoningSource,
           rejectedLevels: [],
+          ...(existing.capabilities.maxImages != null ? { maxImages: existing.capabilities.maxImages } : {}),
         };
         existing.source = 'catalog';
       } else {
@@ -485,6 +486,7 @@ function removeModel(m: ProviderModel) {
                 <span v-if="m.contextWindow" class="mh-hint">{{ t('settings.providers.contextWindow') }} {{ formatTokens(m.contextWindow) }}</span>
                 <span v-if="m.capabilities.reasoningLevels.length" class="mh-hint" :title="t(`settings.providers.reasoningSources.${m.capabilities.reasoningSource}`)"><i class="pi pi-sparkles" /> {{ m.capabilities.reasoningLevels.length }}</span>
                 <span v-if="m.capabilities.rejectedLevels.length" class="rejected" :title="t('settings.providers.rejectedHint')"><i class="pi pi-ban" /> {{ m.capabilities.rejectedLevels.length }}</span>
+                <span v-if="m.capabilities.maxImages != null" class="mh-hint" :title="t('settings.providers.maxImages')"><i class="pi pi-images" /> ≤ {{ m.capabilities.maxImages }}</span>
                 <span class="src" :class="m.source">{{ m.source === 'catalog' ? t('settings.providers.catalog') : t('settings.providers.manual') }}</span>
                 <button type="button" class="mh-icon-btn" :aria-expanded="expandedModel === m.id" :aria-label="t('settings.providers.capabilities')" v-tooltip.top="t('settings.providers.capabilities')" @click="expandedModel = expandedModel === m.id ? null : m.id"><i class="pi pi-sliders-h" /></button>
                 <button v-if="m.source === 'manual'" type="button" class="mh-icon-btn" :aria-label="t('common.remove')" @click="removeModel(m)"><i class="pi pi-times" /></button>
@@ -500,7 +502,12 @@ function removeModel(m: ProviderModel) {
                 </div>
                 <div class="mh-field">
                   <label :for="`vi-${m.id}`">{{ t('settings.providers.vision') }}</label>
-                  <Select :input-id="`vi-${m.id}`" v-model="m.capabilities.vision" :options="visionOptions" option-label="label" option-value="value" />
+                  <Select :input-id="`vi-${m.id}`" v-model="m.capabilities.vision" :options="visionOptions" option-label="label" option-value="value" :placeholder="t('settings.providers.visionUnknown')" />
+                </div>
+                <div class="mh-field">
+                  <label :for="`mi-${m.id}`">{{ t('settings.providers.maxImages') }}</label>
+                  <InputNumber :input-id="`mi-${m.id}`" v-model="m.capabilities.maxImages" :min="0" :max="200" :placeholder="t('settings.providers.maxImagesDefault')" :disabled="m.capabilities.vision === false" />
+                  <p class="mh-hint">{{ t('settings.providers.maxImagesHint') }}</p>
                 </div>
                 <div class="mh-field wide">
                   <label :for="`rl-${m.id}`">{{ t('settings.providers.reasoningLevels') }}</label>

@@ -21,14 +21,23 @@ function reply(text: string): string {
   return out + 'data: [DONE]\n\n';
 }
 
-/** Fournisseur fictif ; `limit` imite vLLM (limit_mm_per_prompt), qui refuse au-delà. */
-async function setup(limit: number | null) {
+/**
+ * Fournisseur fictif ; `limit` imite vLLM (limit_mm_per_prompt), qui refuse au-delà. `failure` : refus
+ * annoncé en 400 (vLLM), annoncé en 500 (passerelle) ou erreur 500 muette (serveur local qui plante) ;
+ * `always500` : le serveur échoue quoi qu'on lui envoie dès qu'il y a une image.
+ */
+async function setup(limit: number | null, failure: 'announced' | 'announced500' | 'opaque500' | 'always500' = 'announced') {
   const bodies: Body[] = [];
   const mock = await mockProvider(async (_req: IncomingMessage, raw, res: ServerResponse) => {
     const body = JSON.parse(raw || '{}') as Body;
     bodies.push(body);
+    if (failure === 'always500' && images(body) > 0 && bodies.length > 1) {
+      res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { message: 'Internal Server Error' } }));
+      return;
+    }
     if (limit !== null && images(body) > limit) {
-      res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ object: 'error', message: `At most ${limit} image(s) may be provided in one prompt.`, type: 'BadRequestError', param: null, code: 400 }));
+      if (failure === 'opaque500') res.writeHead(500, { 'content-type': 'text/plain' }).end('Internal Server Error');
+      else res.writeHead(failure === 'announced500' ? 500 : 400, { 'content-type': 'application/json' }).end(JSON.stringify({ object: 'error', message: `At most ${limit} image(s) may be provided in one prompt.`, type: 'BadRequestError', param: null, code: 400 }));
       return;
     }
     return writeFragmented(res, reply('Vu.'), 50);
@@ -39,7 +48,7 @@ async function setup(limit: number | null) {
   const h = t.harness;
   const p = await h.call('providers.create', { name: 'Mock', kind: 'openai-compatible', preset: 'custom', baseUrl: mock.url });
   await h.call('providers.setModels', { id: p.id, models: [{ id: 'm', label: 'm', enabled: true, contextWindow: null, maxOutputTokens: null, source: 'manual', capabilities: { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: true, tools: null } }] });
-  await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'm', autoNaming: false, autoCompact: false } });
+  await h.call('settings.update', { chat: { defaultProviderId: p.id, defaultModel: 'm', autoNaming: false, autoCompact: false }, network: { retryMaxAttempts: 2, retryBaseDelayMs: 100 } });
   const c = await h.call('conversations.create', { projectId: null });
   const img = await h.call('attachments.upload', { name: 'photo.png', mime: 'image/png', dataBase64: PNG.toString('base64') });
   const send = async (text: string, count = 1) => {
@@ -120,7 +129,67 @@ describe('refus pour trop d’images', () => {
     expect(imageLimitRejection(400, 'Too many images provided. This model supports up to 5 images')).toEqual({ limit: 5 });
     expect(imageLimitRejection(400, 'A maximum of 20 images is allowed')).toEqual({ limit: 20 });
     expect(imageLimitRejection(400, 'too many images in request')).toEqual({ limit: null });
-    expect(imageLimitRejection(500, 'At most 8 image(s) may be provided in one prompt.')).toBeNull();
+    expect(imageLimitRejection(500, 'At most 8 image(s) may be provided in one prompt.')).toEqual({ limit: 8 });
+    expect(imageLimitRejection(502, 'upstream: too many images in request')).toEqual({ limit: null });
     expect(imageLimitRejection(400, 'Invalid image format')).toBeNull();
+    expect(imageLimitRejection(429, 'Too many requests, retry later')).toBeNull();
+    expect(imageLimitRejection(500, 'Internal Server Error')).toBeNull();
+  });
+});
+
+describe('erreur 500 au-delà de quelques images', () => {
+  const limitOf = async (h: Awaited<ReturnType<typeof setup>>['h'], id: number) => (await h.call('providers.list')).find((x) => x.id === id)!.models[0]!.capabilities.maxImages;
+  const codes = (m: Message) => m.parts.filter((x) => x.type === 'notice').map((x) => (x as { code: string }).code);
+
+  it('refus annoncé en 500 par une passerelle : limite lue et retenue', async () => {
+    const { h, c, p, send } = await setup(3, 'announced500');
+    for (let i = 1; i <= 5; i++) await send(`image ${i}`);
+    const replies = (await h.call('messages.list', { conversationId: c.id })).filter((m) => m.role === 'assistant');
+    expect(replies.map((m) => m.status)).toEqual(Array(5).fill('complete'));
+    expect(await limitOf(h, p.id)).toBe(3);
+  });
+
+  it('erreur 500 muette : nouvel essai avec la moitié des images, limite retenue, conversation débloquée', async () => {
+    const { h, c, p, bodies, send } = await setup(5, 'opaque500');
+    for (let i = 1; i <= 8; i++) await send(`image ${i}`);
+    const replies = (await h.call('messages.list', { conversationId: c.id })).filter((m) => m.role === 'assistant');
+    expect(replies.map((m) => m.status)).toEqual(Array(8).fill('complete'));
+    // 6e message : deux tentatives à 6 images, puis l'essai à 3 réussit ; ensuite 3 images au plus.
+    expect(bodies.filter((b) => images(b) > 5)).toHaveLength(2);
+    expect(codes(replies[5]!)).toEqual(['images_probe', 'images_limit']);
+    expect(await limitOf(h, p.id)).toBe(3);
+    expect(images(bodies.at(-1)!)).toBe(3);
+    expect(codes(replies[7]!)).toEqual([]);
+  });
+
+  it('même erreur avec moins d’images : rien n’est retenu, l’erreur le précise', async () => {
+    const { h, c, p, bodies, send } = await setup(null, 'always500');
+    await send('une image');
+    await send('deux images');
+    const reply = (await h.call('messages.list', { conversationId: c.id })).at(-1)!;
+    expect(reply.status).toBe('error');
+    expect(reply.error?.message).toContain('même erreur avec 1 images au lieu de 2');
+    expect(codes(reply)).toEqual(['images_probe']);
+    expect(await limitOf(h, p.id)).toBeUndefined();
+    expect(bodies.map(images)).toEqual([1, 2, 2, 1]);
+  });
+
+  it('une seule image : pas d’essai réduit', async () => {
+    const { h, c, bodies, send } = await setup(0, 'opaque500');
+    await send('une image');
+    const reply = (await h.call('messages.list', { conversationId: c.id })).at(-1)!;
+    expect(reply.status).toBe('error');
+    expect(codes(reply)).toEqual([]);
+    expect(bodies).toHaveLength(2);
+  });
+
+  it('limite gardée à la réévaluation des modèles, modifiable et effaçable', async () => {
+    const { h, p } = await setup(null);
+    const model = (await h.call('providers.list')).find((x) => x.id === p.id)!.models[0]!;
+    await h.call('providers.setModels', { id: p.id, models: [{ ...model, capabilities: { ...model.capabilities, maxImages: 4 } }] });
+    await h.call('providers.refreshModels', { id: p.id });
+    expect(await limitOf(h, p.id)).toBe(4);
+    await h.call('providers.setModels', { id: p.id, models: [{ ...model, capabilities: { ...model.capabilities, maxImages: null } }] });
+    expect(await limitOf(h, p.id)).toBeUndefined();
   });
 });

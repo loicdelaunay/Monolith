@@ -781,6 +781,8 @@ export class GenerationRunner {
       }
       const roundStart = parts.length;
       let imagesRetried = false;
+      /** Essai avec moins d'images après une erreur serveur muette : retenu seulement s'il réussit. */
+      let imageProbe: { max: number; sent: number; caps: JobContext['caps'] } | null = null;
       const calls: ToolCallRequest[] = [];
       let apiUsage: Extract<StreamEvent, { type: 'usage' }> | null = null;
       let finish: Extract<StreamEvent, { type: 'finish' }> | null = null;
@@ -876,6 +878,25 @@ export class GenerationRunner {
           }
           // Les outils déjà exécutés ne sont jamais rejoués : chaque tour repart de leurs résultats enregistrés.
           const decision = decideRetry(e, attempt, ctx.policy, outputStarted || calls.length > 0);
+          // Erreur serveur sans explication, nouvelles tentatives épuisées, plusieurs images envoyées : serveurs
+          // locaux et passerelles plantent souvent ainsi au-delà de leur limite d'images ou de contexte.
+          // Dernier essai avec la moitié des images, les plus récentes.
+          if (!decision.retry && !imagesRetried && !outputStarted && sentImages >= 2 && e instanceof ProviderError && e.status !== null && e.status >= 500) {
+            imagesRetried = true;
+            const max = Math.floor(sentImages / 2);
+            imageProbe = { max, sent: sentImages, caps: ctx.caps };
+            ctx.caps = { ...(ctx.caps ?? { reasoningLevels: [], reasoningSource: 'unknown', rejectedLevels: [], vision: null, tools: null }), maxImages: max };
+            const rebuilt = this.buildRequest(ctx, messageId, parts);
+            request = { ...request, ...rebuilt.request, extraBody: request.extraBody };
+            lastRequest = request;
+            notice('info', 'images_probe', `Erreur ${e.status} du serveur avec ${sentImages} images : nouvel essai avec les ${max} plus récentes.`);
+            if (rebuilt.limitedImages && !limitedNoticeShown) {
+              limitedNoticeShown = true;
+              notice('warning', 'images_limited', `${rebuilt.limitedImages} image(s) de votre message non transmise(s) pour cet essai.`);
+            }
+            attempt--;
+            continue;
+          }
           if (decision.retry) {
             logger.warn('generation', 'Nouvelle tentative', { conversationId: job.conversationId, attempt, reason: decision.reason, delayMs: decision.delayMs });
             Object.assign(job.state, { status: 'retrying', retryReason: decision.reason, retryInMs: decision.delayMs });
@@ -909,6 +930,16 @@ export class GenerationRunner {
       }
 
       clearDrafts();
+      if (imageProbe) {
+        if (roundStatus === 'ok') {
+          providers.limitImages(ctx.provider.id, ctx.snapshot.model, imageProbe.max);
+          notice('info', 'images_limit', `Réponse obtenue avec ${imageProbe.max} images : « ${ctx.snapshot.model} » en recevra désormais au plus ${imageProbe.max} par requête (modifiable dans Réglages › Fournisseurs).`);
+        } else {
+          // Même échec avec moins d'images : la cause est ailleurs, rien n'est retenu.
+          ctx.caps = imageProbe.caps;
+          if (error) error.message = `${error.message} (même erreur avec ${imageProbe.max} images au lieu de ${imageProbe.sent})`;
+        }
+      }
       // Consommation du tour (une ligne par requête).
       const roundText = parts.slice(roundStart).filter((p) => p.type === 'text' || p.type === 'reasoning').map((p) => (p as { text: string }).text).join('');
       const roundUsage = apiUsage

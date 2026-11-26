@@ -2,6 +2,11 @@
 
 Toutes les modifications visibles sont listées ici, de la plus récente à la plus ancienne. Versions alignées pour l'interface desktop, le CLI et le serveur.
 
+## Non publié
+
+- **Erreur 500 au-delà de quelques images** (serveurs locaux, passerelles) : quand le serveur échoue sans explication alors que plusieurs images partent, Monolith refait un dernier essai avec la moitié des images, les plus récentes. Si la réponse arrive, la limite est retenue pour ce modèle ; sinon l'erreur s'affiche en précisant que le nombre d'images n'y changeait rien. Un refus qui annonce sa limite (« At most 5 images ») est aussi reconnu quand il arrive en erreur 500.
+- **Images max par requête** : visible et modifiable pour chaque modèle dans Réglages › Fournisseurs › Capacités du modèle. Elle n'est plus oubliée quand les modèles sont réévalués.
+
 ## 3.0.0-alpha.37 — 2026-11-05
 
 - **Code visible pendant son écriture** : la carte « Bloc interactif en cours d'écriture » se déplie d'un clic pour suivre le code en direct, avec son titre et son nombre de lignes. Une carte du même genre montre les fichiers que le modèle écrit avec `write_file`, `edit_file` et `apply_patch`. La vue suit la fin du code, sauf si vous remontez le lire, et le choix est gardé jusqu'à la fermeture de l'application. Pour les fichiers, l'aperçu dépend du fournisseur : il fonctionne avec les connexions compatibles OpenAI, Gemini livrant les appels d'outils d'un seul bloc.
